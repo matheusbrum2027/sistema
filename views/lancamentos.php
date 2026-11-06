@@ -40,7 +40,7 @@ view_head('<a class="btn btn-sm" href="' . e(href('fin-dashboard')) . '">Dashboa
 </form>
 <section class="card">
   <div class="table-wrap">
-    <table>
+    <table class="table-fixa">
       <thead><tr><th>Data</th><th>Linha</th><th>Tipo</th><th>Origem</th><th>Categoria</th><th>Valor</th><th>Estado</th><th>Meio</th><th>Baixa</th><th>Ações</th></tr></thead>
       <tbody>
         <?php foreach ($pg['rows'] as $row): ?>

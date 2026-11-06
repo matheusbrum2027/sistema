@@ -13,12 +13,48 @@ require_once __DIR__ . '/charts.php';
 require_once __DIR__ . '/metrics.php';
 require_once __DIR__ . '/nav.php';
 require_once __DIR__ . '/uazapi.php';
+require_once __DIR__ . '/chat.php';
 require_once __DIR__ . '/ops.php';
+require_once __DIR__ . '/push.php';
 require_once __DIR__ . '/reserva_doc.php';
+require_once __DIR__ . '/pdf_simples.php';
+require_once __DIR__ . '/atendimento.php';
 require_once __DIR__ . '/captcha.php';
 require_once __DIR__ . '/supabase.php';
+require_once __DIR__ . '/store.php';
+require_once __DIR__ . '/integridade.php';
+require_once __DIR__ . '/sheets.php';
 
 date_default_timezone_set('America/Sao_Paulo');
+
+function perf_add(string $key, float $milliseconds, int $bytes = 0): void
+{
+    $GLOBALS['fln_perf'][$key] = ($GLOBALS['fln_perf'][$key] ?? 0.0) + $milliseconds;
+    if ($bytes > 0) {
+        $GLOBALS['fln_perf'][$key . '_bytes'] = ($GLOBALS['fln_perf'][$key . '_bytes'] ?? 0) + $bytes;
+    }
+}
+
+function perf_count(string $key): void
+{
+    $GLOBALS['fln_perf'][$key] = ($GLOBALS['fln_perf'][$key] ?? 0) + 1;
+}
+
+function perf_enabled(): bool
+{
+    return env_valor('FLN_PERF_LOG', '0') === '1';
+}
+
+function db_request_cache(?array $nova = null, bool $limpar = false): ?array
+{
+    static $db = null;
+    if ($limpar) {
+        $db = null;
+    } elseif ($nova !== null) {
+        $db = $nova;
+    }
+    return $db;
+}
 
 function e(mixed $value): string
 {
@@ -109,13 +145,45 @@ function current_url(): string
     return 'index.php' . ($query !== '' ? '?' . $query : '');
 }
 
+/** URL segura para voltar após POST (nunca aponta para fragmento de diálogo). */
+function csrf_back_url(): string
+{
+    if ((string) ($_GET['fragment'] ?? '') === 'reserva') {
+        $id = (int) ($_GET['id'] ?? 0);
+        if ((string) ($_GET['contexto'] ?? '') === 'reservas') {
+            return href('reservas');
+        }
+        return $id > 0 ? href('agenda', ['ver' => $id]) : href('agenda');
+    }
+    $url = current_url();
+    $q = [];
+    parse_str((string) (parse_url($url, PHP_URL_QUERY) ?? ''), $q);
+    if (isset($q['fragment'])) {
+        unset($q['fragment']);
+        $page = (string) ($q['p'] ?? 'agenda');
+        unset($q['p']);
+        return href($page, $q);
+    }
+    return $url;
+}
+
 function safe_back(string $fallback): string
 {
     $back = (string) ($_POST['back'] ?? '');
-    if (preg_match('/^index\.php(\?[A-Za-z0-9&=_.%\-]+)?$/', $back)) {
-        return $back;
+    if (!preg_match('/^index\.php(\?[A-Za-z0-9&=_.%\-]+)?$/', $back)) {
+        return $fallback;
     }
-    return $fallback;
+    $q = [];
+    parse_str((string) (parse_url($back, PHP_URL_QUERY) ?? ''), $q);
+    // Fragmento de diálogo não é página completa — evita tela branca após Comunicar etc.
+    if (($q['fragment'] ?? '') !== '') {
+        $id = (int) ($q['id'] ?? 0);
+        if (($q['contexto'] ?? '') === 'reservas') {
+            return href('reservas');
+        }
+        return $id > 0 ? href('agenda', ['ver' => $id]) : href('agenda');
+    }
+    return $back;
 }
 
 function redirect(string $url): never
@@ -131,12 +199,41 @@ function flash(string $message, string $type = 'ok'): void
 
 function render_flash(): string
 {
-    if (empty($_SESSION['flash']) || !is_array($_SESSION['flash'])) {
+    if (isset($GLOBALS['fln_flash']) && is_array($GLOBALS['fln_flash'])) {
+        [$message, $type] = $GLOBALS['fln_flash'];
+        unset($GLOBALS['fln_flash']);
+    } elseif (!empty($_SESSION['flash']) && is_array($_SESSION['flash'])) {
+        [$message, $type] = $_SESSION['flash'];
+        unset($_SESSION['flash']);
+    } else {
         return '';
     }
-    [$message, $type] = $_SESSION['flash'];
-    unset($_SESSION['flash']);
+    if ((string) $message === 'O código de verificação está incorreto ou expirou.') {
+        $estado = db_request_cache();
+        if (!is_array($estado) || !verificacao_2fa_ativa($estado)) {
+            return '';
+        }
+    }
     return '<div class="flash flash-' . e($type) . '" role="status">' . e((string) $message) . '</div>';
+}
+
+/** Grava na sessão o que a tela GET ainda precisa antes de liberar o lock. */
+function sessao_preparar_get(string $pagina, array $db): void
+{
+    csrf_token();
+    if ($pagina === 'entrar') {
+        // Bloqueio antigo de tentativas não pode travar a tela para sempre.
+        if ((int) ($_SESSION['login_bloqueio'] ?? 0) > 0 && (int) $_SESSION['login_bloqueio'] <= time()) {
+            unset($_SESSION['login_bloqueio'], $_SESSION['login_falhas']);
+        }
+        if (verificacao_2fa_ativa($db)) {
+            captcha_garantir();
+        }
+    }
+    if (!empty($_SESSION['flash']) && is_array($_SESSION['flash'])) {
+        $GLOBALS['fln_flash'] = $_SESSION['flash'];
+        unset($_SESSION['flash']);
+    }
 }
 
 function csrf_token(): string
@@ -158,7 +255,7 @@ function csrf_fields(string $action): string
 {
     return '<input type="hidden" name="csrf" value="' . e(csrf_token()) . '">'
         . '<input type="hidden" name="action" value="' . e($action) . '">'
-        . '<input type="hidden" name="back" value="' . e(current_url()) . '">';
+        . '<input type="hidden" name="back" value="' . e(csrf_back_url()) . '">';
 }
 
 function sel(mixed $a, mixed $b): string
@@ -252,6 +349,10 @@ function unique_usuario(array $db, string $base, int $ignoreId): string
             continue;
         }
         $taken[mb_strtolower((string) $m['usuario'])] = true;
+        $email = mb_strtolower(trim((string) ($m['email'] ?? '')));
+        if ($email !== '') {
+            $taken[$email] = true;
+        }
     }
     $candidate = $base !== '' ? $base : 'motorista';
     $n = 2;
@@ -262,31 +363,99 @@ function unique_usuario(array $db, string $base, int $ignoreId): string
     return $candidate;
 }
 
+function email_motorista_em_uso(array $db, string $email, int $ignoreId = 0): bool
+{
+    $email = mb_strtolower(trim($email));
+    if ($email === '') {
+        return false;
+    }
+    foreach ($db['motoristas'] as $m) {
+        if ((int) ($m['id'] ?? 0) === $ignoreId) {
+            continue;
+        }
+        if (mb_strtolower(trim((string) ($m['email'] ?? ''))) === $email) {
+            return true;
+        }
+        if (mb_strtolower(trim((string) ($m['usuario'] ?? ''))) === $email) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/** Token de senha do motorista — o admin vê só uma vez (no flash de criação/reset). */
+function token_senha_motorista(): string
+{
+    $alfa = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    $out = '';
+    $max = strlen($alfa) - 1;
+    for ($i = 0; $i < 10; $i++) {
+        $out .= $alfa[random_int(0, $max)];
+    }
+    return $out;
+}
+
 function credenciais_motorista(array &$db, array $mot, string $usuario = '', string $senha = ''): array
 {
-    $usuario = slug_usuario($usuario !== '' ? $usuario : (string) $mot['nome']);
-    $mot['usuario'] = unique_usuario($db, $usuario, (int) ($mot['id'] ?? 0));
+    $email = mb_strtolower(trim((string) ($mot['email'] ?? '')));
+    if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $mot['email'] = $email;
+        // Login do portal = e-mail cadastrado.
+        $mot['usuario'] = $email;
+    } else {
+        $base = $usuario !== '' ? $usuario : (string) ($mot['nome'] ?? 'motorista');
+        if (str_contains($base, '@') && filter_var(mb_strtolower(trim($base)), FILTER_VALIDATE_EMAIL)) {
+            $mot['usuario'] = mb_strtolower(trim($base));
+            $mot['email'] = $mot['usuario'];
+        } else {
+            $mot['usuario'] = unique_usuario($db, slug_usuario($base), (int) ($mot['id'] ?? 0));
+        }
+    }
     if ($senha === '') {
-        $senha = 'floripa' . (string) random_int(1000, 9999);
+        $senha = token_senha_motorista();
     }
     $mot['senha'] = $senha;
+    if (!preg_match('/^[a-f0-9]{32}$/', strtolower((string) ($mot['acesso'] ?? '')))) {
+        $mot['acesso'] = bin2hex(random_bytes(16));
+    }
     return $mot;
 }
 
 function normalize_db(array $db): array
 {
+    $inicio = microtime(true);
     $legivel = isset($db['transfers'], $db['settings'], $db['motoristas'])
         && is_array($db['transfers'])
         && is_array($db['settings'])
         && is_array($db['motoristas']);
     if (!$legivel) {
-        return seed_data();
+        $normalizado = seed_data();
+        perf_add('normalize_ms', (microtime(true) - $inicio) * 1000);
+        return $normalizado;
     }
     $db['schema'] = max(2, (int) ($db['schema'] ?? 0));
-    $seed = seed_data();
-    foreach ($seed['settings'] as $key => $value) {
-        if (!array_key_exists($key, $db['settings'] ?? [])) {
-            $db['settings'][$key] = $value;
+    $tplIds = array_column($db['templates'] ?? [], 'id');
+    $autoIds = array_column($db['automacoes'] ?? [], 'id');
+    $precisaSeed = !array_key_exists('contrato_modelo', $db['settings'])
+        || !array_key_exists('wa_status', $db['settings'])
+        || array_diff(['confirmacao', 'lembrete', 'caminho', 'mot_d1', 'mot_dia'], $tplIds) !== []
+        || array_diff(['confirmacao', 'lembrete', 'caminho', 'resumo', 'whatsapp_criacao', 'whatsapp_d1', 'whatsapp_dia'], $autoIds) !== [];
+    if ($precisaSeed) {
+        $seed = seed_data();
+        foreach ($seed['settings'] as $key => $value) {
+            if (!array_key_exists($key, $db['settings'])) {
+                $db['settings'][$key] = $value;
+            }
+        }
+        foreach ($seed['templates'] as $tpl) {
+            if (!in_array($tpl['id'], $tplIds, true)) {
+                $db['templates'][] = $tpl;
+            }
+        }
+        foreach ($seed['automacoes'] as $row) {
+            if (!in_array($row['id'], $autoIds, true)) {
+                $db['automacoes'][] = $row;
+            }
         }
     }
     if (($db['settings']['nome'] ?? '') === 'E-Transporte.pro') {
@@ -304,33 +473,115 @@ function normalize_db(array $db): array
     if (!isset($db['mensagens']) || !is_array($db['mensagens'])) {
         $db['mensagens'] = [];
     }
-    $tplIds = array_column($db['templates'] ?? [], 'id');
-    foreach ($seed['templates'] as $tpl) {
-        if (!in_array($tpl['id'], $tplIds, true)) {
-            $db['templates'][] = $tpl;
+    $GLOBALS['fln_acesso_novo'] = false;
+    $GLOBALS['fln_vapid_novo'] = false;
+    $GLOBALS['fln_chat_novo'] = false;
+    $GLOBALS['fln_lixo_novo'] = false;
+    foreach ([
+        'notif_reserva' => true,
+        'notif_solicitacao' => true,
+        'notif_cancelamento' => true,
+        'notif_status' => false,
+        'notif_som' => true,
+        'notif_vibrar' => true,
+        'chat_ignorar_grupos' => true,
+        'chat_ia_ativa' => false,
+        'chat_ia_parar' => 'parar',
+        'chat_ia_parar_min' => 30,
+        'chat_ia_pausar_manual' => 5,
+        'chat_openai_key' => '',
+        'atendente_nome' => 'Matheus Brum',
+        'atendente_fone' => '(48) 99967-2557',
+        'dono_nome' => 'Matheus Brum',
+        'dono_email' => 'matheusbrumds@gmail.com',
+        'dono_telefone' => '(48) 99967-2557',
+    ] as $chaveNotif => $valorNotif) {
+        if (!array_key_exists($chaveNotif, $db['settings'])) {
+            $db['settings'][$chaveNotif] = $valorNotif;
         }
     }
-    $autoIds = array_column($db['automacoes'] ?? [], 'id');
-    foreach ($seed['automacoes'] as $row) {
-        if (!in_array($row['id'], $autoIds, true)) {
-            $db['automacoes'][] = $row;
-        }
+    if (function_exists('atendimento_store_garantir')) {
+        atendimento_store_garantir($db);
     }
+    if (!isset($db['push']) || !is_array($db['push'])) {
+        $db['push'] = [];
+    }
+    if (!isset($db['avisos']) || !is_array($db['avisos'])) {
+        $db['avisos'] = [];
+    }
+    chat_store_garantir($db);
+    lixo_reservas_garantir($db);
+    lixo_reservas_expirar($db);
+    if (!isset($db['seq']) || !is_array($db['seq'])) {
+        $db['seq'] = [];
+    }
+    if (!isset($db['seq']['aviso'])) {
+        $db['seq']['aviso'] = 1;
+    }
+    push_vapid_garantir($db);
     foreach ($db['motoristas'] as &$mot) {
         if (empty($mot['usuario'])) {
             $mot = credenciais_motorista($db, $mot, '', (string) ($mot['senha'] ?? ''));
+            $GLOBALS['fln_acesso_novo'] = true;
+        } elseif (!preg_match('/^[a-f0-9]{32}$/', strtolower((string) ($mot['acesso'] ?? '')))) {
+            $mot['acesso'] = bin2hex(random_bytes(16));
+            $GLOBALS['fln_acesso_novo'] = true;
         }
     }
     unset($mot);
+    perf_add('normalize_ms', (microtime(true) - $inicio) * 1000);
     return $db;
 }
 
-function load_db(): array
+function persistir_acesso_motorista(array $db): array
 {
+    if (empty($GLOBALS['fln_acesso_novo']) && empty($GLOBALS['fln_vapid_novo']) && empty($GLOBALS['fln_chat_novo']) && empty($GLOBALS['fln_lixo_novo'])) {
+        return $db;
+    }
+    $GLOBALS['fln_acesso_novo'] = false;
+    $GLOBALS['fln_vapid_novo'] = false;
+    $GLOBALS['fln_chat_novo'] = false;
+    $GLOBALS['fln_lixo_novo'] = false;
+    db_request_cache($db);
+    try {
+        save_db($db, 'acesso_motorista');
+    } catch (Throwable $e) {
+        error_log('fln acesso: ' . $e->getMessage());
+    }
+    return $db;
+}
+
+function load_db(bool $fresh = false): array
+{
+    if (!$fresh && ($cache = db_request_cache()) !== null) {
+        perf_count('db_cache_hits');
+        return $cache;
+    }
+    $inicio = microtime(true);
+    if (store_remoto()) {
+        $dados = store_ler();
+        if ($dados === null) {
+            $inicial = normalize_db(seed_data());
+            try {
+                store_gravar($inicial, 'inicializar');
+            } catch (BancoConflito) {
+                return load_db();
+            }
+            db_request_cache($inicial);
+            perf_add('load_db_ms', (microtime(true) - $inicio) * 1000);
+            return $inicial;
+        }
+        $normalizado = persistir_acesso_motorista(normalize_db($dados));
+        db_request_cache($normalizado);
+        perf_add('load_db_ms', (microtime(true) - $inicio) * 1000);
+        return $normalizado;
+    }
     if (!isset($_SESSION['db']) || !is_array($_SESSION['db'])) {
         $_SESSION['db'] = seed_data();
     }
-    $_SESSION['db'] = normalize_db($_SESSION['db']);
+    $_SESSION['db'] = persistir_acesso_motorista(normalize_db($_SESSION['db']));
+    db_request_cache($_SESSION['db']);
+    perf_add('load_db_ms', (microtime(true) - $inicio) * 1000);
     return $_SESSION['db'];
 }
 
@@ -348,24 +599,51 @@ function wa_number(string $phone): string
 
 function uazapi_send_text(string $base, string $token, string $number, string $text, int $timeout = 20): array
 {
+    return uazapi_send_json($base, $token, '/send/text', [
+        'number' => $number,
+        'text' => $text,
+    ], $timeout, $text === '');
+}
+
+function uazapi_send_document(string $base, string $token, string $number, string $pdfBytes, string $docName, string $caption = '', int $timeout = 25): array
+{
+    if ($pdfBytes === '') {
+        return [false, 'PDF vazio.'];
+    }
+    $file = 'data:application/pdf;base64,' . base64_encode($pdfBytes);
+    return uazapi_send_json($base, $token, '/send/media', [
+        'number' => $number,
+        'type' => 'document',
+        'file' => $file,
+        'docName' => $docName !== '' ? $docName : 'reserva.pdf',
+        'mimetype' => 'application/pdf',
+        'text' => $caption,
+    ], $timeout, false);
+}
+
+function uazapi_send_json(string $base, string $token, string $path, array $payload, int $timeout = 20, bool $bloquearTextoVazio = false): array
+{
     $base = rtrim(trim($base), '/');
     if (!preg_match('#^https://#i', $base)) {
         return [false, 'Informe a URL da instância começando com https://'];
     }
-    if ($token === '' || $number === '' || $text === '') {
-        return [false, 'Token, número ou texto em branco.'];
+    if ($token === '' || ($payload['number'] ?? '') === '') {
+        return [false, 'Token ou número em branco.'];
+    }
+    if ($bloquearTextoVazio && trim((string) ($payload['text'] ?? '')) === '') {
+        return [false, 'Texto em branco.'];
     }
     if (!function_exists('curl_init')) {
         return [false, 'O PHP deste computador não tem cURL.'];
     }
-    $ch = curl_init($base . '/send/text');
+    $ch = curl_init($base . $path);
     curl_setopt_array($ch, [
         CURLOPT_POST => true,
         CURLOPT_HTTPHEADER => ['Content-Type: application/json', 'Accept: application/json', 'token: ' . $token],
-        CURLOPT_POSTFIELDS => json_encode(['number' => $number, 'text' => $text], JSON_UNESCAPED_UNICODE),
+        CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_UNICODE),
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_TIMEOUT => max(2, $timeout),
-        CURLOPT_CONNECTTIMEOUT => min(3, max(1, $timeout)),
+        CURLOPT_CONNECTTIMEOUT => min(5, max(1, $timeout)),
     ]);
     uazapi_curl_apply_ssl($ch);
     $body = curl_exec($ch);
@@ -385,95 +663,487 @@ function uazapi_send_text(string $base, string $token, string $number, string $t
     return [true, 'Enviado'];
 }
 
-function dispatch_whatsapp(array &$db, bool $manual): bool
+function whatsapp_pronto(array $db): bool
 {
-    $changed = false;
-    $inicio = microtime(true);
-    $limite = $manual ? 20.0 : 4.0;
+    return trim((string) ($db['settings']['uazapi_url'] ?? '')) !== ''
+        && trim((string) ($db['settings']['uazapi_token'] ?? '')) !== '';
+}
+
+function whatsapp_configurado(array $db): bool
+{
+    return !empty($db['settings']['whatsapp_ativo']) && whatsapp_pronto($db);
+}
+
+function whatsapp_fila(array $db, bool $manual): array
+{
     $now = new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo'));
     $hoje = $now->format('Y-m-d');
     $amanha = $now->modify('+1 day')->format('Y-m-d');
-    $cfgOk = !empty($db['settings']['whatsapp_ativo'])
-        && trim((string) ($db['settings']['uazapi_url'] ?? '')) !== ''
-        && trim((string) ($db['settings']['uazapi_token'] ?? '')) !== '';
+    $cfgOk = whatsapp_configurado($db);
     $alvos = [
         'd1' => [$amanha, 'whatsapp_d1', 'mot_d1', 'WhatsApp · 1 dia antes'],
         'dia' => [$hoje, 'whatsapp_dia', 'mot_dia', 'WhatsApp · no dia'],
     ];
+    $motPorId = [];
+    foreach ($db['motoristas'] as $row) {
+        $motPorId[(int) $row['id']] = $row;
+    }
+    $fila = [];
     foreach ($db['transfers'] as $trip) {
         if (!in_array((string) $trip['status'], ['pendente', 'reserva', 'andamento'], true)) {
             continue;
         }
-        $mid = (int) ($trip['motorista_id'] ?? 0);
-        if ($mid <= 0) {
-            continue;
-        }
-        $mot = null;
-        foreach ($db['motoristas'] as $row) {
-            if ((int) $row['id'] === $mid) {
-                $mot = $row;
-                break;
-            }
-        }
-        if ($mot === null) {
-            continue;
-        }
-        foreach ($alvos as $tipo => [$dataAlvo, $autoId, $tplId, $titulo]) {
-            if ((string) $trip['data'] !== $dataAlvo || !auto_on($db, $autoId)) {
-                continue;
-            }
-            $key = (int) $trip['id'] . '|' . $tipo;
-            $prev = $db['whatsapp_envios'][$key] ?? null;
-            if (is_array($prev) && !empty($prev['ok'])) {
-                continue;
-            }
-            if (!$manual && is_array($prev) && empty($prev['ok'])) {
-                $tentou = strtotime((string) ($prev['em'] ?? '')) ?: 0;
-                if ($tentou > 0 && (time() - $tentou) < 600) {
+        foreach (agenda_legs($trip) as $leg) {
+            foreach ($alvos as $tipo => $alvo) {
+                if ((string) $leg['data'] !== $alvo[0] || !auto_on($db, $alvo[1]) || ($tipo === 'dia' && !empty($leg['passou']))) {
                     continue;
                 }
-            }
-            $texto = apply_template((string) (template_text($db, $tplId)), $trip, $db);
-            $numero = wa_number((string) ($mot['telefone'] ?? ''));
-            if (!$cfgOk) {
-                if (!$manual) {
-                    continue;
+                foreach (motoristas_do_trecho($trip, (string) $leg['kind']) as $mid) {
+                    if (isset($motPorId[$mid]) && (string) ($motPorId[$mid]['status'] ?? 'ativo') === 'ativo') {
+                        $fila[] = [$trip, $leg, $tipo, $motPorId[$mid]];
+                    }
                 }
-                $ok = false;
-                $detalhe = 'Configure a URL e o token da UAZAPI em Configurações.';
-            } elseif (strlen($numero) < 12) {
-                $ok = false;
-                $detalhe = 'Telefone do motorista incompleto.';
-            } elseif (!$manual && (microtime(true) - $inicio) >= $limite) {
-                return $changed;
-            } else {
-                [$ok, $detalhe] = uazapi_send_text(
-                    (string) $db['settings']['uazapi_url'],
-                    (string) $db['settings']['uazapi_token'],
-                    $numero,
-                    $texto,
-                    $manual ? 12 : 3
-                );
-            }
-            $db['whatsapp_envios'][$key] = ['ok' => $ok, 'em' => $now->format('Y-m-d H:i')];
-            $db['mensagens'][] = [
-                'id' => $db['seq']['mensagem']++,
-                'quando' => $now->format('Y-m-d H:i'),
-                'titulo' => $titulo,
-                'para' => $mot['nome'] . ' · ' . ($numero !== '' ? $numero : $mot['telefone']),
-                'texto' => $texto,
-                'viagem' => (int) $trip['id'],
-                'canal' => 'whatsapp',
-                'status' => $ok ? 'enviado' : 'falha',
-                'detalhe' => $detalhe,
-            ];
-            $changed = true;
-            if ($manual) {
-                $_SESSION['wa_resumo'][] = ($ok ? 'Enviado' : 'Falhou') . ' para ' . $mot['nome'] . ' (viagem #' . $trip['id'] . ', ' . ($tipo === 'd1' ? 'véspera' : 'no dia') . '). ' . $detalhe;
             }
         }
     }
-    return $changed;
+    $itens = [];
+    $jaHoje = whatsapp_cards_enviados_hoje($db);
+    foreach ($fila as [$trip, $leg, $tipo, $mot]) {
+        [, , $tplId, $titulo] = $alvos[$tipo];
+        $mid = (int) $mot['id'];
+        if (isset($jaHoje[(int) $trip['id'] . '|' . $mid . '|' . $leg['label']])) {
+            continue;
+        }
+        $key = (int) $trip['id'] . '|' . $tipo . '|' . $mid . '|' . $leg['data'] . ' ' . $leg['hora'] . '|' . $leg['label'];
+        $prev = $db['whatsapp_envios'][$key] ?? null;
+        if (is_array($prev) && !empty($prev['ok'])) {
+            continue;
+        }
+        if (is_array($prev)) {
+            $tentou = strtotime((string) ($prev['em'] ?? '')) ?: 0;
+            $esperar = !empty($prev['enviando']) ? 180 : 600;
+            if (!$manual && (!$cfgOk || ($tentou > 0 && (time() - $tentou) < $esperar))) {
+                continue;
+            }
+            if ($manual && !empty($prev['enviando']) && (time() - $tentou) < 180) {
+                continue;
+            }
+        }
+        $tripLeg = $trip;
+        $tripLeg['data'] = $leg['data'];
+        $tripLeg['hora'] = $leg['hora'];
+        if ($leg['kind'] === 'volta' && (string) ($trip['tipo'] ?? '') === 'ida_volta') {
+            $tripLeg['origem'] = (string) $trip['destino'];
+            $tripLeg['destino'] = (string) $trip['origem'];
+        }
+        $tripLeg['motorista_id'] = $mid;
+        $tripLeg['esconder_valores'] = true;
+        $itens[$key] = [
+            'key' => $key,
+            'tipo' => $tipo,
+            'papel' => 'motorista',
+            'titulo' => $titulo,
+            'viagem' => (int) $trip['id'],
+            'trecho' => (string) $leg['label'],
+            'motorista' => (string) $mot['nome'],
+            'nome' => (string) $mot['nome'],
+            'telefone' => (string) ($mot['telefone'] ?? ''),
+            'numero' => wa_number((string) ($mot['telefone'] ?? '')),
+            'texto' => reserva_texto_motorista($db, $tripLeg, (string) $leg['label'], (string) $mot['nome']),
+            'pdf' => true,
+            'pdf_nome' => 'reserva-' . (int) $trip['id'] . '-' . preg_replace('/[^A-Za-z0-9_-]+/', '', (string) $leg['label']) . '.pdf',
+            'trip_leg' => $tripLeg,
+        ];
+    }
+    return array_values($itens);
+}
+
+function whatsapp_enviar(array &$db, array $item, int $timeout): array
+{
+    if (!whatsapp_configurado($db)) {
+        return [false, 'WhatsApp não enviado: configure a URL e o token da UAZAPI em Configurações e ligue o envio.'];
+    }
+    if (strlen($item['numero']) < 12) {
+        return [false, 'Telefone do motorista incompleto.'];
+    }
+    // Card interativo (botões + IA só desta reserva); PDF sob demanda no botão.
+    return whatsapp_enviar_manual($db, $item + ['papel' => $item['papel'] ?? 'motorista'], $timeout);
+}
+
+/** Cards já entregues hoje para a mesma reserva, motorista e trecho (criação ou lembrete). */
+function whatsapp_cards_enviados_hoje(array $db): array
+{
+    $hoje = (new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo')))->format('Y-m-d');
+    $idx = [];
+    foreach ($db['whatsapp_envios'] ?? [] as $key => $prev) {
+        if (!is_array($prev) || empty($prev['ok'])) {
+            continue;
+        }
+        if (!str_starts_with((string) ($prev['em'] ?? ''), $hoje)) {
+            continue;
+        }
+        $key = (string) $key;
+        if (str_starts_with($key, 'mot:')) {
+            $p = explode(':', $key);
+            if (count($p) >= 4) {
+                $tripId = (int) array_pop($p);
+                $mid = (int) ($p[1] ?? 0);
+                $label = implode(':', array_slice($p, 2));
+                $idx[$tripId . '|' . $mid . '|' . $label] = true;
+            }
+            continue;
+        }
+        $partes = explode('|', $key);
+        if (count($partes) >= 5) {
+            $idx[(int) $partes[0] . '|' . (int) $partes[2] . '|' . $partes[4]] = true;
+        }
+    }
+    return $idx;
+}
+
+function whatsapp_registrar(array &$db, array $item, bool $ok, string $detalhe): void
+{
+    $agora = (new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i');
+    $db['whatsapp_envios'][$item['key']] = ['ok' => $ok, 'em' => $agora];
+    $db['mensagens'][] = [
+        'id' => $db['seq']['mensagem']++,
+        'quando' => $agora,
+        'titulo' => $item['titulo'],
+        'para' => ($item['nome'] ?? $item['motorista']) . ' · ' . ($item['numero'] !== '' ? $item['numero'] : $item['telefone']),
+        'texto' => $item['texto'],
+        'viagem' => $item['viagem'],
+        'canal' => 'whatsapp',
+        'status' => $ok ? 'enviado' : 'falha',
+        'detalhe' => $detalhe,
+    ];
+}
+
+function itens_comunicar_reserva(array $db, array $trip): array
+{
+    $motPorId = [];
+    foreach ($db['motoristas'] as $row) {
+        $motPorId[(int) $row['id']] = $row;
+    }
+    $itens = [];
+    $vistos = [];
+    foreach (agenda_legs($trip) as $leg) {
+        foreach (motoristas_do_trecho($trip, (string) $leg['kind']) as $mid) {
+            if (!isset($motPorId[$mid]) || (string) ($motPorId[$mid]['status'] ?? 'ativo') !== 'ativo') {
+                continue;
+            }
+            $chaveUnica = $mid . '|' . $leg['label'];
+            if (isset($vistos[$chaveUnica])) {
+                continue;
+            }
+            $vistos[$chaveUnica] = true;
+            $mot = $motPorId[$mid];
+            $tripLeg = $trip;
+            $tripLeg['data'] = $leg['data'];
+            $tripLeg['hora'] = $leg['hora'];
+            if ($leg['kind'] === 'volta' && (string) ($trip['tipo'] ?? '') === 'ida_volta') {
+                $tripLeg['origem'] = (string) $trip['destino'];
+                $tripLeg['destino'] = (string) $trip['origem'];
+            } elseif ($leg['kind'] === 'volta' && (string) ($trip['tipo'] ?? '') === 'volta') {
+                // Registro já é a volta: origem/destino já estão corretos.
+            }
+            $tripLeg['motorista_id'] = $mid;
+            // Nunca incluir valores no texto ao motorista.
+            $tripLeg['esconder_valores'] = true;
+            $rotuloTrecho = (string) $leg['label'];
+            $fone = (string) ($mot['telefone'] ?? '');
+            $nomeMot = (string) ($mot['nome'] ?? '');
+            $itens[] = [
+                'key' => 'mot:' . $mid . ':' . $leg['label'] . ':' . (int) $trip['id'],
+                'papel' => 'motorista',
+                'tipo' => 'manual',
+                'titulo' => 'WhatsApp · roteiro da reserva',
+                'viagem' => (int) $trip['id'],
+                'trecho' => $rotuloTrecho,
+                'motorista' => $nomeMot,
+                'nome' => $nomeMot,
+                'telefone' => $fone,
+                'numero' => wa_number($fone),
+                'texto' => reserva_texto_motorista($db, $tripLeg, $rotuloTrecho, $nomeMot),
+                'pdf' => true,
+                'pdf_nome' => 'reserva-' . (int) $trip['id'] . '-' . preg_replace('/[^A-Za-z0-9_-]+/', '', $rotuloTrecho) . '.pdf',
+                'trip_leg' => $tripLeg,
+            ];
+        }
+    }
+    return $itens;
+}
+
+function item_comunicar_cliente(array $db, array $trip): array
+{
+    $fone = (string) ($trip['telefone'] ?? '');
+    $tpl = template_text($db, 'confirmacao');
+    if ($tpl === '') {
+        $tpl = 'Olá {cliente}, sua viagem {codigo} está confirmada para {data} às {hora}. Origem: {origem}. Destino: {destino}. Valor {valor}.';
+    }
+    return [
+        'key' => 'cliente:' . (int) $trip['id'],
+        'papel' => 'cliente',
+        'tipo' => 'cliente',
+        'titulo' => 'WhatsApp · confirmação ao cliente',
+        'viagem' => (int) $trip['id'],
+        'trecho' => 'Cliente',
+        'motorista' => (string) ($trip['cliente'] ?? 'Cliente'),
+        'nome' => (string) ($trip['cliente'] ?? 'Cliente'),
+        'telefone' => $fone,
+        'numero' => wa_number($fone),
+        'texto' => apply_template($tpl, $trip, $db),
+    ];
+}
+
+/** Destinatários possíveis (motoristas + cliente) para os cards de comunicação. */
+function destinatarios_comunicar(array $db, array $trip, string $perna = ''): array
+{
+    $itens = itens_comunicar_reserva($db, $trip);
+    if ($perna !== '') {
+        $itens = array_values(array_filter($itens, static fn (array $item): bool => (string) $item['trecho'] === $perna));
+    }
+    $itens[] = item_comunicar_cliente($db, $trip);
+    return $itens;
+}
+
+function whatsapp_enviar_manual(array &$db, array $item, int $timeout): array
+{
+    if (!whatsapp_pronto($db)) {
+        return [false, 'Configure a URL e o token do WhatsApp em Configurações.'];
+    }
+    if (strlen($item['numero']) < 12) {
+        $quem = (($item['papel'] ?? '') === 'cliente') ? 'cliente' : 'motorista';
+        return [false, 'Telefone do ' . $quem . ' incompleto.'];
+    }
+    $papel = (($item['papel'] ?? '') === 'cliente') ? 'cliente' : 'motorista';
+    $reservaId = (int) ($item['viagem'] ?? 0);
+    $trip = null;
+    if (is_array($item['trip_leg'] ?? null)) {
+        $trip = $item['trip_leg'];
+    } elseif ($reservaId > 0 && function_exists('atendimento_trip')) {
+        $trip = atendimento_trip($db, $reservaId);
+    }
+    if ($trip === null || !function_exists('atendimento_enviar_card_cliente')) {
+        // Fallback legado se o módulo de atendimento não estiver carregado.
+        return uazapi_send_text(
+            (string) $db['settings']['uazapi_url'],
+            (string) $db['settings']['uazapi_token'],
+            $item['numero'],
+            (string) $item['texto'],
+            $timeout
+        );
+    }
+    $trip['esconder_valores'] = true;
+    if ($papel === 'cliente') {
+        [$ok, $det] = atendimento_enviar_card_cliente($db, $trip, (string) $item['numero']);
+        return [$ok, $ok ? 'Card interativo enviado ao cliente (confirmar / PDF / atendente)' : $det];
+    }
+    [$ok, $det] = atendimento_enviar_card_motorista(
+        $db,
+        $trip,
+        (string) $item['numero'],
+        (string) ($item['nome'] ?? $item['motorista'] ?? ''),
+        (string) ($item['trecho'] ?? '')
+    );
+    return [$ok, $ok ? 'Card interativo enviado ao motorista (ciência / PDF / atendente)' : $det];
+}
+
+/**
+ * Comunica TODOS os motoristas ativos desta reserva (todos os trechos),
+ * com card interativo (PDF sob demanda). Usado na criação e no Comunicar.
+ * $forcar=false evita reenvio se já houve envio OK (anti-duplicata na criação).
+ */
+function comunicar_motoristas_da_reserva(array &$db, array $trip, bool $forcar = false): array
+{
+    if ((string) ($trip['status'] ?? '') === 'cancelada') {
+        return [0, 0, ['Reserva cancelada não é comunicada.']];
+    }
+    $itens = itens_comunicar_reserva($db, $trip);
+    if ($itens === []) {
+        return [0, 0, ['Nenhum motorista ativo com telefone nesta reserva.']];
+    }
+    $okN = 0;
+    $falhaN = 0;
+    $linhas = [];
+    $fones = [];
+    foreach ($itens as $item) {
+        $chave = (string) ($item['key'] ?? '');
+        $tripId = (int) ($item['viagem'] ?? 0);
+        $mid = 0;
+        if (preg_match('/^mot:(\d+):/', $chave, $mMot)) {
+            $mid = (int) $mMot[1];
+        }
+        $marca = $tripId . '|' . $mid . '|' . (string) ($item['trecho'] ?? '');
+        $fone = (string) ($item['numero'] ?? '');
+        $prev = $chave !== '' ? ($db['whatsapp_envios'][$chave] ?? null) : null;
+        $ja = !$forcar && (
+            (is_array($prev) && !empty($prev['ok']))
+            || !empty($GLOBALS['fln_card_enviado'][$marca])
+            || ($fone !== '' && isset($fones[$fone . '|' . $tripId . '|' . (string) ($item['trecho'] ?? '')]))
+        );
+        if ($ja) {
+            if ($chave !== '' && !(is_array($prev) && !empty($prev['ok']))) {
+                whatsapp_registrar($db, $item, true, 'Card já enviado nesta gravação.');
+            }
+            $linhas[] = 'JÁ ENVIADO ' . ($item['nome'] ?? '') . ' · ' . ($item['trecho'] ?? '') . ' · #' . $tripId;
+            $okN++;
+            continue;
+        }
+        $GLOBALS['fln_card_enviado'][$marca] = true;
+        [$ok, $detalhe] = whatsapp_enviar_manual($db, $item, 18);
+        if (!$ok) {
+            unset($GLOBALS['fln_card_enviado'][$marca]);
+        } elseif ($fone !== '') {
+            $fones[$fone . '|' . $tripId . '|' . (string) ($item['trecho'] ?? '')] = true;
+        }
+        whatsapp_registrar($db, $item, $ok, $detalhe);
+        if ($ok) {
+            $okN++;
+        } else {
+            $falhaN++;
+        }
+        $linhas[] = ($ok ? 'OK' : 'FALHA') . ' ' . ($item['nome'] ?? '') . ' · ' . ($item['trecho'] ?? '') . ' · #' . (int) $item['viagem'] . ' — ' . $detalhe;
+    }
+    return [$okN, $falhaN, $linhas];
+}
+
+/** Após criar reserva(s): avisa cada motorista de cada trecho, sem valores, com PDF. */
+function comunicar_reservas_novas_motoristas(array &$db, array $novas): string
+{
+    if ($novas === [] || !whatsapp_pronto($db)) {
+        return '';
+    }
+    if (!auto_on($db, 'whatsapp_criacao')) {
+        return '';
+    }
+    $okTotal = 0;
+    $falhaTotal = 0;
+    $detalhes = [];
+    foreach ($novas as $trip) {
+        if (!is_array($trip)) {
+            continue;
+        }
+        [$okN, $falhaN, $linhas] = comunicar_motoristas_da_reserva($db, $trip);
+        $okTotal += $okN;
+        $falhaTotal += $falhaN;
+        foreach ($linhas as $linha) {
+            $detalhes[] = $linha;
+        }
+    }
+    if ($okTotal === 0 && $falhaTotal === 0) {
+        return '';
+    }
+    $resumo = 'Comunicado aos motoristas: ' . $okTotal . ' ok';
+    if ($falhaTotal > 0) {
+        $resumo .= ', ' . $falhaTotal . ' falha(s)';
+    }
+    $resumo .= '. ' . implode(' | ', $detalhes);
+    return $resumo;
+}
+
+function comunicar_reserva(array &$db, int $id): array
+{
+    $i = index_of($db['transfers'], $id);
+    if ($i === null) {
+        return ['Reserva não encontrada.', ''];
+    }
+    $trip = $db['transfers'][$i];
+    if ((string) ($trip['status'] ?? '') === 'cancelada') {
+        return ['Reserva cancelada não é comunicada.', ''];
+    }
+    $perna = post('perna');
+    $todos = destinatarios_comunicar($db, $trip, $perna);
+    $porKey = [];
+    foreach ($todos as $item) {
+        $porKey[(string) $item['key']] = $item;
+    }
+    $escolhidos = $_POST['destino'] ?? [];
+    if (!is_array($escolhidos)) {
+        $escolhidos = $escolhidos !== '' ? [(string) $escolhidos] : [];
+    }
+    $escolhidos = array_values(array_filter(array_map('strval', $escolhidos)));
+    // Sem cards (POST antigo): mantém só motoristas.
+    if ($escolhidos === []) {
+        $itens = array_values(array_filter($todos, static fn (array $it): bool => ($it['papel'] ?? '') === 'motorista'));
+    } else {
+        $itens = [];
+        foreach ($escolhidos as $chave) {
+            if (isset($porKey[$chave])) {
+                $itens[] = $porKey[$chave];
+            }
+        }
+    }
+    if ($itens === []) {
+        return ['Selecione pelo menos um destinatário (motorista ou cliente) nos cards.', ''];
+    }
+    $linhas = [];
+    foreach ($itens as $item) {
+        // Manual: sempre força reenvio (admin escolheu conscientemente).
+        [$ok, $detalhe] = whatsapp_enviar_manual($db, $item, 18);
+        whatsapp_registrar($db, $item, $ok, $detalhe);
+        $papel = (($item['papel'] ?? '') === 'cliente') ? 'cliente' : 'motorista';
+        $linhas[] = ($ok ? 'Enviado' : 'Falhou') . ' para ' . ($item['nome'] ?? $item['motorista']) . ' (' . $papel . ', reserva #' . $item['viagem'] . '). ' . $detalhe;
+    }
+    return [null, 'Comunicado da reserva #' . $id . ': ' . implode(' ', $linhas)];
+}
+
+function dispatch_whatsapp(array &$db, bool $manual): bool
+{
+    $inicio = microtime(true);
+    $itens = whatsapp_fila($db, $manual);
+    foreach ($itens as $item) {
+        if (microtime(true) - $inicio >= 20.0) {
+            break;
+        }
+        [$ok, $detalhe] = whatsapp_enviar($db, $item, 12);
+        whatsapp_registrar($db, $item, $ok, $detalhe);
+        $_SESSION['wa_resumo'][] = ($ok ? 'Enviado' : 'Falhou') . ' para ' . $item['motorista'] . ' (viagem #' . $item['viagem'] . ', ' . ($item['tipo'] === 'd1' ? 'véspera' : 'no dia') . '). ' . $detalhe;
+    }
+    return $itens !== [];
+}
+
+/**
+ * Disparo automático: reserva os envios no banco antes de mandar, para que o painel
+ * e a rotina agendada rodando juntos não enviem a mesma mensagem duas vezes.
+ */
+function disparar_pendentes(float $limite): int
+{
+    $agora = (new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i');
+    $reservados = com_db('whatsapp_reservar', static function (array &$db) use ($agora) {
+        $itens = whatsapp_fila($db, false);
+        if ($itens === []) {
+            return false;
+        }
+        foreach ($itens as $item) {
+            $db['whatsapp_envios'][$item['key']] = ['ok' => false, 'em' => $agora, 'enviando' => true];
+        }
+        return ['itens' => $itens, 'db' => $db];
+    });
+    if (!is_array($reservados)) {
+        return 0;
+    }
+    $inicio = microtime(true);
+    $resultados = [];
+    foreach ($reservados['itens'] as $item) {
+        if (microtime(true) - $inicio >= $limite) {
+            break;
+        }
+        $resultados[] = [$item, ...whatsapp_enviar($reservados['db'], $item, 8)];
+    }
+    if ($resultados === []) {
+        return 0;
+    }
+    $atendimentoSnap = $reservados['db']['atendimento'] ?? null;
+    com_db('whatsapp_resultado', static function (array &$db) use ($resultados, $atendimentoSnap): bool {
+        foreach ($resultados as [$item, $ok, $detalhe]) {
+            whatsapp_registrar($db, $item, (bool) $ok, (string) $detalhe);
+        }
+        if (is_array($atendimentoSnap)) {
+            $db['atendimento'] = $atendimentoSnap;
+        }
+        return true;
+    });
+    return count($resultados);
 }
 
 function template_text(array $db, string $id): string
@@ -486,9 +1156,46 @@ function template_text(array $db, string $id): string
     return '';
 }
 
-function save_db(array $db): void
+function save_db(array $db, string $acao = ''): void
 {
-    $_SESSION['db'] = $db;
+    if (empty($GLOBALS['fln_sheets_skip']) && sheets_ativo()) {
+        $db['settings']['sheets_sync_pendente'] = true;
+        $db['settings']['sheets_sync_pendente_em'] = date('Y-m-d H:i');
+    }
+    if (store_remoto()) {
+        store_gravar($db, $acao);
+    } else {
+        $_SESSION['db'] = $db;
+    }
+    db_request_cache($db);
+    if (!empty($GLOBALS['fln_push_dentro'])) {
+        return;
+    }
+    $fila = $GLOBALS['fln_avisos_enviar'] ?? [];
+    $GLOBALS['fln_avisos_enviar'] = [];
+    if (is_array($fila) && $fila !== []) {
+        push_enviar_lista($db, $fila);
+    }
+}
+
+function reservas_que_usam(array $db, string $tipo, int $id): array
+{
+    $saida = [];
+    foreach ($db['transfers'] as $t) {
+        $usa = match ($tipo) {
+            'motorista' => viagem_do_motorista($t, $id),
+            'cliente' => (int) ($t['cliente_id'] ?? 0) === $id,
+            'veiculo' => (int) ($t['veiculo_id'] ?? 0) === $id,
+            default => false,
+        };
+        if ($usa) {
+            $saida[] = '#' . (int) $t['id'];
+        }
+    }
+    if (count($saida) > 6) {
+        $saida = array_merge(array_slice($saida, 0, 6), ['e outras ' . (count($saida) - 6)]);
+    }
+    return $saida;
 }
 
 function index_of(array $list, int $id): ?int
@@ -504,11 +1211,12 @@ function index_of(array $list, int $id): ?int
 function auto_on(array $db, string $id): bool
 {
     foreach ($db['automacoes'] as $row) {
-        if ($row['id'] === $id) {
+        if ((string) ($row['id'] ?? '') === $id) {
             return !empty($row['ativo']);
         }
     }
-    return false;
+    // Comunicação na criação fica ligada por padrão até o registro existir no banco.
+    return $id === 'whatsapp_criacao';
 }
 
 function apply_template(string $text, array $trip, array $db): string
@@ -574,6 +1282,9 @@ function apply_status_side_effects(array &$db, array $trip, string $old, string 
 
 function handle_post(): void
 {
+    if ((string) ($_GET['p'] ?? '') === 'chat') {
+        return;
+    }
     if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
         return;
     }
@@ -592,7 +1303,8 @@ function handle_post(): void
             flash('Muitas tentativas. Aguarde alguns minutos e tente de novo.', 'err');
             redirect($volta);
         }
-        if (!captcha_confere(post('captcha'))) {
+        $db = load_db();
+        if (verificacao_2fa_ativa($db) && !captcha_confere(post('captcha'))) {
             login_falhou();
             flash('O código de verificação está incorreto ou expirou.', 'err');
             redirect($volta);
@@ -605,24 +1317,25 @@ function handle_post(): void
             flash('Se houver um cadastro para este e-mail, as instruções serão enviadas.');
             redirect(href('entrar'));
         }
-        $db = load_db();
         $usuario = mb_strtolower(clip(post('usuario'), 80));
         $senha = post('senha');
         $entrou = false;
-        if ($usuario !== '' && str_contains($usuario, '@') && supabase_configurado() && supabase_entrar($usuario, $senha)) {
-            $entrou = true;
-        }
         $adminUser = mb_strtolower((string) ($db['settings']['usuario'] ?? 'admin'));
-        if (!$entrou && $usuario !== '' && $senha !== '' && $usuario === $adminUser && hash_equals((string) $db['settings']['senha'], $senha)) {
+        if ($usuario !== '' && $senha !== '' && $usuario === $adminUser && hash_equals((string) $db['settings']['senha'], $senha)) {
             $_SESSION['auth'] = true;
             $_SESSION['role'] = 'admin';
             $_SESSION['motorista_id'] = 0;
             $entrou = true;
         }
-        if (!$entrou) {
+        if (!$entrou && $usuario !== '' && $senha !== '') {
             foreach ($db['motoristas'] as $mot) {
-                $login = mb_strtolower((string) ($mot['usuario'] ?? ''));
-                if ($usuario !== '' && $senha !== '' && $login === $usuario && ($mot['status'] ?? '') === 'ativo' && hash_equals((string) ($mot['senha'] ?? ''), $senha)) {
+                if ((string) ($mot['status'] ?? '') !== 'ativo') {
+                    continue;
+                }
+                $login = mb_strtolower(trim((string) ($mot['usuario'] ?? '')));
+                $email = mb_strtolower(trim((string) ($mot['email'] ?? '')));
+                $bate = $usuario === $login || ($email !== '' && $usuario === $email);
+                if ($bate && hash_equals((string) ($mot['senha'] ?? ''), $senha)) {
                     $_SESSION['auth'] = true;
                     $_SESSION['role'] = 'motorista';
                     $_SESSION['motorista_id'] = (int) $mot['id'];
@@ -631,12 +1344,25 @@ function handle_post(): void
                 }
             }
         }
+        // E-mail de motorista tem prioridade sobre Auth do Supabase.
+        if (!$entrou && $usuario !== '' && str_contains($usuario, '@') && supabase_configurado() && supabase_entrar($usuario, $senha)) {
+            $entrou = true;
+        }
         if ($entrou) {
             login_liberar();
+            if (!verificacao_2fa_ativa($db) && (($_SESSION['flash'][0] ?? '') === 'O código de verificação está incorreto ou expirou.')) {
+                unset($_SESSION['flash']);
+            }
+            session_regenerate_id(true);
             redirect(href('agenda'));
         }
         login_falhou();
-        flash('Usuário ou senha incorretos.', 'err');
+        $resto = max(0, (int) ($_SESSION['login_bloqueio'] ?? 0) - time());
+        if ($resto > 0) {
+            flash('Muitas tentativas. Aguarde ' . (int) ceil($resto / 60) . ' min e tente de novo.', 'err');
+        } else {
+            flash('Usuário ou senha incorretos.', 'err');
+        }
         redirect(href('entrar'));
     }
     if ($action === 'logout') {
@@ -659,23 +1385,89 @@ function handle_post(): void
         redirect(safe_back(href('agenda')));
     }
 
-    $db = load_db();
-    $err = null;
-    $msg = 'Alteração salva.';
-    $acoesExcluir = ['delete_veiculo', 'delete_motorista', 'delete_cliente', 'delete_lancamento', 'delete_grupo', 'delete_nota', 'delete_automacao', 'delete_inbox', 'delete_transfer', 'reset_demo', 'remove_logo'];
+    if (in_array($action, ['push_inscrever', 'push_remover', 'push_testar'], true)) {
+        header('Content-Type: application/json; charset=utf-8');
+        try {
+            $saida = com_db($action, static function (array &$db) use ($action): array {
+                return push_acao($db, $action);
+            });
+            if (!is_array($saida)) {
+                $saida = ['ok' => false, 'erro' => 'Não foi possível atualizar as notificações.'];
+            }
+            echo json_encode($saida, JSON_UNESCAPED_UNICODE);
+        } catch (Throwable $e) {
+            error_log('fln push acao: ' . $e->getMessage());
+            http_response_code(503);
+            echo json_encode(['ok' => false, 'erro' => 'Não foi possível atualizar as notificações.'], JSON_UNESCAPED_UNICODE);
+        }
+        exit;
+    }
+
+    $acoesExcluir = ['delete_veiculo', 'delete_motorista', 'delete_cliente', 'delete_lancamento', 'delete_grupo', 'delete_nota', 'delete_automacao', 'delete_inbox', 'delete_transfer', 'apagar_lixo', 'reset_demo', 'remove_logo'];
     if (in_array($action, $acoesExcluir, true) && post('confirmar') !== 'sim') {
         flash('A exclusão só é concluída depois do Sim na tela de confirmação.', 'err');
         redirect(safe_back(href('agenda')));
     }
 
+    $falha = null;
+    $msg = 'Alteração salva.';
+    try {
+        com_db($action, static function (array &$db) use ($action, &$falha, &$msg): bool {
+            $antes = $db;
+            [$err, $texto] = executar_acao($db, $action);
+            if ($err === null) {
+                $err = integridade_violada($antes, $db);
+            }
+            if ($err !== null) {
+                $falha = $err;
+                return false;
+            }
+            $msg = $texto !== '' ? $texto : 'Alteração salva.';
+            return true;
+        });
+    } catch (BancoIndisponivel $e) {
+        $falha = 'Nada foi salvo: ' . $e->getMessage();
+    }
+    if ($falha !== null) {
+        flash($falha, 'err');
+        if (in_array($action, ['add_transfer', 'update_transfer'], true)) {
+            $_SESSION['reserva_draft'] = $_POST;
+            $_SESSION['reserva_draft_erro'] = $falha;
+            $params = ['rascunho' => '1'];
+            $idRascunho = (int) post('id');
+            if ($idRascunho > 0) {
+                $params['edit'] = $idRascunho;
+            }
+            redirect(href('reservas', $params));
+        }
+        redirect(safe_back(href('agenda')));
+    }
+    if (in_array($action, ['add_transfer', 'update_transfer'], true)) {
+        unset($_SESSION['reserva_draft'], $_SESSION['reserva_draft_erro']);
+    }
+    flash($msg);
+    redirect(safe_back(href('agenda')));
+}
+
+function executar_acao(array &$db, string $action): array
+{
     $ops = ops_dispatch($db, $action);
     if (is_array($ops)) {
-        $err = $ops[0];
-        if ($ops[1] !== '') {
-            $msg = $ops[1];
-        }
-    } else switch ($action) {
+        return [$ops[0], $ops[1]];
+    }
+    return acao_legada($db, $action);
+}
+
+function acao_legada(array &$db, string $action): array
+{
+    $err = null;
+    $msg = '';
+    switch ($action) {
         case 'reset_demo':
+            if (store_remoto()) {
+                $err = 'A restauração de demonstração está desativada: os dados reais ficam no banco e não são apagados.';
+                break;
+            }
             uazapi_delete_instance($db['settings']);
             $db = seed_data();
             if (trim((string) ($db['settings']['uazapi_admin_token'] ?? '')) === '') {
@@ -757,13 +1549,12 @@ function handle_post(): void
                 $err = 'Veículo não encontrado.';
                 break;
             }
-            array_splice($db['veiculos'], $i, 1);
-            foreach ($db['transfers'] as &$trip) {
-                if ((int) ($trip['veiculo_id'] ?? 0) === $id) {
-                    $trip['veiculo_id'] = null;
-                }
+            $usos = reservas_que_usam($db, 'veiculo', $id);
+            if ($usos !== []) {
+                $err = 'Este veículo está nas reservas ' . implode(', ', $usos) . ' e não pode ser excluído. Marque-o como inativo.';
+                break;
             }
-            unset($trip);
+            array_splice($db['veiculos'], $i, 1);
             $msg = 'Veículo removido.';
             break;
 
@@ -804,13 +1595,12 @@ function handle_post(): void
                 $err = 'Motorista não encontrado.';
                 break;
             }
-            array_splice($db['motoristas'], $i, 1);
-            foreach ($db['transfers'] as &$trip) {
-                if ((int) ($trip['motorista_id'] ?? 0) === $id) {
-                    $trip['motorista_id'] = null;
-                }
+            $usos = reservas_que_usam($db, 'motorista', $id);
+            if ($usos !== []) {
+                $err = 'Este motorista está nas reservas ' . implode(', ', $usos) . ' e não pode ser excluído. Marque-o como inativo ou troque o motorista dessas reservas antes.';
+                break;
             }
-            unset($trip);
+            array_splice($db['motoristas'], $i, 1);
             $msg = 'Motorista removido.';
             break;
 
@@ -848,6 +1638,11 @@ function handle_post(): void
                 $err = 'Cliente não encontrado.';
                 break;
             }
+            $usos = reservas_que_usam($db, 'cliente', (int) $db['clientes'][$i]['id']);
+            if ($usos !== []) {
+                $err = 'Este cliente está nas reservas ' . implode(', ', $usos) . ' e não pode ser excluído.';
+                break;
+            }
             array_splice($db['clientes'], $i, 1);
             $msg = 'Cliente removido.';
             break;
@@ -865,7 +1660,7 @@ function handle_post(): void
                 break;
             }
             $db['transfers'][] = [
-                'id' => $db['seq']['transfer']++,
+                'id' => proximo_id_transfer($db),
                 'cliente' => $cliente,
                 'telefone' => clip(post('telefone'), 30),
                 'origem' => $origem,
@@ -975,7 +1770,7 @@ function handle_post(): void
                 break;
             }
             $db['lancamentos'][] = [
-                'id' => $db['seq']['lancamento']++,
+                'id' => proximo_id_lancamento($db),
                 'tipo' => $tipo,
                 'descricao' => $descricao,
                 'categoria' => clip(post('categoria'), 40) ?: ($tipo === 'entrada' ? 'Receita' : 'Despesa'),
@@ -1168,7 +1963,7 @@ function handle_post(): void
                     'status' => 'ativo',
                 ]);
                 $db['motoristas'][] = $mot;
-                $msg = 'Motorista aprovado. Acesso: ' . $mot['usuario'] . ' / senha ' . $mot['senha'];
+                $msg = 'Motorista aprovado. Login: ' . $mot['usuario'] . ' · Senha-token (só esta vez): ' . $mot['senha'] . ' · Link: ' . link_motorista($mot);
             } else {
                 $msg = 'Solicitação recusada.';
             }
@@ -1177,27 +1972,37 @@ function handle_post(): void
         default:
             $err = 'Ação desconhecida.';
     }
-
-    if ($err !== null) {
-        flash($err, 'err');
-        redirect(safe_back(href('agenda')));
-    }
-    save_db($db);
-    flash($msg);
-    redirect(safe_back(href('agenda')));
+    return [$err, $msg];
 }
 
 $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
     || (strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https');
+ini_set('session.gc_maxlifetime', '43200');
 session_set_cookie_params([
+    'lifetime' => 43200,
     'httponly' => true,
     'samesite' => 'Lax',
     'secure' => $https,
 ]);
+if (store_remoto() && getenv('VERCEL') !== false) {
+    session_set_save_handler(new SessaoBanco(), true);
+}
+$sessionInicio = microtime(true);
 session_start();
+perf_add('session_ms', (microtime(true) - $sessionInicio) * 1000);
 
-if (!isset($_SESSION['db'])) {
-    $_SESSION['db'] = seed_data();
+if (store_remoto()) {
+    unset($_SESSION['db']);
+}
+
+if (perf_enabled()) {
+    register_shutdown_function(static function (): void {
+        $perf = $GLOBALS['fln_perf'] ?? [];
+        $perf['total_ms'] = (microtime(true) - ($_SERVER['REQUEST_TIME_FLOAT'] ?? microtime(true))) * 1000;
+        $perf['route'] = (string) ($_GET['p'] ?? (isset($_GET['cron']) ? 'cron' : 'agenda'));
+        $perf['method'] = (string) ($_SERVER['REQUEST_METHOD'] ?? 'GET');
+        error_log('fln_perf ' . json_encode($perf, JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION));
+    });
 }
 if (!isset($_SESSION['auth'])) {
     $_SESSION['auth'] = false;

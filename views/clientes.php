@@ -1,10 +1,6 @@
 <?php
 declare(strict_types=1);
 defined('APP') || exit;
-$vista = (string) ($_GET['vista'] ?? 'tabela');
-if (!in_array($vista, ['tabela', 'cartoes'], true)) {
-    $vista = 'tabela';
-}
 $q = trim((string) ($_GET['q'] ?? ''));
 $editId = (int) ($_GET['edit'] ?? 0);
 $edit = null;
@@ -18,33 +14,16 @@ foreach ($db['clientes'] as $c) {
     }
 }
 $pg = slice_page($rows);
-view_head(
-    '<a class="btn btn-sm' . ($vista === 'cartoes' ? ' btn-primary' : '') . '" href="' . e(href('clientes', ['vista' => 'cartoes', 'q' => $q])) . '">Cartões</a> <a class="btn btn-sm' . ($vista === 'tabela' ? ' btn-primary' : '') . '" href="' . e(href('clientes', ['vista' => 'tabela', 'q' => $q])) . '">Tabela</a> <button class="btn btn-primary" type="button" data-open-dialog="dlg-cli">+ Cadastrar cliente</button>',
-    'Cadastros usados nas reservas de transfer e grupos.'
-);
+view_head('<button class="btn btn-primary" type="button" data-open-dialog="dlg-cli">+ Cadastrar cliente</button>', 'A lista abre em tabela para caber muitos cadastros.');
 ?>
 <form class="filters" method="get" action="index.php">
   <input type="hidden" name="p" value="clientes">
-  <input type="hidden" name="vista" value="<?= e($vista) ?>">
   <label>Busca <input name="q" value="<?= e($q) ?>" placeholder="Buscar por nome, CPF ou cidade"></label>
   <button class="btn btn-sm" type="submit">Buscar</button>
 </form>
-<?php if ($vista === 'cartoes'): ?>
-  <div class="people-grid">
-    <?php foreach ($pg['rows'] as $c): ?>
-      <article class="card person">
-        <b class="avatar"><?= e(mb_strtoupper(mb_substr((string) $c['nome'], 0, 1))) ?></b>
-        <strong><?= e($c['nome']) ?></strong>
-        <span class="hint"><?= e($c['tipo'] ?? 'PF') ?> · <?= e($c['telefone'] ?: 'Telefone não informado') ?></span>
-        <span class="perfil"><i style="width:<?= perfil_cliente($c) ?>%"></i></span>
-        <a class="btn btn-sm" href="<?= e(href('clientes', ['edit' => $c['id'], 'vista' => 'cartoes'])) ?>">Editar</a>
-      </article>
-    <?php endforeach; ?>
-  </div>
-<?php else: ?>
   <section class="card">
-    <div class="table-wrap">
-      <table>
+  <div class="table-wrap">
+    <table class="table-lista">
         <thead><tr><th></th><th>Nome</th><th>Tipo</th><th>E-mail</th><th>Telefone</th><th>Perfil</th><th></th></tr></thead>
         <tbody>
           <?php foreach ($pg['rows'] as $c): $pct = perfil_cliente($c); ?>
@@ -64,9 +43,8 @@ view_head(
         </tbody>
       </table>
     </div>
-    <?= pager('clientes', $pg, array_filter(['vista' => $vista, 'q' => $q])) ?>
+    <?= pager('clientes', $pg, array_filter(['q' => $q])) ?>
   </section>
-<?php endif; ?>
 <dialog id="dlg-cli" class="dlg-cadastro" data-clear-query="edit" <?= $edit ? 'open' : '' ?>>
   <form method="post" action="index.php">
     <header class="dialog-h dlg-top">

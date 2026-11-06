@@ -3,8 +3,13 @@ declare(strict_types=1);
 
 function base_url(): string
 {
-    $https = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
-    $host = (string) ($_SERVER['HTTP_HOST'] ?? '127.0.0.1:8091');
+    $cfg = rtrim(env_valor('APP_URL', ''), '/');
+    if ($cfg !== '' && preg_match('#^https?://#i', $cfg)) {
+        return $cfg;
+    }
+    $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+        || (strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https');
+    $host = (string) ($_SERVER['HTTP_HOST'] ?? '127.0.0.1:8090');
     $dir = str_replace('\\', '/', dirname((string) ($_SERVER['SCRIPT_NAME'] ?? '/index.php')));
     $dir = rtrim($dir, '/');
     if ($dir === '/' || $dir === '.') {
@@ -16,6 +21,16 @@ function base_url(): string
 function hook_url(string $secret): string
 {
     return base_url() . '/index.php?hook=' . rawurlencode($secret);
+}
+
+function link_motorista(array $mot): string
+{
+    $token = strtolower((string) ($mot['acesso'] ?? ''));
+    $url = rtrim(base_url(), '/') . '/index.php?p=entrar';
+    if (preg_match('/^[a-f0-9]{32}$/', $token)) {
+        $url .= '&acesso=' . rawurlencode($token);
+    }
+    return $url;
 }
 
 function short_place(string $place): string
@@ -36,6 +51,68 @@ function momento_passou(string $data, string $hora): bool
     }
     $agora = new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo'));
     return $quando < $agora;
+}
+
+function lixo_reservas_garantir(array &$db): void
+{
+    if (!isset($db['lixo_reservas']) || !is_array($db['lixo_reservas'])) {
+        $db['lixo_reservas'] = [];
+        $GLOBALS['fln_lixo_novo'] = true;
+    }
+}
+
+/** Remove do lixo itens com mais de 30 dias. Retorna quantos saíram. */
+function lixo_reservas_expirar(array &$db): int
+{
+    lixo_reservas_garantir($db);
+    $tz = new DateTimeZone('America/Sao_Paulo');
+    $limite = (new DateTimeImmutable('now', $tz))->modify('-30 days');
+    $antes = count($db['lixo_reservas']);
+    $db['lixo_reservas'] = array_values(array_filter(
+        $db['lixo_reservas'],
+        static function ($item) use ($limite, $tz): bool {
+            if (!is_array($item) || !is_array($item['transfer'] ?? null)) {
+                return false;
+            }
+            $em = trim((string) ($item['excluida_em'] ?? ''));
+            if ($em === '') {
+                return false;
+            }
+            $dt = DateTimeImmutable::createFromFormat('Y-m-d H:i', $em, $tz)
+                ?: DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $em, $tz);
+            if (!$dt) {
+                try {
+                    $dt = new DateTimeImmutable($em, $tz);
+                } catch (Throwable) {
+                    return false;
+                }
+            }
+            return $dt >= $limite;
+        }
+    ));
+    $saiu = $antes - count($db['lixo_reservas']);
+    if ($saiu > 0) {
+        $GLOBALS['fln_lixo_novo'] = true;
+    }
+    return $saiu;
+}
+
+function lixo_dias_restantes(string $excluidaEm): int
+{
+    $tz = new DateTimeZone('America/Sao_Paulo');
+    $dt = DateTimeImmutable::createFromFormat('Y-m-d H:i', $excluidaEm, $tz)
+        ?: DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $excluidaEm, $tz);
+    if (!$dt) {
+        try {
+            $dt = new DateTimeImmutable($excluidaEm, $tz);
+        } catch (Throwable) {
+            return 0;
+        }
+    }
+    $limite = $dt->modify('+30 days');
+    $agora = new DateTimeImmutable('now', $tz);
+    $diff = (int) $agora->diff($limite)->format('%r%a');
+    return max(0, $diff);
 }
 
 function agenda_legs(array $trip): array
@@ -126,9 +203,139 @@ function perfil_cliente(array $c): int
     return (int) round($ok / count($campos) * 100);
 }
 
+/**
+ * Espelha nome/telefone do cadastro do motorista no que depende dele:
+ * lançamentos de repasse + vínculo de atendimento WhatsApp (se o telefone mudou).
+ * As reservas já usam motorista_id; nome/telefone vêm ao vivo do cadastro.
+ */
+function sincronizar_motorista_nas_reservas(array &$db, array $antes, array $depois): int
+{
+    $mid = (int) ($depois['id'] ?? 0);
+    if ($mid <= 0) {
+        return 0;
+    }
+    $n = 0;
+    foreach ($db['transfers'] as $t) {
+        if (viagem_do_motorista($t, $mid)) {
+            $n++;
+        }
+    }
+    $nomeNovo = (string) ($depois['nome'] ?? '');
+    foreach ($db['lancamentos'] as &$lanc) {
+        if ((int) ($lanc['motorista_id'] ?? 0) !== $mid) {
+            continue;
+        }
+        if (($lanc['papel'] ?? '') === 'repasse' && $nomeNovo !== '') {
+            $lanc['cliente'] = $nomeNovo;
+        }
+    }
+    unset($lanc);
+
+    $foneAntes = function_exists('wa_number')
+        ? wa_number((string) ($antes['telefone'] ?? ''))
+        : preg_replace('/\D+/', '', (string) ($antes['telefone'] ?? ''));
+    $foneDepois = function_exists('wa_number')
+        ? wa_number((string) ($depois['telefone'] ?? ''))
+        : preg_replace('/\D+/', '', (string) ($depois['telefone'] ?? ''));
+    if (
+        $foneAntes !== ''
+        && $foneDepois !== ''
+        && $foneAntes !== $foneDepois
+        && function_exists('atendimento_store_garantir')
+        && function_exists('atendimento_fone_chave')
+    ) {
+        atendimento_store_garantir($db);
+        $chaveAntiga = atendimento_fone_chave($foneAntes);
+        $chaveNova = atendimento_fone_chave($foneDepois);
+        if ($chaveAntiga !== '' && $chaveNova !== '' && isset($db['atendimento']['por_fone'][$chaveAntiga])) {
+            $ctx = $db['atendimento']['por_fone'][$chaveAntiga];
+            $papel = (string) ($ctx['papel'] ?? '');
+            // Só move se o vínculo era do motorista (não do cliente no mesmo número antigo).
+            if ($papel === 'motorista' || $papel === '') {
+                unset($db['atendimento']['por_fone'][$chaveAntiga]);
+                if (!isset($db['atendimento']['por_fone'][$chaveNova])) {
+                    $ctx['papel'] = 'motorista';
+                    $db['atendimento']['por_fone'][$chaveNova] = $ctx;
+                }
+            }
+        }
+    }
+    return $n;
+}
+
+/**
+ * Espelha nome/telefone/e-mail/documento do cadastro do cliente em todas as reservas ligadas.
+ * Também recupera reservas antigas sem cliente_id que batem com o nome + telefone anterior.
+ */
+function sincronizar_cliente_nas_reservas(array &$db, array $antes, array $depois): int
+{
+    $clienteId = (int) ($depois['id'] ?? 0);
+    if ($clienteId <= 0) {
+        return 0;
+    }
+    $nomeAntes = mb_strtolower(trim((string) ($antes['nome'] ?? '')));
+    $foneAntes = function_exists('wa_number')
+        ? wa_number((string) ($antes['telefone'] ?? ''))
+        : preg_replace('/\D+/', '', (string) ($antes['telefone'] ?? ''));
+    $foneDepois = function_exists('wa_number')
+        ? wa_number((string) ($depois['telefone'] ?? ''))
+        : preg_replace('/\D+/', '', (string) ($depois['telefone'] ?? ''));
+    $n = 0;
+    foreach ($db['transfers'] as &$tc) {
+        $tid = (int) ($tc['cliente_id'] ?? 0);
+        $mesmoId = $tid === $clienteId;
+        $orfao = false;
+        if (!$mesmoId && $tid <= 0 && $nomeAntes !== '') {
+            $nomeTrip = mb_strtolower(trim((string) ($tc['cliente'] ?? '')));
+            $foneTrip = function_exists('wa_number')
+                ? wa_number((string) ($tc['telefone'] ?? ''))
+                : preg_replace('/\D+/', '', (string) ($tc['telefone'] ?? ''));
+            $orfao = $nomeTrip === $nomeAntes && $foneAntes !== '' && $foneTrip === $foneAntes;
+        }
+        if (!$mesmoId && !$orfao) {
+            continue;
+        }
+        $tc['cliente_id'] = $clienteId;
+        $tc['cliente'] = (string) ($depois['nome'] ?? '');
+        $tc['telefone'] = (string) ($depois['telefone'] ?? '');
+        $tc['email'] = (string) ($depois['email'] ?? '');
+        $tc['documento'] = (string) ($depois['documento'] ?? '');
+        $n++;
+    }
+    unset($tc);
+
+    // Atendimento WhatsApp: se o telefone mudou, move o vínculo da reserva para o número novo.
+    if (
+        $foneAntes !== ''
+        && $foneDepois !== ''
+        && $foneAntes !== $foneDepois
+        && function_exists('atendimento_store_garantir')
+        && function_exists('atendimento_fone_chave')
+    ) {
+        atendimento_store_garantir($db);
+        $chaveAntiga = atendimento_fone_chave($foneAntes);
+        $chaveNova = atendimento_fone_chave($foneDepois);
+        if ($chaveAntiga !== '' && $chaveNova !== '' && isset($db['atendimento']['por_fone'][$chaveAntiga])) {
+            $ctx = $db['atendimento']['por_fone'][$chaveAntiga];
+            unset($db['atendimento']['por_fone'][$chaveAntiga]);
+            if (!isset($db['atendimento']['por_fone'][$chaveNova])) {
+                $db['atendimento']['por_fone'][$chaveNova] = $ctx;
+            }
+        }
+    }
+    return $n;
+}
+
 function portal_label(array $mot): string
 {
-    return trim((string) ($mot['senha'] ?? '')) !== '' ? 'Senha OK' : 'Pendente';
+    $email = mb_strtolower(trim((string) ($mot['email'] ?? $mot['usuario'] ?? '')));
+    $temEmail = $email !== '' && str_contains($email, '@');
+    $temSenha = trim((string) ($mot['senha'] ?? '')) !== '';
+    $temLink = (bool) preg_match('/^[a-f0-9]{32}$/', strtolower((string) ($mot['acesso'] ?? '')));
+    if ($temEmail && $temSenha && $temLink) {
+        return 'Portal OK';
+    }
+    return $temSenha ? 'Senha OK' : 'Pendente';
 }
 
 function slice_page(array $rows, int $per = 10): array
@@ -162,6 +369,76 @@ function pager(string $page, array $pg, array $query = []): string
     return '<div class="pager"><span>Mostrando ' . (int) $pg['from'] . ' a ' . (int) $pg['to'] . ' de ' . (int) $pg['total'] . ' · Página ' . (int) $pg['page'] . ' de ' . (int) $pg['pages'] . '</span><span class="pager-nav">' . $prev . $next . '</span></div>';
 }
 
+function fim_do_mes(string $data): string
+{
+    $dt = DateTimeImmutable::createFromFormat('!Y-m-d', substr($data, 0, 10));
+    if (!$dt) {
+        return $data;
+    }
+    return $dt->modify('last day of this month')->format('Y-m-d');
+}
+
+function repasse_esta_pago(array $db, int $tripId): bool
+{
+    $i = find_lanc($db, $tripId, 'repasse');
+    return $i !== null && (string) ($db['lancamentos'][$i]['status'] ?? '') === 'pago';
+}
+
+function resumo_prolabore(array $db, string $de, string $ate): array
+{
+    $por = [];
+    foreach ($db['transfers'] as $t) {
+        if ((string) ($t['status'] ?? '') === 'cancelada') {
+            continue;
+        }
+        $data = (string) ($t['data'] ?? '');
+        if ($de !== '' && $data < $de) {
+            continue;
+        }
+        if ($ate !== '' && $data > $ate) {
+            continue;
+        }
+        $mid = (int) ($t['motorista_id'] ?? 0);
+        if (!isset($por[$mid])) {
+            $por[$mid] = [
+                'id' => $mid,
+                'nome' => $mid > 0 ? nome_motorista($db, $mid) : 'Sem motorista',
+                'viagens' => 0,
+                'concluidas' => 0,
+                'valor' => 0.0,
+                'vista' => 0.0,
+                'boleto' => 0.0,
+                'recebido' => 0.0,
+                'prolabore' => 0.0,
+                'prolabore_pago' => 0.0,
+                'prolabore_aberto' => 0.0,
+            ];
+        }
+        $valor = (float) ($t['valor'] ?? 0);
+        $por[$mid]['viagens']++;
+        $por[$mid]['valor'] += $valor;
+        if (!empty($t['pago'])) {
+            $por[$mid]['recebido'] += $valor;
+        } elseif (!empty($t['faturado'])) {
+            $por[$mid]['boleto'] += $valor;
+        } else {
+            $por[$mid]['vista'] += $valor;
+        }
+        if ((string) ($t['status'] ?? '') === 'concluida') {
+            $repasse = (float) ($t['repasse'] ?? 0);
+            $por[$mid]['concluidas']++;
+            $por[$mid]['prolabore'] += $repasse;
+            if (repasse_esta_pago($db, (int) $t['id'])) {
+                $por[$mid]['prolabore_pago'] += $repasse;
+            } else {
+                $por[$mid]['prolabore_aberto'] += $repasse;
+            }
+        }
+    }
+    uasort($por, static fn(array $a, array $b): int => $b['prolabore'] <=> $a['prolabore']);
+    return array_values($por);
+}
+
 function nome_motorista(array $db, mixed $id): string
 {
     foreach ($db['motoristas'] as $mot) {
@@ -180,6 +457,49 @@ function find_lanc(array $db, int $tripId, string $papel): ?int
         }
     }
     return null;
+}
+
+/** Próximo número livre, acima das reservas, do lixo e dos lançamentos já existentes. */
+function proximo_id(array &$db, string $chave, callable $maior): int
+{
+    $seq = (int) ($db['seq'][$chave] ?? 1);
+    $id = max($seq, $maior($db));
+    if ($id < 1) {
+        $id = 1;
+    }
+    $db['seq'][$chave] = $id + 1;
+    return $id;
+}
+
+function proximo_id_transfer(array &$db): int
+{
+    return proximo_id($db, 'transfer', static function (array $db): int {
+        $max = 0;
+        foreach ($db['transfers'] as $t) {
+            $max = max($max, (int) ($t['id'] ?? 0));
+        }
+        foreach ($db['lixo_reservas'] ?? [] as $item) {
+            $max = max($max, (int) ($item['id'] ?? 0));
+            if (is_array($item['transfer'] ?? null)) {
+                $max = max($max, (int) ($item['transfer']['id'] ?? 0));
+            }
+        }
+        foreach ($db['lancamentos'] as $l) {
+            $max = max($max, (int) ($l['transfer_id'] ?? 0));
+        }
+        return $max + 1;
+    });
+}
+
+function proximo_id_lancamento(array &$db): int
+{
+    return proximo_id($db, 'lancamento', static function (array $db): int {
+        $max = 0;
+        foreach ($db['lancamentos'] as $l) {
+            $max = max($max, (int) ($l['id'] ?? 0));
+        }
+        return $max + 1;
+    });
 }
 
 function sync_trip_finance(array &$db, int $tripId): void
@@ -206,18 +526,20 @@ function sync_trip_finance(array &$db, int $tripId): void
         'categoria' => 'reserva_transfer',
         'valor' => (float) $t['valor'],
         'data' => (string) $t['data'],
-        'vencimento' => (string) $t['data'],
         'status' => !empty($t['pago']) ? 'pago' : 'pendente',
         'linha' => 'Principal',
         'origem' => 'transfer',
         'meio' => (string) ($t['meio'] ?? ''),
         'baixa' => !empty($t['pago']) ? (string) ($t['pago_em'] ?: $t['data']) : '',
+        'vencimento' => !empty($t['faturado']) ? fim_do_mes((string) $t['data']) : (string) $t['data'],
         'transfer_id' => (int) $t['id'],
         'papel' => 'receita',
         'cliente' => (string) $t['cliente'],
+        'motorista_id' => (int) ($t['motorista_id'] ?? 0),
+        'faturado' => !empty($t['faturado']),
     ];
     if ($recI === null) {
-        $receita['id'] = $db['seq']['lancamento']++;
+        $receita['id'] = proximo_id_lancamento($db);
         $db['lancamentos'][] = $receita;
     } else {
         $receita['id'] = $db['lancamentos'][$recI]['id'];
@@ -246,9 +568,10 @@ function sync_trip_finance(array &$db, int $tripId): void
             'transfer_id' => (int) $t['id'],
             'papel' => 'repasse',
             'cliente' => nome_motorista($db, $t['motorista_id'] ?? 0),
+            'motorista_id' => (int) ($t['motorista_id'] ?? 0),
         ];
         if ($repI === null) {
-            $repasse['id'] = $db['seq']['lancamento']++;
+            $repasse['id'] = proximo_id_lancamento($db);
             $db['lancamentos'][] = $repasse;
         } else {
             $repasse['id'] = $db['lancamentos'][$repI]['id'];
@@ -342,20 +665,56 @@ function meios_pagamento(): array
     ];
 }
 
+function perna_do_motorista(array $trip, string $kind, int $motoristaId): bool
+{
+    return $motoristaId > 0 && in_array($motoristaId, motoristas_do_trecho($trip, $kind), true);
+}
+
 function viagem_do_motorista(array $trip, int $motoristaId): bool
 {
     if ($motoristaId <= 0) {
         return false;
     }
-    if ((int) ($trip['motorista_id'] ?? 0) === $motoristaId) {
-        return true;
+    if ((string) ($trip['quem'] ?? 'motorista') === 'parceiro') {
+        return false;
     }
-    foreach ($trip['extras'] ?? [] as $extra) {
-        if ((int) $extra === $motoristaId) {
+    foreach (agenda_legs($trip) as $leg) {
+        if (perna_do_motorista($trip, (string) $leg['kind'], $motoristaId)) {
             return true;
         }
     }
-    return false;
+    // Fallback para registro sem pernas resolvidas.
+    return perna_do_motorista($trip, 'ida', $motoristaId) || perna_do_motorista($trip, 'volta', $motoristaId);
+}
+
+function ids_equipe(string $chave): array
+{
+    $lista = $_POST['equipe'][$chave] ?? null;
+    if (!is_array($lista)) {
+        return [];
+    }
+    $ids = [];
+    foreach ($lista as $id) {
+        $n = (int) $id;
+        if ($n > 0 && !in_array($n, $ids, true)) {
+            $ids[] = $n;
+        }
+    }
+    return $ids;
+}
+
+function aplicar_equipe(array &$db, array &$item, array $ids): void
+{
+    $validos = [];
+    foreach ($ids as $id) {
+        $id = (int) $id;
+        if ($id > 0 && index_of($db['motoristas'], $id) !== null && !in_array($id, $validos, true)) {
+            $validos[] = $id;
+        }
+    }
+    $item['motorista_id'] = $validos[0] ?? null;
+    $item['motorista_volta_id'] = null;
+    $item['extras'] = array_values(array_slice($validos, 1));
 }
 
 function montar_reservas(array &$db, ?array $current): array
@@ -456,6 +815,12 @@ function montar_reservas(array &$db, ?array $current): array
     $base['cupom'] = clip(post('cupom'), 40);
     $base['obs'] = $obsGeral !== '' ? $obsGeral : $obsIda;
     $base['esconder_valores'] = post('esconder') === '1';
+    $usaEquipe = post('equipe_modo') === '1';
+    if ($usaEquipe) {
+        $base['motorista_id'] = null;
+        $base['motorista_volta_id'] = null;
+        $base['extras'] = [];
+    }
     $base['faturado'] = $faturado;
     $base['faturado_em'] = $faturado ? (string) ($base['faturado_em'] ?: today()->format('Y-m-d')) : null;
     $base['meio'] = $pagamentos === [] ? '' : (count($pagamentos) === 1 ? (string) array_key_first($pagamentos) : 'misto');
@@ -483,11 +848,14 @@ function montar_reservas(array &$db, ?array $current): array
         $base['qtd_horas'] = clip(post('qtd_horas'), 10);
         $base['trajetos'] = [];
         $base['obs'] = clip(post('itinerario'), 800) ?: $base['obs'];
+        if ($usaEquipe) {
+            aplicar_equipe($db, $base, ids_equipe('hora'));
+        }
         return [null, [$base]];
     }
     if ($tipo === 'trajetos') {
         $trechos = [];
-        foreach ((array) ($_POST['trajetos'] ?? []) as $bruto) {
+        foreach ((array) ($_POST['trajetos'] ?? []) as $idx => $bruto) {
             if (!is_array($bruto)) {
                 continue;
             }
@@ -508,6 +876,7 @@ function montar_reservas(array &$db, ?array $current): array
                 'data' => $dia,
                 'hora' => preg_match('/^\d{2}:\d{2}$/', $horaTrecho) ? $horaTrecho : '00:00',
                 'pax' => max(1, min(40, (int) ($bruto['pax'] ?? 1))),
+                'motoristas' => $usaEquipe ? ids_equipe('t' . (string) $idx) : null,
             ];
         }
         if ($trechos === []) {
@@ -516,7 +885,7 @@ function montar_reservas(array &$db, ?array $current): array
         if ($current === null && count($trechos) < 2) {
             return ['Inclua pelo menos dois destinos.', []];
         }
-        $montarTrecho = static function (array $base, array $trecho, int $ordem, float $valorParte, float $repasseParte): array {
+        $montarTrecho = static function (array $base, array $trecho, int $ordem, float $valorParte, float $repasseParte) use ($db, $usaEquipe): array {
             $item = $base;
             $item['tipo'] = 'ida';
             $item['conjunto'] = 'trajetos';
@@ -530,6 +899,9 @@ function montar_reservas(array &$db, ?array $current): array
             $item['qtd_horas'] = '';
             $item['valor'] = $valorParte;
             $item['repasse'] = $repasseParte;
+            if ($usaEquipe) {
+                aplicar_equipe($db, $item, is_array($trecho['motoristas'] ?? null) ? $trecho['motoristas'] : ids_equipe('t0'));
+            }
             return $item;
         };
         if ($current !== null) {
@@ -558,11 +930,18 @@ function montar_reservas(array &$db, ?array $current): array
     $base['hora'] = $hora !== '' ? $hora : '00:00';
     $base['trajetos'] = [];
     $base['qtd_horas'] = '';
-    if ($tipo !== 'ida_volta' || $current !== null) {
+    $jaDupla = $current !== null && (string) ($current['conjunto'] ?? '') === 'ida_volta';
+    if ($tipo !== 'ida_volta' || $jaDupla) {
         $base['tipo'] = $current !== null && (string) ($current['tipo'] ?? '') === 'volta' ? 'volta' : 'ida';
-        $base['conjunto'] = $tipo === 'ida_volta' ? 'ida_volta' : (string) ($current['conjunto'] ?? '');
-        if ($tipo !== 'ida_volta') {
-            $base['conjunto'] = '';
+        $base['conjunto'] = $tipo === 'ida_volta' ? 'ida_volta' : '';
+        if ($usaEquipe) {
+            $chave = 'ida';
+            if ($current !== null && (string) ($current['tipo'] ?? '') === 'volta') {
+                $chave = 'volta';
+            } elseif ($current !== null && (string) ($current['conjunto'] ?? '') === 'trajetos') {
+                $chave = 't0';
+            }
+            aplicar_equipe($db, $base, ids_equipe($chave));
         }
         return [null, [$base]];
     }
@@ -587,6 +966,10 @@ function montar_reservas(array &$db, ?array $current): array
     $volta['cupom'] = clip(post('cupom_volta'), 40);
     $volta['obs'] = clip(post('obs_volta'), 800) ?: $base['obs'];
     $volta['motorista_id'] = $motoristaVolta;
+    if ($usaEquipe) {
+        aplicar_equipe($db, $ida, ids_equipe('ida'));
+        aplicar_equipe($db, $volta, ids_equipe('volta'));
+    }
     $volta['valor'] = round($valor - $ida['valor'], 2);
     $volta['repasse'] = round($repasse - $ida['repasse'], 2);
     return [null, [$ida, $volta]];
@@ -672,16 +1055,7 @@ function save_image_setting(array &$db, string $fileKey, string $settingKey): ?s
     if ($ocupado > 1200000) {
         return 'A imagem não foi salva. Remova outra logo ou a assinatura antes de enviar um arquivo deste tamanho.';
     }
-    $anterior = (string) ($db['settings'][$settingKey] ?? '');
     $db['settings'][$settingKey] = $encoded;
-    $salvo = $_SESSION['db'] ?? null;
-    $_SESSION['db'] = $db;
-    $peso = strlen(session_encode());
-    if ($peso > 2000000) {
-        $db['settings'][$settingKey] = $anterior;
-        $_SESSION['db'] = is_array($salvo) ? $salvo : $db;
-        return 'A imagem não foi salva: o armazenamento da sessão passou do limite seguro.';
-    }
     return null;
 }
 
@@ -702,14 +1076,24 @@ function ops_dispatch(array &$db, string $action): ?array
             if ($err !== null) {
                 return [$err, ''];
             }
+            if ($current !== null && (string) ($current['status'] ?? '') !== (string) ($trips[0]['status'] ?? '') && post('confirmar') !== 'sim') {
+                return ['Clique outra vez para confirmar a mudança de status.', ''];
+            }
             $ids = [];
+            $novas = [];
             foreach ($trips as $n => $trip) {
                 if ($current !== null && $n === 0) {
                     $db['transfers'][index_of($db['transfers'], (int) $trip['id'])] = $trip;
+                    $statusAntigo = (string) $current['status'];
+                    if ($statusAntigo !== (string) $trip['status']) {
+                        apply_status_side_effects($db, $trip, $statusAntigo, (string) $trip['status']);
+                        aviso_mudanca_status($db, $trip, $statusAntigo, (string) $trip['status']);
+                    }
                 } else {
-                    $trip['id'] = $db['seq']['transfer']++;
+                    $trip['id'] = proximo_id_transfer($db);
                     $trip['criado_em'] = today()->format('Y-m-d');
                     $db['transfers'][] = $trip;
+                    $novas[] = $trip;
                 }
                 $ids[] = (int) $trip['id'];
                 sync_trip_finance($db, (int) $trip['id']);
@@ -717,22 +1101,28 @@ function ops_dispatch(array &$db, string $action): ?array
             if ($current !== null) {
                 return [null, 'Reserva #' . $ids[0] . ' atualizada.'];
             }
+            aviso_reservas_novas($db, $novas);
+            $waMot = comunicar_reservas_novas_motoristas($db, $novas);
+            $sufixoWa = $waMot !== '' ? ' ' . $waMot : '';
             if (count($ids) > 1) {
                 $nums = array_map(static fn(int $id): string => '#' . $id, $ids);
                 $lista = implode(', ', $nums);
                 $conjunto = (string) ($trips[0]['conjunto'] ?? '');
                 if ($conjunto === 'trajetos') {
-                    return [null, 'Reservas ' . $lista . ' criadas. Cada destino entrou com um número próprio.'];
+                    return [null, 'Reservas ' . $lista . ' criadas. Cada destino entrou com um número próprio.' . $sufixoWa];
                 }
-                return [null, 'Reservas ' . $lista . ' criadas. Ida e volta ficaram em números distintos e o valor foi dividido entre elas.'];
+                return [null, 'Reservas ' . $lista . ' criadas. Ida e volta ficaram em números distintos e o valor foi dividido entre elas.' . $sufixoWa];
             }
-            return [null, 'Reserva #' . $ids[0] . ' criada.'];
+            return [null, 'Reserva #' . $ids[0] . ' criada.' . $sufixoWa];
 
         case 'set_transfer_status':
             $i = index_of($db['transfers'], (int) post('id'));
             $new = one_of(post('status'), ['pendente', 'reserva', 'andamento', 'concluida', 'cancelada'], '');
             if ($i === null || $new === '') {
                 return ['Não foi possível atualizar a viagem.', ''];
+            }
+            if (post('confirmar') !== 'sim') {
+                return ['Clique outra vez para confirmar a mudança de status.', ''];
             }
             if (($_SESSION['role'] ?? 'admin') === 'motorista') {
                 $meu = (int) ($_SESSION['motorista_id'] ?? 0);
@@ -743,8 +1133,12 @@ function ops_dispatch(array &$db, string $action): ?array
             $old = (string) $db['transfers'][$i]['status'];
             $db['transfers'][$i]['status'] = $new;
             apply_status_side_effects($db, $db['transfers'][$i], $old, $new);
+            aviso_mudanca_status($db, $db['transfers'][$i], $old, $new);
             sync_trip_finance($db, (int) $db['transfers'][$i]['id']);
             return [null, $new === 'cancelada' ? 'Reserva cancelada. A receita em aberto foi cancelada no financeiro.' : 'Status da viagem atualizado.'];
+
+        case 'comunicar_reserva':
+            return comunicar_reserva($db, (int) post('id'));
 
         case 'receber_transfer':
             $i = index_of($db['transfers'], (int) post('id'));
@@ -758,14 +1152,60 @@ function ops_dispatch(array &$db, string $action): ?array
                 $old = (string) $db['transfers'][$i]['status'];
                 $db['transfers'][$i]['status'] = 'concluida';
                 apply_status_side_effects($db, $db['transfers'][$i], $old, 'concluida');
+                aviso_mudanca_status($db, $db['transfers'][$i], $old, 'concluida');
             }
             sync_trip_finance($db, (int) $db['transfers'][$i]['id']);
             return [null, 'Recebimento registrado.'];
+
+        case 'save_comunicador_autos':
+            if (post('editando') !== '1') {
+                return ['Clique em Editar antes de alterar as automações do Comunicador.', ''];
+            }
+            $mapa = [
+                'whatsapp_criacao' => post('whatsapp_criacao') === '1',
+                'whatsapp_d1' => post('whatsapp_d1') === '1',
+                'whatsapp_dia' => post('whatsapp_dia') === '1',
+            ];
+            $db['settings']['whatsapp_ativo'] = !empty($mapa['whatsapp_d1']) || !empty($mapa['whatsapp_dia']);
+            foreach ($db['automacoes'] as &$row) {
+                $id = (string) ($row['id'] ?? '');
+                if (array_key_exists($id, $mapa)) {
+                    $row['ativo'] = $mapa[$id];
+                }
+            }
+            unset($row);
+            // Garante que os registros existam mesmo em bases antigas.
+            foreach ($mapa as $id => $ativo) {
+                $tem = false;
+                foreach ($db['automacoes'] as $row) {
+                    if ((string) ($row['id'] ?? '') === $id) {
+                        $tem = true;
+                        break;
+                    }
+                }
+                if (!$tem) {
+                    $titulos = [
+                        'whatsapp_criacao' => 'WhatsApp ao motorista ao criar reserva',
+                        'whatsapp_d1' => 'WhatsApp ao motorista 1 dia antes',
+                        'whatsapp_dia' => 'WhatsApp ao motorista no dia',
+                    ];
+                    $db['automacoes'][] = [
+                        'id' => $id,
+                        'titulo' => $titulos[$id] ?? $id,
+                        'descricao' => '',
+                        'ativo' => $ativo,
+                    ];
+                }
+            }
+            return [null, 'Automações do Comunicador salvas.'];
 
         case 'faturar_transfer':
             $i = index_of($db['transfers'], (int) post('id'));
             if ($i === null) {
                 return ['Viagem não encontrada.', ''];
+            }
+            if (post('confirmar') !== 'sim') {
+                return ['Clique outra vez para confirmar o faturamento.', ''];
             }
             $on = empty($db['transfers'][$i]['faturado']);
             $db['transfers'][$i]['faturado'] = $on;
@@ -787,8 +1227,15 @@ function ops_dispatch(array &$db, string $action): ?array
                 if ($i === null) {
                     return ['Cliente não encontrado.', ''];
                 }
-                $db['clientes'][$i] = array_merge($db['clientes'][$i], $row);
-                return [null, 'Cliente atualizado.'];
+                $antes = $db['clientes'][$i];
+                $enviados = array_intersect_key($row, $_POST);
+                $db['clientes'][$i] = array_merge($db['clientes'][$i], $enviados);
+                $sync = sincronizar_cliente_nas_reservas($db, $antes, $db['clientes'][$i]);
+                $msg = 'Cliente atualizado.';
+                if ($sync > 0) {
+                    $msg .= ' ' . $sync . ' reserva' . ($sync === 1 ? '' : 's') . ' sincronizada' . ($sync === 1 ? '' : 's') . ' (telefone, e-mail e documento).';
+                }
+                return [null, $msg];
             }
             $row['id'] = $db['seq']['cliente']++;
             $db['clientes'][] = $row;
@@ -809,7 +1256,7 @@ function ops_dispatch(array &$db, string $action): ?array
                 'placa' => $placa,
                 'marca' => clip(post('marca'), 40),
                 'modelo' => $modelo,
-                'tipo' => one_of(post('tipo'), ['SED', 'VAN', 'EXEC', 'BUS'], 'SED'),
+                'tipo' => one_of(post('tipo'), array_merge(array_keys(categorias_veiculo()), ['SED', 'VAN', 'EXEC', 'BUS']), 'SED'),
                 'ano' => $ano,
                 'cor' => clip(post('cor'), 20),
                 'lugares' => $lugares,
@@ -833,50 +1280,83 @@ function ops_dispatch(array &$db, string $action): ?array
         case 'add_motorista':
             $nome = clip(post('nome'), 80);
             $telefone = clip(post('telefone'), 30);
+            $campos = motorista_campos();
+            $email = mb_strtolower(trim((string) ($campos['email'] ?? '')));
             if ($nome === '' || $telefone === '') {
                 return ['Informe nome completo e telefone do motorista.', ''];
             }
-            $mot = credenciais_motorista($db, array_merge(motorista_campos(), [
+            if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                return ['Informe o e-mail do motorista. Ele será o login do portal.', ''];
+            }
+            if (email_motorista_em_uso($db, $email)) {
+                return ['Este e-mail já está em uso por outro motorista.', ''];
+            }
+            $campos['email'] = $email;
+            $mot = credenciais_motorista($db, array_merge($campos, [
                 'id' => $db['seq']['motorista']++,
                 'nome' => $nome,
                 'telefone' => $telefone,
                 'status' => one_of(post('status'), ['ativo', 'inativo'], 'ativo'),
                 'criado_em' => today()->format('Y-m-d'),
-            ]), '', '');
+            ]), $email, '');
             $db['motoristas'][] = $mot;
-            return [null, 'Motorista cadastrado. Login do painel: ' . $mot['usuario'] . ' / senha ' . $mot['senha'] . '. Ele entra só na agenda e só altera o status das próprias reservas.'];
+            return [null, 'Motorista cadastrado. Login (e-mail): ' . $mot['usuario'] . ' · Senha-token (copie agora, aparece só esta vez): ' . $mot['senha'] . ' · Link do portal: ' . link_motorista($mot)];
 
         case 'update_motorista':
             $i = index_of($db['motoristas'], (int) post('id'));
             if ($i === null) {
                 return ['Motorista não encontrado.', ''];
             }
+            $antes = $db['motoristas'][$i];
             $nome = clip(post('nome'), 80);
             $telefone = clip(post('telefone'), 30);
+            $campos = motorista_campos();
+            $email = mb_strtolower(trim((string) ($campos['email'] ?? '')));
             if ($nome === '' || $telefone === '') {
                 return ['Informe nome completo e telefone do motorista.', ''];
             }
-            $db['motoristas'][$i] = array_merge($db['motoristas'][$i], motorista_campos(), [
+            if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                return ['Informe o e-mail do motorista. Ele será o login do portal.', ''];
+            }
+            if (email_motorista_em_uso($db, $email, (int) $db['motoristas'][$i]['id'])) {
+                return ['Este e-mail já está em uso por outro motorista.', ''];
+            }
+            $campos['email'] = $email;
+            $senhaAtual = (string) ($db['motoristas'][$i]['senha'] ?? '');
+            $acessoAtual = (string) ($db['motoristas'][$i]['acesso'] ?? '');
+            $db['motoristas'][$i] = array_merge($db['motoristas'][$i], $campos, [
                 'nome' => $nome,
                 'telefone' => $telefone,
                 'status' => one_of(post('status'), ['ativo', 'inativo'], (string) ($db['motoristas'][$i]['status'] ?? 'ativo')),
             ]);
-            if (empty($db['motoristas'][$i]['usuario']) || ($db['motoristas'][$i]['senha'] ?? '') === '') {
-                $db['motoristas'][$i] = credenciais_motorista($db, $db['motoristas'][$i], (string) ($db['motoristas'][$i]['usuario'] ?? ''), (string) ($db['motoristas'][$i]['senha'] ?? ''));
+            $db['motoristas'][$i] = credenciais_motorista(
+                $db,
+                $db['motoristas'][$i],
+                $email,
+                $senhaAtual !== '' ? $senhaAtual : ''
+            );
+            if ($acessoAtual !== '' && preg_match('/^[a-f0-9]{32}$/', strtolower($acessoAtual))) {
+                $db['motoristas'][$i]['acesso'] = strtolower($acessoAtual);
             }
-            return [null, 'Motorista atualizado. Acesso: ' . $db['motoristas'][$i]['usuario']];
+            $sync = sincronizar_motorista_nas_reservas($db, $antes, $db['motoristas'][$i]);
+            $msg = 'Motorista atualizado. Login: ' . $db['motoristas'][$i]['usuario'] . '. Link do portal: ' . link_motorista($db['motoristas'][$i]);
+            if ($sync > 0) {
+                $msg .= ' · ' . $sync . ' reserva' . ($sync === 1 ? '' : 's') . ' atribuída' . ($sync === 1 ? '' : 's') . ' já refletem o nome/telefone novos.';
+            }
+            return [null, $msg];
 
         case 'reset_senha_motorista':
             $i = index_of($db['motoristas'], (int) post('id'));
             if ($i === null) {
                 return ['Motorista não encontrado.', ''];
             }
-            $senha = 'floripa' . (string) random_int(1000, 9999);
-            if (empty($db['motoristas'][$i]['usuario'])) {
-                $db['motoristas'][$i]['usuario'] = unique_usuario($db, slug_usuario((string) $db['motoristas'][$i]['nome']), (int) $db['motoristas'][$i]['id']);
+            $email = mb_strtolower(trim((string) ($db['motoristas'][$i]['email'] ?? $db['motoristas'][$i]['usuario'] ?? '')));
+            if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                return ['Cadastre o e-mail do motorista antes de gerar a senha.', ''];
             }
-            $db['motoristas'][$i]['senha'] = $senha;
-            return [null, 'Nova senha de ' . $db['motoristas'][$i]['nome'] . ': ' . $db['motoristas'][$i]['usuario'] . ' / ' . $senha];
+            $db['motoristas'][$i]['email'] = $email;
+            $db['motoristas'][$i] = credenciais_motorista($db, $db['motoristas'][$i], $email, '');
+            return [null, 'Nova senha-token de ' . $db['motoristas'][$i]['nome'] . ' (copie agora, aparece só esta vez): login ' . $db['motoristas'][$i]['usuario'] . ' · senha ' . $db['motoristas'][$i]['senha'] . ' · Link: ' . link_motorista($db['motoristas'][$i])];
 
         case 'add_lancamento':
         case 'edit_lancamento':
@@ -908,25 +1388,33 @@ function ops_dispatch(array &$db, string $action): ?array
                 if ($i === null) {
                     return ['Lançamento não encontrado.', ''];
                 }
-                $row['id'] = $db['lancamentos'][$i]['id'];
-                $row['transfer_id'] = (int) ($db['lancamentos'][$i]['transfer_id'] ?? 0);
-                $row['papel'] = (string) ($db['lancamentos'][$i]['papel'] ?? 'manual');
-                if ($row['papel'] === 'receita' && $row['transfer_id'] > 0) {
-                    $ti = index_of($db['transfers'], $row['transfer_id']);
-                    if ($ti !== null) {
-                        $db['transfers'][$ti]['valor'] = $valor;
-                        $db['transfers'][$ti]['data'] = $data;
-                        $db['transfers'][$ti]['pago'] = $row['status'] === 'pago';
-                        if ($row['status'] === 'pago') {
-                            $db['transfers'][$ti]['pago_em'] = today()->format('Y-m-d');
-                            $db['transfers'][$ti]['meio'] = $row['meio'];
-                        }
+                $anterior = $db['lancamentos'][$i];
+                $row['id'] = $anterior['id'];
+                $row['transfer_id'] = (int) ($anterior['transfer_id'] ?? 0);
+                $row['papel'] = (string) ($anterior['papel'] ?? 'manual');
+                if ($row['transfer_id'] > 0 && index_of($db['transfers'], $row['transfer_id']) !== null) {
+                    foreach (['tipo', 'categoria', 'valor', 'data', 'vencimento', 'origem', 'cliente', 'linha'] as $fixo) {
+                        $row[$fixo] = $anterior[$fixo] ?? $row[$fixo];
                     }
+                    if (($anterior['status'] ?? '') === 'pago') {
+                        $row['status'] = 'pago';
+                        $row['baixa'] = (string) ($anterior['baixa'] ?? '');
+                    } elseif ($row['status'] === 'pago') {
+                        $row['baixa'] = today()->format('Y-m-d');
+                    }
+                    if ($row['papel'] === 'receita' && $row['status'] === 'pago') {
+                        $ti = index_of($db['transfers'], $row['transfer_id']);
+                        $db['transfers'][$ti]['pago'] = true;
+                        $db['transfers'][$ti]['pago_em'] = $db['transfers'][$ti]['pago_em'] ?: today()->format('Y-m-d');
+                        $db['transfers'][$ti]['meio'] = $row['meio'] !== '' ? $row['meio'] : (string) ($db['transfers'][$ti]['meio'] ?? '');
+                    }
+                    $db['lancamentos'][$i] = $row;
+                    return [null, 'Lançamento atualizado. Valor e data seguem a reserva #' . $row['transfer_id'] . '; para mudá-los, edite a reserva.'];
                 }
                 $db['lancamentos'][$i] = $row;
                 return [null, 'Lançamento atualizado.'];
             }
-            $row['id'] = $db['seq']['lancamento']++;
+            $row['id'] = proximo_id_lancamento($db);
             $db['lancamentos'][] = $row;
             return [null, 'Lançamento registrado.'];
 
@@ -934,6 +1422,9 @@ function ops_dispatch(array &$db, string $action): ?array
             $i = index_of($db['lancamentos'], (int) post('id'));
             if ($i === null) {
                 return ['Lançamento não encontrado.', ''];
+            }
+            if (post('confirmar') !== 'sim') {
+                return ['Clique outra vez para confirmar a baixa.', ''];
             }
             $db['lancamentos'][$i]['status'] = 'pago';
             $db['lancamentos'][$i]['baixa'] = today()->format('Y-m-d');
@@ -955,22 +1446,114 @@ function ops_dispatch(array &$db, string $action): ?array
                 return ['Reserva não encontrada.', ''];
             }
             $id = (int) $db['transfers'][$i]['id'];
-            array_splice($db['transfers'], $i, 1);
+            if (!empty($db['transfers'][$i]['pago'])) {
+                return ['A reserva #' . $id . ' já foi paga e não pode ser excluída. Use Cancelar.', ''];
+            }
+            foreach ($db['lancamentos'] as $l) {
+                if ((int) ($l['transfer_id'] ?? 0) === $id && ($l['status'] ?? '') === 'pago') {
+                    return ['A reserva #' . $id . ' tem o lançamento #' . (int) $l['id'] . ' pago e não pode ser excluída. Use Cancelar.', ''];
+                }
+            }
+            lixo_reservas_garantir($db);
+            $trip = $db['transfers'][$i];
+            $lancs = [];
             $db['lancamentos'] = array_values(array_filter(
                 $db['lancamentos'],
-                static fn(array $row): bool => (int) ($row['transfer_id'] ?? 0) !== $id || ($row['status'] ?? '') === 'pago'
+                static function (array $row) use ($id, &$lancs): bool {
+                    if ((int) ($row['transfer_id'] ?? 0) !== $id) {
+                        return true;
+                    }
+                    if (($row['status'] ?? '') === 'pago') {
+                        return true;
+                    }
+                    $lancs[] = $row;
+                    return false;
+                }
             ));
-            return [null, 'Reserva #' . $id . ' excluída.'];
+            array_splice($db['transfers'], $i, 1);
+            $db['lixo_reservas'][] = [
+                'id' => $id,
+                'excluida_em' => (new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i'),
+                'transfer' => $trip,
+                'lancamentos' => $lancs,
+            ];
+            return [null, 'Reserva #' . $id . ' foi para o lixo. Dá para restaurar em até 30 dias.'];
+
+        case 'restaurar_lixo':
+            lixo_reservas_garantir($db);
+            $id = (int) post('id');
+            $pos = null;
+            foreach ($db['lixo_reservas'] as $k => $item) {
+                if (is_array($item) && (int) ($item['id'] ?? 0) === $id) {
+                    $pos = $k;
+                    break;
+                }
+            }
+            if ($pos === null) {
+                return ['Essa reserva não está mais no lixo.', ''];
+            }
+            $item = $db['lixo_reservas'][$pos];
+            $trip = is_array($item['transfer'] ?? null) ? $item['transfer'] : null;
+            if ($trip === null) {
+                return ['Item do lixo inválido.', ''];
+            }
+            if (index_of($db['transfers'], $id) !== null) {
+                return ['Já existe uma reserva #' . $id . ' ativa. Não dá para restaurar com o mesmo número.', ''];
+            }
+            $lancs = is_array($item['lancamentos'] ?? null) ? $item['lancamentos'] : [];
+            foreach ($lancs as $l) {
+                if (!is_array($l)) {
+                    continue;
+                }
+                $lid = (int) ($l['id'] ?? 0);
+                if ($lid > 0 && index_of($db['lancamentos'], $lid) !== null) {
+                    return ['O lançamento #' . $lid . ' dessa reserva já existe de novo no financeiro. Não dá para restaurar agora.', ''];
+                }
+            }
+            $db['transfers'][] = $trip;
+            foreach ($lancs as $l) {
+                if (is_array($l)) {
+                    $db['lancamentos'][] = $l;
+                }
+            }
+            array_splice($db['lixo_reservas'], $pos, 1);
+            return [null, 'Reserva #' . $id . ' restaurada.'];
+
+        case 'apagar_lixo':
+            lixo_reservas_garantir($db);
+            $id = (int) post('id');
+            $pos = null;
+            foreach ($db['lixo_reservas'] as $k => $item) {
+                if (is_array($item) && (int) ($item['id'] ?? 0) === $id) {
+                    $pos = $k;
+                    break;
+                }
+            }
+            if ($pos === null) {
+                return ['Essa reserva não está mais no lixo.', ''];
+            }
+            array_splice($db['lixo_reservas'], $pos, 1);
+            return [null, 'Reserva #' . $id . ' apagada de vez do lixo.'];
 
         case 'delete_lancamento':
             $i = index_of($db['lancamentos'], (int) post('id'));
             if ($i === null) {
                 return ['Lançamento não encontrado.', ''];
             }
+            if (($db['lancamentos'][$i]['status'] ?? '') === 'pago') {
+                return ['Este lançamento já foi pago e não pode ser excluído.', ''];
+            }
+            $tid = (int) ($db['lancamentos'][$i]['transfer_id'] ?? 0);
+            if ($tid > 0 && index_of($db['transfers'], $tid) !== null) {
+                return ['Este lançamento é da reserva #' . $tid . '. Para tirá-lo do financeiro, cancele a reserva.', ''];
+            }
             array_splice($db['lancamentos'], $i, 1);
             return [null, 'Lançamento excluído.'];
 
         case 'save_contrato':
+            if (post('editando') !== '1') {
+                return ['Clique em Editar antes de alterar o contrato.', ''];
+            }
             $db['settings']['contrato_pdf'] = post('contrato_pdf') === '1';
             $db['settings']['contrato_modelo'] = clip(post('contrato_modelo'), 4000);
             $db['settings']['contrato_cancelamento'] = clip(post('contrato_cancelamento'), 4000);
@@ -1025,6 +1608,14 @@ function ops_dispatch(array &$db, string $action): ?array
             $db['settings']['assinatura_nome'] = clip(post('assinatura_nome'), 80);
             return [null, 'Assinatura salva.'];
 
+        case 'save_atendente':
+            if (post('editando') !== '1') {
+                return ['Clique em Editar antes de alterar estes dados.', ''];
+            }
+            $db['settings']['atendente_nome'] = clip(post('atendente_nome'), 80);
+            $db['settings']['atendente_fone'] = clip(post('atendente_fone'), 30);
+            return [null, 'Atendente do WhatsApp salvo.'];
+
         case 'save_pagamentos':
             if (post('editando') !== '1') {
                 return ['Clique em Editar antes de alterar estes dados.', ''];
@@ -1040,7 +1631,11 @@ function ops_dispatch(array &$db, string $action): ?array
                 return ['Clique em Editar antes de alterar estes dados.', ''];
             }
             $db['settings']['antecedencia'] = (string) max(0, min(72, (int) post('antecedencia')));
+            if (array_key_exists('intervalo_motorista', $_POST)) {
+                $db['settings']['intervalo_motorista'] = (string) max(15, min(720, (int) post('intervalo_motorista')));
+            }
             $db['settings']['modo_simples'] = post('modo_simples') === '1';
+            $db['settings']['verificacao_2fa'] = post('verificacao_2fa') === '1';
             $adminUser = slug_usuario(clip(post('usuario'), 40));
             if ($adminUser === '' || $adminUser === 'motorista') {
                 return ['Informe o usuário do administrador.', ''];
@@ -1064,6 +1659,15 @@ function ops_dispatch(array &$db, string $action): ?array
             $db['settings']['uazapi_token'] = clip(post('uazapi_token'), 4096);
             $db['settings']['whatsapp_ativo'] = post('whatsapp_ativo') === '1';
             return [null, 'Operação salva.'];
+
+        case 'save_notificacoes':
+            if (post('editando') !== '1') {
+                return ['Clique em Editar antes de alterar estes dados.', ''];
+            }
+            foreach (['notif_reserva', 'notif_solicitacao', 'notif_cancelamento', 'notif_status', 'notif_som', 'notif_vibrar'] as $chave) {
+                $db['settings'][$chave] = post($chave) === '1';
+            }
+            return [null, 'Notificações salvas.'];
 
         case 'remove_logo':
             $key = one_of(post('qual'), ['logo', 'logo_lateral', 'favicon', 'assinatura'], '');
@@ -1112,7 +1716,7 @@ function ops_dispatch(array &$db, string $action): ?array
                 return ['Solicitação não encontrada.', ''];
             }
             $s = $db['inbox'][$i];
-            $trip = blank_trip($db['seq']['transfer']++);
+            $trip = blank_trip(proximo_id_transfer($db));
             $trip['cliente'] = (string) $s['cliente'];
             $trip['telefone'] = (string) $s['telefone'];
             $trip['email'] = (string) $s['email'];
@@ -1126,7 +1730,9 @@ function ops_dispatch(array &$db, string $action): ?array
             $db['transfers'][] = $trip;
             array_splice($db['inbox'], $i, 1);
             sync_trip_finance($db, (int) $trip['id']);
-            return [null, 'Solicitação virou a reserva #' . $trip['id'] . '.'];
+            aviso_reservas_novas($db, [$trip]);
+            $waMot = comunicar_reservas_novas_motoristas($db, [$trip]);
+            return [null, 'Solicitação virou a reserva #' . $trip['id'] . '.' . ($waMot !== '' ? ' ' . $waMot : '')];
 
         case 'delete_inbox':
             $i = index_of($db['inbox'], (int) post('id'));
@@ -1147,6 +1753,8 @@ function ops_dispatch(array &$db, string $action): ?array
                 return [$detalhe, ''];
             }
             uazapi_apply_whatsapp_state($db['settings'], $state);
+            // Novo QR: corta o histórico a partir de agora; conversas locais já salvas ficam.
+            chat_ao_conectar($db, true);
             return [null, $detalhe];
 
         case 'excluir_instancia_whatsapp':
@@ -1159,7 +1767,7 @@ function ops_dispatch(array &$db, string $action): ?array
                 $db['settings']['wa_erro'] = $erro;
                 return [$erro, ''];
             }
-            return [null, 'Instância removida da UAZAPI e deste painel.'];
+            return [null, 'Instância removida da UAZAPI e deste painel. As conversas locais do chat foram mantidas.'];
 
         case 'status_whatsapp':
             if (!uazapi_settings_ready($db['settings'])) {
@@ -1171,7 +1779,21 @@ function ops_dispatch(array &$db, string $action): ?array
                 return [$detalhe, ''];
             }
             uazapi_apply_whatsapp_state($db['settings'], $state);
+            if (($db['settings']['wa_status'] ?? '') === 'conectado') {
+                chat_ao_conectar($db, false);
+            }
             return [null, $detalhe];
+
+        case 'sheets_sync_now':
+            if (!sheets_ativo()) {
+                return ['Ative GOOGLE_SHEETS_ENABLED=1 e configure a conta de serviço no servidor.', ''];
+            }
+            sheets_sync($db, 'manual');
+            $erro = (string) ($db['settings']['sheets_sync_erro'] ?? '');
+            if ($erro !== '') {
+                return [$erro, ''];
+            }
+            return [null, 'Planilhas Google atualizadas.'];
 
         default:
             return null;
@@ -1181,6 +1803,18 @@ function ops_dispatch(array &$db, string $action): ?array
 function handle_public_hook(string $secret): never
 {
     $db = load_db();
+    chat_store_garantir($db);
+    header('Content-Type: application/json; charset=utf-8');
+    if (($db['chat']['secret'] ?? '') !== '' && hash_equals((string) $db['chat']['secret'], $secret)) {
+        $raw = file_get_contents('php://input') ?: '';
+        $data = json_decode($raw, true);
+        if (!is_array($data)) {
+            $data = $_POST;
+        }
+        chat_webhook_recebido(is_array($data) ? $data : []);
+        echo '{"ok":true}';
+        exit;
+    }
     $auto = null;
     foreach ($db['automacoes'] as $row) {
         if (($row['secret'] ?? '') !== '' && hash_equals((string) $row['secret'], $secret)) {
@@ -1188,7 +1822,6 @@ function handle_public_hook(string $secret): never
             break;
         }
     }
-    header('Content-Type: application/json; charset=utf-8');
     if ($auto === null) {
         http_response_code(404);
         echo json_encode(['ok' => false, 'erro' => 'Webhook não encontrado.']);
@@ -1221,9 +1854,7 @@ function handle_public_hook(string $secret): never
             echo json_encode(['ok' => false, 'erro' => 'Informe nome e telefone.']);
             exit;
         }
-        $id = $db['seq']['mot_solic']++;
-        $db['mot_solic'][] = [
-            'id' => $id,
+        $registro = [
             'nome' => $nome,
             'telefone' => $telefone,
             'cidade' => $pick($data, ['cidade', 'city']),
@@ -1234,7 +1865,7 @@ function handle_public_hook(string $secret): never
             'status' => 'nova',
             'criado_em' => today()->format('Y-m-d'),
         ];
-        save_db($db);
+        $id = hook_gravar('mot_solic', $registro);
         echo json_encode(['ok' => true, 'id' => $id]);
         exit;
     }
@@ -1246,9 +1877,7 @@ function handle_public_hook(string $secret): never
         echo json_encode(['ok' => false, 'erro' => 'Informe cliente, origem e destino.']);
         exit;
     }
-    $id = $db['seq']['inbox']++;
-    $db['inbox'][] = [
-        'id' => $id,
+    $registro = [
         'cliente' => $cliente,
         'telefone' => $pick($data, ['telefone', 'phone', 'whatsapp']),
         'email' => $pick($data, ['email', 'e-mail']),
@@ -1260,9 +1889,28 @@ function handle_public_hook(string $secret): never
         'tipo' => $pick($data, ['tipo', 'type']) ?: 'ida',
         'criado_em' => today()->format('Y-m-d H:i'),
     ];
-    save_db($db);
+    $id = hook_gravar('inbox', $registro);
     echo json_encode(['ok' => true, 'id' => $id]);
     exit;
+}
+
+function hook_gravar(string $lista, array $registro): int
+{
+    try {
+        return (int) com_db('webhook_' . $lista, static function (array &$db) use ($lista, $registro): int {
+            $registro = ['id' => $db['seq'][$lista]++] + $registro;
+            $db[$lista][] = $registro;
+            if ($lista === 'inbox') {
+                aviso_solicitacao($db, $registro);
+            }
+            return (int) $registro['id'];
+        });
+    } catch (Throwable $e) {
+        error_log('fln hook: ' . $e->getMessage());
+        http_response_code(503);
+        echo json_encode(['ok' => false, 'erro' => 'Não foi possível gravar agora. Tente de novo.']);
+        exit;
+    }
 }
 
 function operation_seed(): array
@@ -1292,22 +1940,33 @@ function operation_seed(): array
         'settings' => [
             'nome' => 'Transfer FLN',
             'razao' => 'Fln Transfer Executivo e Turismo',
-            'cnpj' => '45.827.819/0001-08',
-            'telefone' => '(48) 98822-2534',
-            'whatsapp' => '(48) 98822-2534',
-            'email' => 'financeiroflnsc@gmail.com',
+            'cnpj' => '41.581.147/0001-08',
+            'telefone' => '(48) 98822-2934',
+            'whatsapp' => '(48) 98822-2934',
+            'email' => 'flnexecutivoads@gmail.com',
             'cidade' => 'Florianópolis',
             'uf' => 'SC',
-            'endereco' => 'Servidão Estação Luiz Cline, Florianópolis - SC',
-            'rep_legal' => 'Matheus Blum',
-            'pix' => 'financeiroflnsc@gmail.com',
+            'endereco' => 'Servidão Estação Lua Clara, Rio Vermelho, Florianópolis - SC, 88060',
+            'rep_legal' => 'Matheus Brum',
+            'pix' => 'flnexecutivoads@gmail.com',
             'pix_cidade' => 'Florianópolis',
+            'dono_nome' => 'Matheus Brum',
+            'dono_email' => 'matheusbrumds@gmail.com',
+            'dono_telefone' => '(48) 99967-2557',
             'pagbank_token' => '',
             'pagbank_ativo' => false,
             'antecedencia' => '2',
+            'intervalo_motorista' => '120',
             'modo_simples' => false,
             'usuario' => 'admin',
             'senha' => 'admin123',
+            'verificacao_2fa' => false,
+            'notif_reserva' => true,
+            'notif_solicitacao' => true,
+            'notif_cancelamento' => true,
+            'notif_status' => false,
+            'notif_som' => true,
+            'notif_vibrar' => true,
             'uazapi_admin_token' => '',
             'uazapi_create_url' => '',
             'uazapi_url' => '',
@@ -1318,9 +1977,9 @@ function operation_seed(): array
             'logo_lateral' => '',
             'favicon' => '',
             'assinatura' => '',
-            'assinatura_nome' => 'Matheus Blum',
-            'comp_principal' => "Fln Transfer Executivo e Turismo\nCNPJ 45.827.819/0001-08\nServidão Estação Luiz Cline\nTel +55 48 98822-2534 · financeiroflnsc@gmail.com",
-            'comp_rodape' => 'Obrigado por viajar com a Fln Transfer. Guarde este comprovante.',
+            'assinatura_nome' => 'Matheus Brum',
+            'comp_principal' => "Fln Transfer Executivo e Turismo\nCNPJ 41.581.147/0001-08\nServidão Estação Lua Clara, Rio Vermelho, Florianópolis - SC\nTel +55 48 98822-2934 · flnexecutivoads@gmail.com\nRep. legal: Matheus Brum",
+            'comp_rodape' => 'Obrigado por viajar com a Fln Transfer Executivo e Turismo. Guarde este comprovante.',
             'contrato_pdf' => true,
             'contrato_modelo' => $contratoModelo,
             'contrato_cancelamento' => $contratoCancela,
@@ -1332,7 +1991,16 @@ function operation_seed(): array
             'wa_request_id' => '',
             'wa_profile_name' => '',
             'wa_erro' => '',
+            'chat_ignorar_grupos' => true,
+            'chat_ia_ativa' => false,
+            'chat_ia_parar' => 'parar',
+            'chat_ia_parar_min' => 30,
+            'chat_ia_pausar_manual' => 5,
+            'chat_openai_key' => '',
+            'atendente_nome' => 'Matheus Brum',
+            'atendente_fone' => '(48) 99967-2557',
         ],
+        'atendimento' => ['por_fone' => []],
         'veiculos' => [],
         'motoristas' => [
             ['id' => 1, 'nome' => 'Fábio Luiz de Oliveira', 'cpf' => '810.877.930-01', 'telefone' => '(47) 98463-0303', 'cnh' => 'SC3019281', 'categoria' => 'D', 'cidade' => 'Florianópolis', 'uf' => 'SC', 'status' => 'ativo', 'usuario' => 'fabio.oliveira', 'senha' => 'floripa2001', 'criado_em' => '2026-10-25'],
@@ -1350,6 +2018,7 @@ function operation_seed(): array
             ['id' => 6, 'nome' => 'Felipe Goulart', 'tipo' => 'PF', 'email' => 'felipe.goulart@email.com', 'telefone' => '(47) 99125-7643', 'documento' => '064.462.899-17', 'cidade' => 'Balneário Camboriú', 'uf' => 'SC', 'empresa' => '', 'endereco' => ''],
         ],
         'transfers' => [],
+        'lixo_reservas' => [],
         'lancamentos' => [],
         'grupos' => [],
         'notas' => [
@@ -1367,6 +2036,7 @@ function operation_seed(): array
             ['id' => 'lembrete', 'titulo' => 'Lembrete 24 horas antes', 'descricao' => 'Agenda um lembrete para o dia anterior à viagem.', 'ativo' => true],
             ['id' => 'caminho', 'titulo' => 'Aviso de motorista a caminho', 'descricao' => 'Registra o aviso quando a viagem entra em andamento.', 'ativo' => false],
             ['id' => 'resumo', 'titulo' => 'Resumo diário de métricas', 'descricao' => 'O painel de métricas recarrega sozinho a cada 60 segundos.', 'ativo' => true],
+            ['id' => 'whatsapp_criacao', 'titulo' => 'WhatsApp ao motorista ao criar reserva', 'descricao' => 'Assim que a reserva é criada, envia o card (ciência / PDF / atendente) a todos os motoristas daquela reserva. Cliente só no Comunicar manual.', 'ativo' => true],
             ['id' => 'whatsapp_d1', 'titulo' => 'WhatsApp ao motorista, 1 dia antes', 'descricao' => 'Envia o agendamento pelo WhatsApp (UAZAPI) no dia anterior à viagem.', 'ativo' => true],
             ['id' => 'whatsapp_dia', 'titulo' => 'WhatsApp ao motorista, no dia', 'descricao' => 'Envia o agendamento pelo WhatsApp (UAZAPI) no dia da viagem.', 'ativo' => true],
         ],
@@ -1374,8 +2044,8 @@ function operation_seed(): array
             ['id' => 'confirmacao', 'titulo' => 'Confirmação de embarque', 'texto' => 'Olá {cliente}, sua viagem {codigo} está confirmada para {data} às {hora}. Origem: {origem}. Destino: {destino}. Valor {valor}.'],
             ['id' => 'lembrete', 'titulo' => 'Lembrete da viagem', 'texto' => 'Olá {cliente}, lembrete da viagem {codigo} em {data} às {hora}. Saída de {origem} com destino a {destino}.'],
             ['id' => 'caminho', 'titulo' => 'Motorista a caminho', 'texto' => 'Olá {cliente}, o motorista {motorista} está a caminho do embarque em {origem}. Viagem {codigo}.'],
-            ['id' => 'mot_d1', 'titulo' => 'Agenda do motorista — véspera', 'texto' => 'Olá {motorista}, amanhã você tem a viagem {codigo} às {hora}. Cliente: {cliente}. Origem: {origem}. Destino: {destino}. Valor {valor}.'],
-            ['id' => 'mot_dia', 'titulo' => 'Agenda do motorista — no dia', 'texto' => 'Olá {motorista}, hoje você tem a viagem {codigo} às {hora}. Cliente: {cliente}. Embarque em {origem}, destino {destino}. Valor {valor}.'],
+            ['id' => 'mot_d1', 'titulo' => 'Agenda do motorista — véspera', 'texto' => 'Olá {motorista}, amanhã você tem a viagem {codigo} às {hora}. Cliente: {cliente}. Origem: {origem}. Destino: {destino}.'],
+            ['id' => 'mot_dia', 'titulo' => 'Agenda do motorista — no dia', 'texto' => 'Olá {motorista}, hoje você tem a viagem {codigo} às {hora}. Cliente: {cliente}. Embarque em {origem}, destino {destino}.'],
         ],
     ];
 

@@ -13,25 +13,35 @@ if (!$cursor) {
 $noMes = static function (string $data) use ($mes): bool {
     return str_starts_with($data, $mes);
 };
+$deMes = $cursor->format('Y-m-d');
+$ateMes = fim_do_mes($deMes);
+$motFiltro = (int) ($_GET['mot'] ?? 0);
+$prolabore = resumo_prolabore($db, $deMes, $ateMes);
 $receitas = 0.0;
 $recebido = 0.0;
-$pendReceber = 0.0;
-foreach ($db['transfers'] as $t) {
-    if ($t['status'] === 'cancelada' || !$noMes((string) $t['data'])) {
+$aVista = 0.0;
+$boleto = 0.0;
+$proAberto = 0.0;
+$proPago = 0.0;
+foreach ($prolabore as $linha) {
+    if ($motFiltro > 0 && (int) $linha['id'] !== $motFiltro) {
         continue;
     }
-    $receitas += (float) $t['valor'];
-    if (!empty($t['pago'])) {
-        $recebido += (float) $t['valor'];
-    } else {
-        $pendReceber += (float) $t['valor'];
-    }
+    $receitas += $linha['valor'];
+    $recebido += $linha['recebido'];
+    $aVista += $linha['vista'];
+    $boleto += $linha['boleto'];
+    $proAberto += $linha['prolabore_aberto'];
+    $proPago += $linha['prolabore_pago'];
 }
 $despTotal = 0.0;
 $despPaga = 0.0;
 $despPend = 0.0;
 foreach ($db['lancamentos'] as $l) {
     if (($l['tipo'] ?? '') !== 'saida' || ($l['status'] ?? '') === 'cancelado' || !$noMes((string) $l['data'])) {
+        continue;
+    }
+    if ($motFiltro > 0 && (int) ($l['motorista_id'] ?? 0) !== $motFiltro) {
         continue;
     }
     $despTotal += (float) $l['valor'];
@@ -42,7 +52,6 @@ foreach ($db['lancamentos'] as $l) {
     }
 }
 $lucroReal = $recebido - $despPaga;
-$lucroProj = $receitas - $despTotal;
 view_head();
 ?>
 <div class="month-nav">
@@ -50,12 +59,25 @@ view_head();
   <strong><?= e(ucfirst(mes_longo($cursor))) ?> de <?= e($cursor->format('Y')) ?></strong>
   <a class="btn btn-sm" href="<?= e(href('fin-dashboard', ['mes' => $cursor->modify('+1 month')->format('Y-m')])) ?>">›</a>
 </div>
+<form class="filters" method="get" action="index.php">
+  <input type="hidden" name="p" value="fin-dashboard">
+  <input type="hidden" name="mes" value="<?= e($mes) ?>">
+  <label>Motorista
+    <select name="mot">
+      <option value="0">Todos</option>
+      <?php foreach ($db['motoristas'] as $m): ?>
+        <option value="<?= (int) $m['id'] ?>"<?= $motFiltro === (int) $m['id'] ? ' selected' : '' ?>><?= e($m['nome']) ?></option>
+      <?php endforeach; ?>
+    </select>
+  </label>
+  <button class="btn btn-sm" type="submit">Filtrar</button>
+</form>
 <div class="stat-row five">
-  <article class="card stat"><span>Faturado (receitas)</span><strong><?= e(brl($receitas)) ?></strong><small>Soma das receitas não canceladas no mês</small></article>
-  <article class="card stat"><span>Recebido</span><strong class="ok"><?= e(brl($recebido)) ?></strong><small>Receitas marcadas como pagas</small></article>
-  <article class="card stat"><span>Pendente (receber)</span><strong class="warn"><?= e(brl($pendReceber)) ?></strong><small>Ainda não marcado como pago</small></article>
-  <article class="card stat"><span>Lucro real (caixa)</span><strong><?= e(brl($lucroReal)) ?></strong><small>Recebido − despesas pagas no mês</small></article>
-  <article class="card stat"><span>Lucro projetado</span><strong><?= e(brl($lucroProj)) ?></strong><small>Receitas − despesas do mês, não canceladas</small></article>
+  <article class="card stat"><span>Receita do mês</span><strong><?= e(brl($receitas)) ?></strong><small>Reservas não canceladas</small></article>
+  <article class="card stat"><span>Já recebido</span><strong class="ok"><?= e(brl($recebido)) ?></strong><small>Cliente já pagou</small></article>
+  <article class="card stat"><span>A receber na hora</span><strong class="warn"><?= e(brl($aVista)) ?></strong><small>Sem a marca de faturado</small></article>
+  <article class="card stat"><span>Boleto no fim do mês</span><strong class="warn"><?= e(brl($boleto)) ?></strong><small>Faturado e ainda em aberto</small></article>
+  <article class="card stat"><span>Pro-labore em aberto</span><strong><?= e(brl($proAberto)) ?></strong><small>Repasse de viagens concluídas</small></article>
 </div>
 <section class="card" style="margin-top:12px">
   <header class="card-h"><h2>Despesas no mês</h2></header>
@@ -63,6 +85,7 @@ view_head();
     <article><span>Total (não canceladas)</span><strong><?= e(brl($despTotal)) ?></strong></article>
     <article><span>Pagas</span><strong><?= e(brl($despPaga)) ?></strong></article>
     <article><span>Pendentes (a pagar)</span><strong class="warn"><?= e(brl($despPend)) ?></strong></article>
+    <article><span>Resultado do caixa</span><strong><?= e(brl($lucroReal)) ?></strong></article>
   </div>
 </section>
 <section class="card" style="margin-top:12px">
@@ -75,4 +98,28 @@ view_head();
     <a href="<?= e(href('relatorios')) ?>">Relatórios</a>
   </div>
 </section>
-<p class="help" style="margin-top:12px">Reservas novas ou atualizadas geram ou ajustam lançamentos automaticamente (receita pendente em contas a receber). Marcar como pago é manual em Lançamentos. Ao concluir a viagem com repasse, cria-se a despesa de repasse ao motorista (contas a pagar). Cancelar a reserva cancela a receita em aberto.</p>
+<section class="card" style="margin-top:12px">
+  <header class="card-h"><h2>Pro-labore por motorista</h2></header>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Motorista</th><th>Viagens</th><th>Concluídas</th><th>Receita</th><th>Na hora</th><th>Boleto</th><th>Pro-labore</th><th>Pago</th><th>Em aberto</th></tr></thead>
+      <tbody>
+        <?php foreach ($prolabore as $linha): ?>
+          <?php if ($motFiltro > 0 && (int) $linha['id'] !== $motFiltro) continue; ?>
+          <tr>
+            <td><?= e($linha['nome']) ?></td>
+            <td><?= (int) $linha['viagens'] ?></td>
+            <td><?= (int) $linha['concluidas'] ?></td>
+            <td><?= e(brl($linha['valor'])) ?></td>
+            <td><?= e(brl($linha['vista'])) ?></td>
+            <td><?= e(brl($linha['boleto'])) ?></td>
+            <td><?= e(brl($linha['prolabore'])) ?></td>
+            <td><?= e(brl($linha['prolabore_pago'])) ?></td>
+            <td><?= e(brl($linha['prolabore_aberto'])) ?></td>
+          </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+</section>
+<p class="help" style="margin-top:12px">Cada reserva entra em Contas a receber. Se estiver marcada como faturado, o vencimento vai para o último dia do mês: a empresa paga o pacote por boleto. Concluir a viagem, com repasse maior que zero, gera o pro-labore daquele motorista em Contas a pagar. Juros, mora e sangria não são calculados sozinhos; uma taxa entra como lançamento manual.</p>

@@ -37,6 +37,12 @@ function icon(string $name): string
         'zoom' => '<circle cx="11" cy="11" r="6"/><path d="M20 20l-3.5-3.5M11 8.5v5M8.5 11h5"/>',
         'moon' => '<path d="M16.5 3.5a8.5 8.5 0 1 0 4 13.5A7 7 0 1 1 16.5 3.5z"/>',
         'menu' => '<path d="M4 7h16M4 12h16M4 17h16"/>',
+        'copy' => '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M6 15H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1"/>',
+        'chat' => '<path d="M5 6.5A2.5 2.5 0 0 1 7.5 4h9A2.5 2.5 0 0 1 19 6.5v7A2.5 2.5 0 0 1 16.5 16H9l-4 3.2V6.5z"/>',
+        'send' => '<path d="M4 12 20 4l-6 16-2.2-6.2L4 12z"/>',
+        'expand' => '<path d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5"/>',
+        'compress' => '<path d="M4 9h5V4M20 9h-5V4M4 15h5v5M20 15h-5v5"/>',
+        'trash' => '<path d="M4 7h16"/><path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7"/><path d="M6.5 7l.8 12.2A1.5 1.5 0 0 0 8.8 20.5h6.4a1.5 1.5 0 0 0 1.5-1.3L17.5 7"/><path d="M10 11v6M14 11v6"/>',
     ];
     $inner = $paths[$name] ?? $paths['file'];
     return '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' . $inner . '</svg>';

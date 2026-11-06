@@ -20,11 +20,15 @@ if (!$admin) {
     $todas = array_values(array_filter($todas, static fn(array $t): bool => viagem_do_motorista($t, $meu)));
 }
 $byDay = [];
+$meuId = (int) ($_SESSION['motorista_id'] ?? 0);
 foreach ($todas as $trip) {
     if ($trip['status'] === 'cancelada') {
         continue;
     }
     foreach (agenda_legs($trip) as $leg) {
+        if (!$admin && !perna_do_motorista($trip, (string) $leg['kind'], $meuId)) {
+            continue;
+        }
         $byDay[$leg['data']][] = $leg + ['cliente' => $trip['cliente']];
     }
 }
@@ -32,113 +36,96 @@ foreach ($byDay as &$legs) {
     usort($legs, static fn(array $a, array $b): int => $a['hora'] <=> $b['hora']);
 }
 unset($legs);
-$weekStart = (int) $cursor->format('N');
-$gridStart = $cursor->modify('-' . ($weekStart - 1) . ' days');
+$weekStart = (int) $cursor->format('w');
+$gridStart = $cursor->modify('-' . $weekStart . ' days');
 if (!$admin) {
     view_head('', 'Suas viagens. O acesso mostra somente o que foi atribuído a você.');
 } else {
     view_head();
 }
+$hojeIso = today()->format('Y-m-d');
+$limiteIso = today()->modify('+30 days')->format('Y-m-d');
+$proximas = [];
+foreach ($todas as $trip) {
+    if (in_array((string) $trip['status'], ['cancelada', 'concluida'], true)) {
+        continue;
+    }
+    foreach (agenda_legs($trip) as $leg) {
+        if (!$admin && !perna_do_motorista($trip, (string) $leg['kind'], $meuId)) {
+            continue;
+        }
+        if ($leg['data'] < $hojeIso || $leg['data'] > $limiteIso) {
+            continue;
+        }
+        $inverte = $leg['kind'] === 'volta' && (string) ($trip['tipo'] ?? '') === 'ida_volta';
+        $proximas[] = $leg + [
+            'de' => (string) ($inverte ? $trip['destino'] : $trip['origem']),
+            'para' => (string) ($inverte ? $trip['origem'] : $trip['destino']),
+            'cliente' => (string) $trip['cliente'],
+            'status' => (string) $trip['status'],
+        ];
+    }
+}
+usort($proximas, static fn(array $a, array $b): int => [$a['data'], $a['hora']] <=> [$b['data'], $b['hora']]);
 ?>
+<section class="agenda-lista<?= $admin ? ' so-celular' : '' ?>" aria-label="Próximas viagens">
+  <h2 class="sec-title">Próximas viagens</h2>
+  <?php if ($proximas === []): ?>
+    <p class="empty-box"><strong>Nenhuma viagem nos próximos 30 dias.</strong> <?= $admin ? 'As reservas aparecem aqui assim que forem criadas.' : 'Quando o administrador atribuir uma reserva a você, ela aparece aqui.' ?></p>
+  <?php else: ?>
+    <?php foreach ($proximas as $p): ?>
+      <?php $d = DateTimeImmutable::createFromFormat('!Y-m-d', $p['data']); ?>
+      <button type="button" class="viagem-card" data-open-dialog="dlg-ver-<?= (int) $p['id'] ?>" data-reserva-id="<?= (int) $p['id'] ?>">
+        <span class="viagem-quando">
+          <strong><?= $p['data'] === $hojeIso ? 'Hoje' : e($d ? $d->format('d/m') : $p['data']) ?></strong>
+          <span><?= e($p['hora'] !== '' ? $p['hora'] : '--:--') ?></span>
+        </span>
+        <span class="viagem-info">
+          <span class="viagem-topo"><span class="chip-meta"><span class="<?= $p['passou'] ? 'chip-late' : 'chip-ok' ?>">#<?= (int) $p['id'] ?></span> <?= e($p['label']) ?></span> <?= status_badge($p['status']) ?></span>
+          <span class="viagem-rota"><?= e($p['de']) ?> → <?= e($p['para']) ?></span>
+          <span class="viagem-cli"><?= e($p['cliente']) ?></span>
+        </span>
+      </button>
+    <?php endforeach; ?>
+  <?php endif; ?>
+</section>
 <div class="cal-wrap">
   <div class="cal-head">
-    <a class="btn btn-sm" href="<?= e(href('agenda', ['mes' => $cursor->modify('-1 month')->format('Y-m')])) ?>">Mês anterior</a>
+    <a class="cal-nav" href="<?= e(href('agenda', ['mes' => $cursor->modify('-1 month')->format('Y-m')])) ?>" aria-label="Mês anterior">‹</a>
     <strong><?= e(ucfirst(mes_longo($cursor))) ?> <?= e($cursor->format('Y')) ?></strong>
-    <a class="btn btn-sm" href="<?= e(href('agenda', ['mes' => $cursor->modify('+1 month')->format('Y-m')])) ?>">Próximo mês</a>
+    <a class="cal-nav" href="<?= e(href('agenda', ['mes' => $cursor->modify('+1 month')->format('Y-m')])) ?>" aria-label="Próximo mês">›</a>
+    <a class="btn btn-sm cal-hoje" href="<?= e(href('agenda', ['mes' => today()->format('Y-m')])) ?>">Hoje</a>
   </div>
   <div class="cal-grid">
-    <?php foreach (['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'] as $dow): ?>
+    <?php foreach (['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'] as $dow): ?>
       <div class="cal-dow"><?= $dow ?></div>
     <?php endforeach; ?>
-    <?php for ($i = 0; $i < 42; $i++): ?>
-      <?php
+    <?php
+      $nomesDia = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+      for ($i = 0; $i < 42; $i++):
         $day = $gridStart->modify('+' . $i . ' days');
         $key = $day->format('Y-m-d');
         $legs = $byDay[$key] ?? [];
-      ?>
+    ?>
       <div class="cal-day<?= $day->format('Y-m') !== $mes ? ' out' : '' ?><?= $key === today()->format('Y-m-d') ? ' today' : '' ?>">
         <b><?= e($day->format('j')) ?></b>
+        <span class="cal-dow-nome"><?= e($nomesDia[(int) $day->format('w')]) ?></span>
+        <div class="cal-itens">
         <?php foreach ($legs as $leg): ?>
-          <button type="button" class="chip chip-<?= e($leg['kind']) ?>" data-open-dialog="dlg-ver-<?= (int) $leg['id'] ?>" aria-label="Reserva #<?= (int) $leg['id'] ?>, <?= e($leg['label']) ?> <?= e($leg['hora']) ?>, <?= e($leg['place']) ?>">
-            <span class="chip-meta"><span class="<?= $leg['passou'] ? 'chip-late' : 'chip-ok' ?>">#<?= (int) $leg['id'] ?></span> <?= e($leg['label']) ?> <?= e($leg['hora']) ?></span>
+          <?php $horaLeg = $leg['hora'] !== '' ? substr((string) $leg['hora'], 0, 5) : '--:--'; ?>
+          <button type="button" class="chip chip-<?= e($leg['kind']) ?>" data-open-dialog="dlg-ver-<?= (int) $leg['id'] ?>" data-reserva-id="<?= (int) $leg['id'] ?>" aria-label="Reserva #<?= (int) $leg['id'] ?>, <?= e($leg['label']) ?> <?= e($horaLeg) ?>, <?= e($leg['place']) ?>">
+            <span class="<?= $leg['passou'] ? 'chip-late' : 'chip-ok' ?>">#<?= (int) $leg['id'] ?></span>
+            <span class="chip-tipo"><?= e($leg['label']) ?></span>
+            <span class="chip-hora"><?= e($horaLeg) ?></span>
             <span class="chip-place"><?= e($leg['place']) ?></span>
           </button>
         <?php endforeach; ?>
+        </div>
       </div>
     <?php endfor; ?>
   </div>
   <p class="cal-note">Reservas com data e hora preenchidas aparecem no dia correspondente. Ida e volta geram entradas separadas (com horários distintos quando informados). Toque numa reserva para ver os detalhes no centro da tela. O código fica <span class="chip-ok">verde</span> se o horário do dia ainda não passou e <span class="chip-late">vermelho</span> se passou.</p>
 </div>
-<?php foreach ($todas as $trip): ?>
-  <dialog id="dlg-ver-<?= (int) $trip['id'] ?>">
-    <header class="dialog-h">
-      <h2>Detalhes da reserva #<?= (int) $trip['id'] ?></h2>
-      <button class="dlg-x" type="button" data-close-dialog aria-label="Fechar">×</button>
-    </header>
-    <div class="dialog-b"><?php reserva_detalhes($db, $trip); ?></div>
-    <footer class="dlg-foot">
-      <?php if ($admin): ?>
-        <a class="btn btn-sm" href="<?= e(href('reservas', ['edit' => $trip['id']])) ?>">Editar</a>
-        <form method="post" action="index.php" data-confirm-vezes="2" data-confirm="<?= !empty($trip['faturado']) ? 'Tirar o faturamento da reserva #' . (int) $trip['id'] . '?' : 'Marcar a reserva #' . (int) $trip['id'] . ' como faturada?' ?>" data-confirm-2="<?= !empty($trip['faturado']) ? 'Confirme novamente para tirar o faturamento da reserva #' . (int) $trip['id'] . '.' : 'Confirme novamente: a reserva #' . (int) $trip['id'] . ' ficará faturada.' ?>">
-          <?= csrf_fields('faturar_transfer') ?>
-          <input type="hidden" name="id" value="<?= (int) $trip['id'] ?>">
-          <button class="btn btn-sm" type="submit"><?= !empty($trip['faturado']) ? 'Tirar faturamento' : 'Faturar' ?></button>
-        </form>
-        <form method="post" action="index.php" data-confirm-vezes="2" data-confirm="Marcar a reserva #<?= (int) $trip['id'] ?> como concluída?" data-confirm-2="Confirme novamente: a reserva #<?= (int) $trip['id'] ?> ficará concluída.">
-          <?= csrf_fields('set_transfer_status') ?>
-          <input type="hidden" name="id" value="<?= (int) $trip['id'] ?>">
-          <input type="hidden" name="status" value="concluida">
-          <button class="btn btn-sm btn-primary" type="submit">Concluir</button>
-        </form>
-      <?php endif; ?>
-      <?php if (!$admin): ?>
-        <form method="post" action="index.php" data-confirm-vezes="2" data-confirm="Alterar o status da reserva #<?= (int) $trip['id'] ?>?" data-confirm-2="Confirme novamente a mudança de status da reserva #<?= (int) $trip['id'] ?>.">
-          <?= csrf_fields('set_transfer_status') ?>
-          <input type="hidden" name="id" value="<?= (int) $trip['id'] ?>">
-          <label class="field">Status
-            <select name="status">
-              <?php foreach (['pendente' => 'Pendente', 'reserva' => 'Reservada', 'andamento' => 'Em andamento', 'concluida' => 'Concluída', 'cancelada' => 'Cancelada'] as $k => $lab): ?>
-                <option value="<?= e($k) ?>"<?= ($trip['status'] ?? '') === $k ? ' selected' : '' ?>><?= e($lab) ?></option>
-              <?php endforeach; ?>
-            </select>
-          </label>
-          <button class="btn btn-sm btn-primary" type="submit">Atualizar status</button>
-        </form>
-      <?php endif; ?>
-      <?php if (reserva_pode_pdf($trip)): ?>
-        <button class="btn btn-sm btn-primary" type="button" data-open-dialog="dlg-pdf-<?= (int) $trip['id'] ?>">Baixar PDF</button>
-      <?php endif; ?>
-    </footer>
-  </dialog>
-  <?php if (reserva_pode_pdf($trip)): ?>
-    <dialog id="dlg-pdf-<?= (int) $trip['id'] ?>" class="dlg-pdf">
-      <header class="dialog-h no-print">
-        <h2>Pré-visualização da reserva #<?= (int) $trip['id'] ?></h2>
-        <div class="dialog-tools">
-          <button class="btn btn-sm btn-primary" type="button" data-print data-confirm-vezes="2" data-confirm="Baixar o PDF da reserva #<?= (int) $trip['id'] ?>?" data-confirm-2="Confirme novamente para gerar o PDF da reserva #<?= (int) $trip['id'] ?>.">Baixar PDF</button>
-          <button class="dlg-x" type="button" data-close-dialog aria-label="Fechar">×</button>
-        </div>
-      </header>
-      <div class="dialog-b"><?php reserva_folha($db, $trip); ?></div>
-      <footer class="dlg-foot no-print">
-        <button class="btn btn-primary" type="button" data-print data-confirm-vezes="2" data-confirm="Baixar o PDF da reserva #<?= (int) $trip['id'] ?>?" data-confirm-2="Confirme novamente para gerar o PDF da reserva #<?= (int) $trip['id'] ?>.">Baixar PDF</button>
-        <button class="btn" type="button" data-close-dialog>Fechar</button>
-      </footer>
-    </dialog>
-  <?php endif; ?>
-<?php endforeach; ?>
 <?php if ($ver > 0): ?>
-<script>
-document.addEventListener('DOMContentLoaded', () => {
-  const dlg = document.getElementById('dlg-ver-<?= $ver ?>');
-  if (!dlg) return;
-  dlg.setAttribute('closedby', 'none');
-  dlg.showModal();
-  dlg.addEventListener('close', () => {
-    const u = new URL(window.location.href);
-    u.searchParams.delete('ver');
-    history.replaceState({}, '', u);
-  }, { once: true });
-});
-</script>
+  <span hidden data-reserva-deep-link="<?= $ver ?>"></span>
 <?php endif; ?>

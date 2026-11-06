@@ -1,12 +1,35 @@
 <?php
 declare(strict_types=1);
 defined('APP') || exit;
-captcha_garantir();
-$cap = $_SESSION['captcha'];
-$ver = (int) ($cap['ver'] ?? 1);
 $recuperar = isset($_GET['recuperar']);
+$exigeCodigo = verificacao_2fa_ativa($db);
+if ($exigeCodigo) {
+    captcha_garantir();
+    $cap = $_SESSION['captcha'];
+    $ver = (int) ($cap['ver'] ?? 1);
+}
 $acao = $recuperar ? 'recuperar' : 'login';
 $marca = (string) ($db['settings']['nome'] ?? 'Transfer FLN');
+$acessoNome = '';
+$acessoUsuario = '';
+$acessoToken = strtolower((string) ($_GET['acesso'] ?? ''));
+if (preg_match('/^[a-f0-9]{32}$/', $acessoToken)) {
+    foreach ($db['motoristas'] as $mot) {
+        $gravado = strtolower((string) ($mot['acesso'] ?? ''));
+        if ($gravado !== '' && hash_equals($gravado, $acessoToken)) {
+            $acessoNome = (string) ($mot['nome'] ?? '');
+            $emailMot = mb_strtolower(trim((string) ($mot['email'] ?? '')));
+            $acessoUsuario = $emailMot !== '' ? $emailMot : (string) ($mot['usuario'] ?? '');
+            break;
+        }
+    }
+}
+$leadLogin = 'Admin: usuário e senha da operação. Motorista: e-mail cadastrado e a senha-token recebida do administrador.';
+if ($acessoNome !== '') {
+    $leadLogin = 'Portal de ' . $acessoNome . '. Entre com o e-mail cadastrado e a senha-token. Depois do login, aparecem só as reservas atribuídas a você.';
+} elseif ($acessoToken !== '') {
+    $leadLogin = 'Este link de motorista não foi encontrado. Peça um novo link ao administrador.';
+}
 ?>
 <section class="auth-screen">
   <div class="auth-brand">
@@ -19,24 +42,25 @@ $marca = (string) ($db['settings']['nome'] ?? 'Transfer FLN');
     <div class="auth-card-top">
       <div>
         <h1><?= $recuperar ? 'Recuperar acesso' : 'Acesse sua operação' ?></h1>
-        <p class="lead"><?= $recuperar ? 'Informe o e-mail da conta. A resposta não indica se o cadastro existe.' : 'Entre com o usuário da operação ou com o e-mail cadastrado.' ?></p>
+        <p class="lead"><?= $recuperar ? 'Informe o e-mail da conta. A resposta não indica se o cadastro existe.' : e($leadLogin) ?></p>
       </div>
       <button class="btn theme-btn" type="button" data-theme-toggle><span data-theme-label>Modo escuro</span></button>
     </div>
     <?= render_flash() ?>
     <form method="post" action="index.php" class="form-grid auth-form">
       <?= csrf_fields($acao) ?>
-      <label class="field full" for="usuario"><?= $recuperar ? 'E-mail' : 'Usuário ou e-mail' ?>
-        <input id="usuario" name="usuario" required maxlength="80" autocomplete="<?= $recuperar ? 'email' : 'username' ?>" inputmode="<?= $recuperar ? 'email' : 'text' ?>" placeholder="<?= $recuperar ? 'nome@empresa.com' : 'usuário ou e-mail' ?>">
+      <label class="field full" for="usuario"><?= $recuperar ? 'E-mail' : ($acessoNome !== '' ? 'E-mail do motorista' : 'Usuário ou e-mail') ?>
+        <input id="usuario" name="usuario" required maxlength="80" autocomplete="<?= $recuperar || $acessoNome !== '' ? 'email' : 'username' ?>" inputmode="<?= $recuperar || $acessoNome !== '' ? 'email' : 'text' ?>" placeholder="<?= $recuperar || $acessoNome !== '' ? 'nome@email.com' : 'admin ou e-mail do motorista' ?>" value="<?= e($recuperar ? '' : $acessoUsuario) ?>">
       </label>
       <?php if (!$recuperar): ?>
-      <label class="field full" for="senha">Senha
+      <label class="field full" for="senha"><?= $acessoNome !== '' ? 'Senha-token' : 'Senha' ?>
         <span class="senha-linha">
-          <input id="senha" type="password" name="senha" required maxlength="80" autocomplete="current-password" placeholder="senha da operação">
+          <input id="senha" type="password" name="senha" required maxlength="80" autocomplete="current-password" placeholder="<?= $acessoNome !== '' ? 'token recebido do administrador' : 'senha da operação' ?>">
           <button class="btn" type="button" data-toggle-senha aria-pressed="false" aria-controls="senha">Mostrar</button>
         </span>
       </label>
       <?php endif; ?>
+      <?php if ($exigeCodigo): ?>
       <div class="captcha-box full">
         <div class="captcha-head">
           <span id="captcha-rotulo">Código de verificação</span>
@@ -49,6 +73,7 @@ $marca = (string) ($db['settings']['nome'] ?? 'Transfer FLN');
           <input id="captcha" name="captcha" required maxlength="8" autocomplete="off" spellcheck="false" aria-describedby="captcha-rotulo">
         </label>
       </div>
+      <?php endif; ?>
       <div class="form-actions full">
         <button class="btn btn-primary" type="submit"><?= $recuperar ? 'Enviar instruções' : 'Entrar' ?></button>
         <?php if ($recuperar): ?>

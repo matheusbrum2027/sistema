@@ -52,15 +52,6 @@ declare(strict_types=1);
     <?php endif; ?>
   </nav>
   <div class="sidebar-foot">
-    <div class="zoom-row">
-      <?= icon('zoom') ?>
-      <span>Zoom</span>
-      <span class="zoom-controls">
-        <button type="button" data-zoom="-1" aria-label="Diminuir zoom">−</button>
-        <strong data-zoom-label>100%</strong>
-        <button type="button" data-zoom="1" aria-label="Aumentar zoom">+</button>
-      </span>
-    </div>
     <button class="logout-btn theme-btn" type="button" data-theme-toggle>
       <?= icon('moon') ?> <span data-theme-label>Modo escuro</span>
     </button>

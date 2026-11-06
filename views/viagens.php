@@ -23,6 +23,9 @@ $rows = array_values(array_filter($db['transfers'], static function (array $t) u
     };
 }));
 usort($rows, static fn(array $a, array $b): int => [$a['data'], $a['hora']] <=> [$b['data'], $b['hora']]);
+$pg = slice_page($rows, 12);
+$rows = $pg['rows'];
+$atribuir = (int) ($_GET['atribuir'] ?? 0);
 
 $nomeMot = static function (array $db, $id): string {
     if (!$id) {
@@ -90,7 +93,7 @@ view_head($isReserva ? '' : '<a class="btn btn-primary" href="#nova">Nova solici
         </thead>
         <tbody>
           <?php foreach ($rows as $trip): ?>
-            <tr>
+            <tr data-search-text="<?= e(implode(' ', [$trip['id'], $trip['cliente'], $trip['telefone'], $trip['origem'], $trip['destino'], $trip['status']])) ?>">
               <td>#<?= (int) $trip['id'] ?></td>
               <td>
                 <strong><?= e($trip['cliente']) ?></strong>
@@ -103,6 +106,7 @@ view_head($isReserva ? '' : '<a class="btn btn-primary" href="#nova">Nova solici
               <td><?= e(br_date($trip['data'])) ?><div class="hint"><?= e($trip['hora']) ?></div></td>
               <td class="num"><?= e(brl((float) $trip['valor'])) ?></td>
               <td>
+                <?php if ($atribuir === (int) $trip['id']): ?>
                 <form method="post" action="index.php">
                   <?= csrf_fields('assign_transfer') ?>
                   <input type="hidden" name="id" value="<?= (int) $trip['id'] ?>">
@@ -120,7 +124,11 @@ view_head($isReserva ? '' : '<a class="btn btn-primary" href="#nova">Nova solici
                   </select>
                   <button class="btn btn-sm" type="submit">Salvar</button>
                 </form>
+                <?php endif; ?>
                 <div class="hint"><?= e($nomeMot($db, $trip['motorista_id'])) ?> · <?= e($nomeVei($db, $trip['veiculo_id'])) ?></div>
+                <?php if ($atribuir !== (int) $trip['id']): ?>
+                  <a class="btn btn-sm" href="<?= e(href($current, ['st' => $st, 'pag' => $pg['page'], 'atribuir' => (int) $trip['id']])) ?>">Alterar equipe</a>
+                <?php endif; ?>
               </td>
               <td><?= status_badge($trip['status']) ?></td>
               <td>
@@ -143,6 +151,7 @@ view_head($isReserva ? '' : '<a class="btn btn-primary" href="#nova">Nova solici
         </tbody>
       </table>
     </div>
+    <?= pager($current, $pg, ['st' => $st]) ?>
   <?php endif; ?>
 </section>
 

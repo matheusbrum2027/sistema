@@ -10,7 +10,7 @@ view_head('<a class="btn btn-sm" href="' . e(href('solicitacoes', ['csv' => 1]))
     <?= empty_box('file', 'Nenhuma solicitação recebida', 'Quando o site enviar um pedido para o webhook ativo, ele aparece aqui.') ?>
   <?php else: ?>
     <div class="table-wrap">
-      <table>
+      <table class="table-lista">
         <thead><tr><th>Quando</th><th>Cliente</th><th>Trajeto</th><th>Data</th><th>Valor</th><th></th></tr></thead>
         <tbody>
           <?php foreach ($rows as $row): ?>

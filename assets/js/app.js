@@ -12,28 +12,8 @@
     }, { passive: false });
   }
 
-  const steps = [80, 90, 100, 110, 125];
-  let zi = steps.indexOf(Number(localStorage.getItem('et-zoom') || 100));
-  if (zi < 0) zi = 2;
-  const applyZoom = () => {
-    if (coarse) {
-      document.documentElement.style.zoom = '1';
-      return;
-    }
-    document.documentElement.style.zoom = String(steps[zi] / 100);
-    const lab = document.querySelector('[data-zoom-label]');
-    if (lab) lab.textContent = steps[zi] + '%';
-    localStorage.setItem('et-zoom', String(steps[zi]));
-  };
-  applyZoom();
-  if (!coarse) {
-    document.querySelectorAll('[data-zoom]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        zi = Math.min(steps.length - 1, Math.max(0, zi + Number(btn.getAttribute('data-zoom'))));
-        applyZoom();
-      });
-    });
-  }
+  document.documentElement.style.zoom = '1';
+  try { localStorage.removeItem('et-zoom'); } catch (err) { /* o painel fica em 100% */ }
 
   document.querySelectorAll('details.nav-group').forEach((d) => {
     const key = 'nav-' + d.dataset.group;
@@ -57,13 +37,19 @@
     scrim.classList.remove('show');
   });
 
+  let searchTimer = 0;
   document.addEventListener('input', (event) => {
     const input = event.target;
     if (!(input instanceof HTMLInputElement) || !input.hasAttribute('data-search')) return;
-    const q = input.value.trim().toLowerCase();
-    document.querySelectorAll(input.getAttribute('data-search') + ' tbody tr').forEach((tr) => {
-      tr.hidden = q !== '' && !tr.innerText.toLowerCase().includes(q);
-    });
+    window.clearTimeout(searchTimer);
+    searchTimer = window.setTimeout(() => {
+      const normalizar = (s) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+      const q = normalizar(input.value.trim());
+      document.querySelectorAll(input.getAttribute('data-search') + ' tbody tr').forEach((tr) => {
+        if (!tr.dataset.searchText) tr.dataset.searchText = normalizar(tr.textContent || '');
+        tr.hidden = q !== '' && !tr.dataset.searchText.includes(q);
+      });
+    }, 140);
   });
 
   document.addEventListener('cancel', (event) => {
@@ -79,10 +65,64 @@
   }
   function ativarScripts(root) {
     root.querySelectorAll('script').forEach((antigo) => {
+      if ((antigo.getAttribute('type') || '').toLowerCase() === 'application/json') return;
       const novo = document.createElement('script');
+      [...antigo.attributes].forEach((attr) => novo.setAttribute(attr.name, attr.value));
       novo.textContent = antigo.textContent;
       antigo.replaceWith(novo);
     });
+  }
+  const reservasCarregando = new Map();
+  async function carregarReserva(id, alvo) {
+    if (!id) return null;
+    const existente = document.getElementById(alvo || ('dlg-ver-' + id));
+    if (existente) return existente;
+    if (!reservasCarregando.has(id)) {
+      const contexto = document.body.dataset.page === 'reservas' ? '&contexto=reservas' : '';
+      reservasCarregando.set(id, fetch('index.php?p=agenda&fragment=reserva&id=' + encodeURIComponent(id) + contexto, {
+        credentials: 'same-origin',
+        headers: { 'X-Requested-With': 'fetch' }
+      }).then(async (resposta) => {
+        if (!resposta.ok) throw new Error('Reserva indisponível');
+        const tpl = document.createElement('template');
+        tpl.innerHTML = await resposta.text();
+        document.body.appendChild(tpl.content);
+        return document.getElementById(alvo || ('dlg-ver-' + id));
+      }).finally(() => reservasCarregando.delete(id)));
+    }
+    return reservasCarregando.get(id);
+  }
+  let pageTimer = 0;
+  function iniciarPagina() {
+    window.clearInterval(pageTimer);
+    pageTimer = 0;
+    const tick = document.getElementById('tick');
+    if (tick && document.body.dataset.autorefresh === '1') {
+      let s = 60;
+      pageTimer = window.setInterval(() => {
+        s -= 1;
+        tick.textContent = String(Math.max(0, s));
+        if (s <= 0) {
+          window.clearInterval(pageTimer);
+          abrirSemRecarregar(location.href, false);
+        }
+      }, 1000);
+      return;
+    }
+    const waPoll = document.querySelector('[data-wa-poll="1"]');
+    const form = document.getElementById('wa-status-form');
+    if (waPoll && form) {
+      pageTimer = window.setInterval(() => form.requestSubmit(), 12000);
+    }
+    const deep = document.querySelector('[data-reserva-deep-link]');
+    if (deep) {
+      const id = deep.getAttribute('data-reserva-deep-link');
+      carregarReserva(id, 'dlg-ver-' + id).then((dlg) => {
+        if (!dlg || dlg.open) return;
+        dlg.setAttribute('closedby', 'none');
+        dlg.showModal();
+      }).catch(() => {});
+    }
   }
   function marcarMenu(url) {
     const pagina = new URL(url, location.href).searchParams.get('p') || 'agenda';
@@ -97,18 +137,30 @@
     document.querySelector('.nav-link.active')?.closest('details')?.setAttribute('open', '');
   }
   let navSeq = 0;
+  let navCtrl = null;
   async function abrirSemRecarregar(url, gravar) {
     const seq = ++navSeq;
+    if (navCtrl) navCtrl.abort();
+    navCtrl = new AbortController();
+    document.body.classList.add('is-nav');
     let resposta;
     try {
-      resposta = await fetch(url, { credentials: 'same-origin', headers: { 'X-Requested-With': 'fetch' } });
+      resposta = await fetch(url, {
+        credentials: 'same-origin',
+        headers: { 'X-Requested-With': 'fetch' },
+        signal: navCtrl.signal,
+        cache: 'no-store',
+      });
     } catch (err) {
+      if (err?.name === 'AbortError') return;
+      document.body.classList.remove('is-nav');
       location.href = url;
       return;
     }
     if (seq !== navSeq) return;
     const tipo = resposta.headers.get('content-type') || '';
     if (!resposta.ok || !tipo.includes('text/html')) {
+      document.body.classList.remove('is-nav');
       location.href = url;
       return;
     }
@@ -116,6 +168,7 @@
       const doc = new DOMParser().parseFromString(await resposta.text(), 'text/html');
       const novo = doc.querySelector('.content');
       if (!novo || doc.querySelector('.auth-wrap')) {
+        document.body.classList.remove('is-nav');
         location.href = resposta.url || url;
         return;
       }
@@ -143,8 +196,12 @@
       window.scrollTo(0, 0);
       document.documentElement.scrollTop = 0;
       document.body.scrollTop = 0;
+      iniciarPagina();
     } catch (err) {
+      if (err?.name === 'AbortError') return;
       location.href = url;
+    } finally {
+      if (seq === navSeq) document.body.classList.remove('is-nav');
     }
   }
   document.addEventListener('click', (event) => {
@@ -162,16 +219,29 @@
     const copiar = event.target.closest('[data-copy]');
     if (copiar) {
       const text = copiar.getAttribute('data-copy') || '';
-      navigator.clipboard.writeText(text).then(() => { copiar.textContent = 'Copiado'; }).catch(() => window.prompt('Copie o link:', text));
+      const avisar = () => {
+        if (copiar.dataset.copyKeep === '1') {
+          copiar.classList.add('is-copied');
+          window.setTimeout(() => copiar.classList.remove('is-copied'), 1200);
+          return;
+        }
+        copiar.textContent = 'Copiado';
+      };
+      navigator.clipboard.writeText(text).then(avisar).catch(() => window.prompt('Copie:', text));
       return;
     }
     const abrir = event.target.closest('[data-open-dialog]');
     if (abrir) {
-      const dlg = document.getElementById(abrir.getAttribute('data-open-dialog'));
-      if (dlg) {
+      const alvo = abrir.getAttribute('data-open-dialog');
+      const id = abrir.getAttribute('data-reserva-id');
+      const mostrar = (dlg) => {
+        if (!dlg) return;
         dlg.setAttribute('closedby', 'none');
         dlg.showModal();
-      }
+      };
+      const dlg = document.getElementById(alvo);
+      if (dlg) mostrar(dlg);
+      else if (id) carregarReserva(id, alvo).then(mostrar).catch(() => { location.href = 'index.php?p=agenda&ver=' + encodeURIComponent(id); });
       return;
     }
     const fechar = event.target.closest('[data-close-dialog]');
@@ -251,6 +321,7 @@
   });
   abrirDialogos(document);
   aplicarTema(document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light', false);
+  iniciarPagina();
   let aoConfirmar = null;
   let passoConfirmacao = 0;
   let textosConfirmacao = [];
@@ -299,7 +370,7 @@
     root.innerHTML = folha.outerHTML;
     document.body.classList.add('printing');
     window.print();
-    document.body.classList.remove('printing');
+    setTimeout(function () { document.body.classList.remove('printing'); }, 2500);
   }
   function aplicarTema(tema, gravar) {
     if (tema === 'dark') document.documentElement.dataset.theme = 'dark';
@@ -309,24 +380,86 @@
     });
     if (gravar !== false) localStorage.setItem('fln-tema', tema === 'dark' ? 'dark' : 'light');
   }
+  function exigeDuplo(form) {
+    if (Number(form.getAttribute('data-confirm-vezes') || 0) >= 2) return true;
+    const status = form.querySelector('select[name="status"][data-status-inicial]');
+    return !!(status && status.value !== status.dataset.statusInicial);
+  }
+  function marcarConfirmado(form) {
+    let campo = form.querySelector('input[name="confirmar"]');
+    if (!campo) {
+      campo = document.createElement('input');
+      campo.type = 'hidden';
+      campo.name = 'confirmar';
+      form.appendChild(campo);
+    }
+    campo.value = 'sim';
+    form.dataset.confirmed = '1';
+  }
+  const syncComCard = (card) => {
+    if (!(card instanceof HTMLElement) || !card.classList.contains('com-card')) return;
+    const box = card.querySelector('input[type="checkbox"]');
+    if (!(box instanceof HTMLInputElement) || box.disabled) {
+      card.classList.add('is-off');
+      card.classList.remove('is-on');
+      return;
+    }
+    card.classList.toggle('is-on', box.checked);
+    card.classList.toggle('is-off', false);
+  };
+  document.addEventListener('change', (event) => {
+    const box = event.target;
+    if (!(box instanceof HTMLInputElement) || box.type !== 'checkbox' || box.name !== 'destino[]') return;
+    syncComCard(box.closest('.com-card'));
+    const form = box.closest('.com-form');
+    if (form && form.querySelectorAll('input[name="destino[]"]:checked:not(:disabled)').length > 0) {
+      form.querySelector('.com-aviso')?.remove();
+    }
+  });
+
   document.addEventListener('submit', (event) => {
     const form = event.target;
     if (!(form instanceof HTMLFormElement) || form.dataset.confirmed === '1') return;
-    const textos = textosDe(form);
-    const status = textos.length ? [] : textosStatus(form);
-    const fila = textos.length ? textos : status;
-    if (fila.length === 0) return;
-    event.preventDefault();
-    pedirConfirmacao(fila, () => {
-      let campo = form.querySelector('input[name="confirmar"]');
-      if (!campo && form.hasAttribute('data-confirm')) {
-        campo = document.createElement('input');
-        campo.type = 'hidden';
-        campo.name = 'confirmar';
-        form.appendChild(campo);
+    if (form.classList.contains('com-form')) {
+      const marcados = form.querySelectorAll('input[name="destino[]"]:checked:not(:disabled)');
+      if (marcados.length === 0) {
+        event.preventDefault();
+        let aviso = form.querySelector('.com-aviso');
+        if (!aviso) {
+          aviso = document.createElement('p');
+          aviso.className = 'help com-aviso';
+          form.querySelector('.com-cards')?.after(aviso);
+        }
+        aviso.textContent = 'Marque ao menos um card (motorista ou cliente).';
+        form.querySelector('.com-card:not(.is-off)')?.focus?.();
+        return;
       }
-      if (campo) campo.value = 'sim';
-      form.dataset.confirmed = '1';
+      form.querySelector('.com-aviso')?.remove();
+    }
+    if (exigeDuplo(form)) {
+      const btn = event.submitter || form.querySelector('[type="submit"]');
+      if (form.dataset.armed !== '1') {
+        event.preventDefault();
+        form.dataset.armed = '1';
+        if (btn) {
+          if (!btn.dataset.labelOriginal) btn.dataset.labelOriginal = btn.textContent;
+          btn.textContent = 'Clique outra vez';
+        }
+        window.setTimeout(() => {
+          if (form.dataset.confirmed === '1') return;
+          form.dataset.armed = '';
+          if (btn && btn.dataset.labelOriginal) btn.textContent = btn.dataset.labelOriginal;
+        }, 6000);
+        return;
+      }
+      marcarConfirmado(form);
+      return;
+    }
+    const textos = textosDe(form);
+    if (textos.length === 0) return;
+    event.preventDefault();
+    pedirConfirmacao(textos, () => {
+      marcarConfirmado(form);
       form.requestSubmit();
     });
   });
@@ -345,13 +478,4 @@
     aoConfirmar = null;
     passoConfirmacao = 0;
   });
-  const tick = document.getElementById('tick');
-  if (tick && document.body.dataset.autorefresh === '1') {
-    let s = 60;
-    window.setInterval(() => {
-      s -= 1;
-      if (s <= 0) location.reload();
-      tick.textContent = String(s);
-    }, 1000);
-  }
 })();

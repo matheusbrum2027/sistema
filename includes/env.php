@@ -40,5 +40,5 @@ function env_valor(string $nome, string $padrao = ''): string
     if ($valor === false || $valor === '') {
         $valor = (string) ($_ENV[$nome] ?? $padrao);
     }
-    return $valor;
+    return trim($valor);
 }

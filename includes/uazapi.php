@@ -11,6 +11,7 @@ function uazapi_curl_apply_ssl($ch): void
     $verify = env_valor('UAZAPI_SSL_VERIFY', '1') !== '0';
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, $verify);
     curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, $verify ? 2 : 0);
+    curl_ca_nativo($ch);
 }
 
 function uazapi_settings_ready(array $settings): bool

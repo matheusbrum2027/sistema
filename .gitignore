@@ -1,3 +1,5 @@
 .env
 .env.local
 .vercel
+android/
+scripts/pdf_preview/

@@ -18,7 +18,7 @@ view_head('', 'Candidatos enviados pelo webhook Motorista. Com a automação ati
     <?= empty_box('file', 'Nenhuma solicitação em aberto', 'Ligue o formulário do site à URL do webhook com a automação ativa. Depois de aprovar, o motorista entra em Cadastros.') ?>
   <?php else: ?>
     <div class="table-wrap">
-      <table>
+      <table class="table-lista">
         <thead><tr><th>Nome</th><th>Telefone</th><th>Cidade</th><th>CPF</th><th>Mensagem</th><th></th></tr></thead>
         <tbody>
           <?php foreach ($rows as $row): ?>

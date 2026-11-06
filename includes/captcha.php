@@ -43,6 +43,11 @@ function captcha_novo(): void
     ];
 }
 
+function verificacao_2fa_ativa(array $db): bool
+{
+    return !empty($db['settings']['verificacao_2fa']);
+}
+
 function captcha_confere(string $digitado): bool
 {
     captcha_garantir();

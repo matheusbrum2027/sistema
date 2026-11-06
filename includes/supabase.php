@@ -29,6 +29,7 @@ function supabase_pedido(string $caminho, string $metodo, ?array $corpo, array $
         CURLOPT_TIMEOUT => 8,
         CURLOPT_CONNECTTIMEOUT => 3,
     ]);
+    curl_ca_nativo($ch);
     if ($corpo !== null) {
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($corpo, JSON_UNESCAPED_UNICODE));
     }

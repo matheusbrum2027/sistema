@@ -41,8 +41,8 @@ function navigation(): array
                         nav_item('fin-dashboard', 'Dashboard', 'chart', 'Caixa, recebíveis e despesas da operação.', 'views/fin-dashboard.php'),
                         nav_item('lancamentos', 'Lançamentos', 'list', 'Entradas e saídas registradas.', 'views/lancamentos.php'),
                         nav_item('receber', 'Contas a receber', 'inbox', 'Viagens ainda não recebidas.', 'views/receber.php'),
-                        nav_item('faturado', 'Faturado', 'receipt', 'Faturas emitidas das viagens.', 'views/faturado.php'),
-                        nav_item('pagar', 'Contas a pagar', 'card', 'Despesas e contas em aberto.', 'views/pagar.php'),
+                        nav_item('faturado', 'Faturado', 'receipt', 'Corridas que a empresa paga no fim do mês, por boleto.', 'views/faturado.php'),
+                        nav_item('pagar', 'Contas a pagar', 'card', 'Despesas e pro-labore dos motoristas.', 'views/pagar.php'),
                         nav_item('relatorios', 'Relatórios', 'bars', 'Consolidados do período para consulta e impressão.', 'views/relatorios.php'),
                     ],
                 ],
@@ -53,6 +53,7 @@ function navigation(): array
                     'items' => [
                         nav_item('solicitacoes', 'Solicitações', 'file', 'Registros recebidos via webhook do site.', 'views/solicitacoes.php'),
                         nav_item('reservas', 'Reservas', 'book', 'Reservas de transfer da operação.', 'views/reservas.php'),
+                        nav_item('lixo', 'Lixo', 'trash', 'Reservas excluídas. Dá para restaurar em até 30 dias.', 'views/lixo.php'),
                         nav_item('contrato', 'Contrato', 'file', 'Modelo e contratos gerados para as viagens.', 'views/contrato.php'),
                     ],
                 ],
