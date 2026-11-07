@@ -32,12 +32,10 @@ if ($acessoNome !== '') {
 }
 ?>
 <section class="auth-screen">
-  <div class="auth-brand">
-    <p class="auth-kicker">Operação de transfer</p>
-    <strong><?= e($marca) ?></strong>
-    <span>Gestão de Frota</span>
+  <aside class="auth-hero">
+    <img src="assets/brand/logo-fln.jpg" width="640" height="640" alt="<?= e($marca) ?> — Transfer Executivo e Turismo, Florianópolis">
     <p>Reservas, motoristas, veículos e financeiro no mesmo painel.</p>
-  </div>
+  </aside>
   <div class="auth-card">
     <div class="auth-card-top">
       <div>

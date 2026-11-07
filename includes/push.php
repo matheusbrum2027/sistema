@@ -14,12 +14,8 @@ function push_openssl_pronto(): void
     }
     $feito = true;
     $origem = __DIR__ . DIRECTORY_SEPARATOR . 'openssl.cnf';
-    $destino = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'fln-openssl.cnf';
     if (is_file($origem)) {
-        @copy($origem, $destino);
-    }
-    if (is_file($destino)) {
-        putenv('OPENSSL_CONF=' . $destino);
+        putenv('OPENSSL_CONF=' . $origem);
     }
 }
 
@@ -74,6 +70,17 @@ function push_der_raw(string $der): string
     return str_pad($r, 32, "\x00", STR_PAD_LEFT) . str_pad($s, 32, "\x00", STR_PAD_LEFT);
 }
 
+function push_ec_nova()
+{
+    push_openssl_pronto();
+    $chave = openssl_pkey_new([
+        'curve_name' => 'prime256v1',
+        'private_key_type' => OPENSSL_KEYTYPE_EC,
+        'private_key_bits' => 2048,
+    ]);
+    return $chave === false ? null : $chave;
+}
+
 function push_vapid_garantir(array &$db): void
 {
     $publica = (string) ($db['settings']['vapid_public'] ?? '');
@@ -81,12 +88,8 @@ function push_vapid_garantir(array &$db): void
     if ($publica !== '' && $privada !== '' && strlen(push_b64url_dec($publica)) === 65) {
         return;
     }
-    push_openssl_pronto();
-    $chave = openssl_pkey_new([
-        'curve_name' => 'prime256v1',
-        'private_key_type' => OPENSSL_KEYTYPE_EC,
-    ]);
-    if ($chave === false) {
+    $chave = push_ec_nova();
+    if ($chave === null) {
         return;
     }
     $det = openssl_pkey_get_details($chave);
@@ -143,12 +146,8 @@ function push_cifrar(string $texto, string $p256dh, string $auth): string
     if (strlen($uaPublica) !== 65 || strlen($segredo) < 16) {
         throw new RuntimeException('Inscrição de notificação inválida.');
     }
-    push_openssl_pronto();
-    $local = openssl_pkey_new([
-        'curve_name' => 'prime256v1',
-        'private_key_type' => OPENSSL_KEYTYPE_EC,
-    ]);
-    if ($local === false) {
+    $local = push_ec_nova();
+    if ($local === null) {
         throw new RuntimeException('OpenSSL não gerou a chave do aviso.');
     }
     $det = openssl_pkey_get_details($local);

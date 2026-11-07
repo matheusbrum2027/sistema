@@ -1,6 +1,15 @@
 <?php
 declare(strict_types=1);
 
+ini_set('display_errors', '0');
+ini_set('display_startup_errors', '0');
+ini_set('log_errors', '1');
+error_reporting(E_ALL);
+set_error_handler(static function (int $severity, string $message, string $file, int $line): bool {
+    error_log(sprintf('PHP %d: %s in %s:%d', $severity, $message, $file, $line));
+    return true;
+});
+
 define('APP', true);
 
 require __DIR__ . '/includes/bootstrap.php';
