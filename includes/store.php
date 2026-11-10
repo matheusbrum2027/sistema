@@ -94,14 +94,60 @@ function store_base(): int
     return env_valor('FLN_BASE', '1') === '2' ? 2 : 1;
 }
 
-function store_ler(bool $completo = true): ?array
+function store_ler(bool $completo = true, string $modo = '', string $de = '', string $ate = '', int $idTrip = 0): ?array
 {
-    $r = store_rpc($completo ? 'fln_ler' : 'fln_ler_leve', ['p_base' => store_base()], 40);
+    if ($completo || $modo === '') {
+        $r = store_rpc($completo ? 'fln_ler' : 'fln_ler_leve', ['p_base' => store_base()], 40);
+    } else {
+        try {
+            $r = store_rpc('fln_ler_menu', [
+                'p_base' => store_base(),
+                'p_modo' => $modo,
+                'p_de' => $de,
+                'p_ate' => $ate,
+                'p_id' => $idTrip,
+            ], 25);
+        } catch (BancoIndisponivel $e) {
+            $msg = $e->getMessage();
+            $ausente = str_contains($msg, 'fln_ler_menu') || str_contains($msg, 'PGRST202') || str_contains($msg, 'schema cache');
+            if (!$ausente) {
+                throw $e;
+            }
+            $r = store_rpc('fln_ler_leve', ['p_base' => store_base()], 40);
+        }
+    }
     if (!is_array($r)) {
         throw new BancoIndisponivel('Resposta inválida do banco de dados.');
     }
     store_versao((int) ($r['versao'] ?? 0));
     return is_array($r['dados'] ?? null) ? $r['dados'] : null;
+}
+
+/** O banco manda as reservas em colunas para não repetir o nome de cada campo. */
+function transfers_expandir(array $pacote): array
+{
+    $cols = $pacote['c'] ?? [];
+    $linhas = $pacote['r'] ?? [];
+    if (!is_array($cols) || !is_array($linhas)) {
+        return [];
+    }
+    $saida = [];
+    foreach ($linhas as $linha) {
+        if (!is_array($linha)) {
+            continue;
+        }
+        $trip = blank_trip((int) ($linha[0] ?? 0));
+        unset($trip['obs']);
+        foreach ($cols as $i => $nome) {
+            if (!is_string($nome) || !array_key_exists($i, $linha) || $linha[$i] === null) {
+                continue;
+            }
+            $trip[$nome] = $linha[$i];
+        }
+        $trip['id'] = (int) ($trip['id'] ?? 0);
+        $saida[] = $trip;
+    }
+    return $saida;
 }
 
 function store_quem(): string

@@ -401,7 +401,27 @@ if (in_array($current, $paginasPublicas, true) && !preg_match('/^[a-f0-9]{32}$/'
         'avisos' => [],
     ];
 } else {
-    $db = load_db();
+    $modo = 'casca';
+    $de = '';
+    $ate = '';
+    $idTrip = 0;
+    $comFinanceiro = ['fin-dashboard', 'receber', 'relatorios'];
+    $comCaixa = ['lancamentos', 'pagar'];
+    $comCorridas = ['reservas', 'faturado', 'metricas', 'viagens'];
+    if (in_array($current, $comFinanceiro, true)) {
+        $modo = 'financeiro';
+    } elseif (in_array($current, $comCaixa, true)) {
+        $modo = 'caixa';
+    } elseif ($current === 'agenda' && (string) ($_GET['fragment'] ?? '') === 'reserva') {
+        $modo = 'uma';
+        $idTrip = (int) ($_GET['id'] ?? 0);
+    } elseif ($current === 'agenda') {
+        $modo = 'corridas';
+        [$de, $ate] = agenda_intervalo((string) ($_GET['mes'] ?? ''));
+    } elseif (in_array($current, $comCorridas, true) || ($current === 'mot-cadastros' && (int) ($_GET['id'] ?? 0) > 0)) {
+        $modo = 'corridas';
+    }
+    $db = load_db(false, false, $modo, $de, $ate, $idTrip);
 }
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET') {
     // CSRF/captcha/flash precisam gravar antes de soltar o lock da sessão.

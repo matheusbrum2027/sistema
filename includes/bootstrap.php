@@ -505,9 +505,41 @@ function credenciais_motorista(array &$db, array $mot, string $usuario = '', str
     return $mot;
 }
 
+function agenda_intervalo(string $mes = ''): array
+{
+    if (!preg_match('/^\d{4}-\d{2}$/', $mes)) {
+        $mes = today()->format('Y-m');
+    }
+    $cursor = DateTimeImmutable::createFromFormat('!Y-m-d', $mes . '-01', new DateTimeZone('America/Sao_Paulo'));
+    if (!$cursor) {
+        $cursor = today()->modify('first day of this month');
+    }
+    $gridStart = $cursor->modify('-' . (int) $cursor->format('w') . ' days');
+    $gridFim = $gridStart->modify('+41 days');
+    $hoje = today();
+    $limite = $hoje->modify('+30 days');
+    $de = $gridStart < $hoje ? $gridStart : $hoje;
+    $ate = $gridFim > $limite ? $gridFim : $limite;
+    return [$de->format('Y-m-d'), $ate->format('Y-m-d')];
+}
+
 function normalize_db(array $db): array
 {
     $inicio = microtime(true);
+    $menu = (string) ($db['_menu'] ?? '');
+    unset($db['_menu']);
+    if ($menu !== '') {
+        $GLOBALS['fln_menu'] = true;
+    }
+    if (isset($db['transfers']['c'], $db['transfers']['r']) && is_array($db['transfers']['c']) && is_array($db['transfers']['r'])) {
+        $db['transfers'] = transfers_expandir($db['transfers']);
+    }
+    if (!isset($db['transfers']) || !is_array($db['transfers'])) {
+        $db['transfers'] = [];
+    }
+    if (!isset($db['lancamentos']) || !is_array($db['lancamentos'])) {
+        $db['lancamentos'] = [];
+    }
     $legivel = isset($db['transfers'], $db['settings'], $db['motoristas'])
         && is_array($db['transfers'])
         && is_array($db['settings'])
@@ -668,29 +700,32 @@ function persistir_acesso_motorista(array $db): array
     if (empty($GLOBALS['fln_acesso_novo']) && empty($GLOBALS['fln_vapid_novo']) && empty($GLOBALS['fln_chat_novo']) && empty($GLOBALS['fln_lixo_novo']) && empty($GLOBALS['fln_ia_operador_novo'])) {
         return $db;
     }
+    $gravar = $db;
+    if (!empty($GLOBALS['fln_menu'])) {
+        unset($gravar['transfers'], $gravar['lancamentos']);
+    }
     $GLOBALS['fln_acesso_novo'] = false;
     $GLOBALS['fln_vapid_novo'] = false;
     $GLOBALS['fln_chat_novo'] = false;
     $GLOBALS['fln_lixo_novo'] = false;
     $GLOBALS['fln_ia_operador_novo'] = false;
-    db_request_cache($db);
     try {
-        save_db($db, 'acesso_motorista');
+        save_db($gravar, 'acesso_motorista');
     } catch (Throwable $e) {
         error_log('fln acesso: ' . $e->getMessage());
     }
     return $db;
 }
 
-function load_db(bool $fresh = false, bool $completo = false): array
+function load_db(bool $fresh = false, bool $completo = false, string $modo = '', string $de = '', string $ate = '', int $idTrip = 0): array
 {
-    if (!$fresh && ($cache = db_request_cache()) !== null && (!$completo || db_cache_completo())) {
+    if (!$fresh && $modo === '' && empty($GLOBALS['fln_menu']) && ($cache = db_request_cache()) !== null && (!$completo || db_cache_completo())) {
         perf_count('db_cache_hits');
         return $cache;
     }
     $inicio = microtime(true);
     if (store_remoto()) {
-        $dados = store_ler($completo);
+        $dados = store_ler($completo, $modo, $de, $ate, $idTrip);
         if ($dados === null) {
             $inicial = normalize_db(seed_data());
             try {
@@ -1613,7 +1648,7 @@ function handle_post(): void
             flash('Muitas tentativas. Aguarde alguns minutos e tente de novo.', 'err');
             redirect($volta);
         }
-        $db = load_db();
+        $db = load_db(false, false, 'casca');
         if (!captcha_confere(post('captcha'))) {
             login_falhou();
             flash('O código de verificação visual está incorreto ou expirou.', 'err');
