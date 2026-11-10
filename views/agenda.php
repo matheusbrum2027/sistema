@@ -128,6 +128,7 @@ unset($legs);
 usort($proximas, static fn(array $a, array $b): int => [$a['data'], $a['hora']] <=> [$b['data'], $b['hora']]);
 if (!$admin) {
     view_head('', 'Suas viagens. O acesso mostra somente o que foi atribuído a você.');
+    echo '<p id="push-estado" class="help">Preparando os avisos deste celular…</p>';
 } else {
     view_head();
 }

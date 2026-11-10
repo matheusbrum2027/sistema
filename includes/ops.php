@@ -1141,6 +1141,7 @@ function ops_dispatch(array &$db, string $action): ?array
                         apply_status_side_effects($db, $trip, $statusAntigo, (string) $trip['status']);
                         aviso_mudanca_status($db, $trip, $statusAntigo, (string) $trip['status']);
                     }
+                    aviso_motoristas_atribuidos($db, $current, $trip);
                 } else {
                     $trip['id'] = proximo_id_transfer($db);
                     $trip['criado_em'] = today()->format('Y-m-d');

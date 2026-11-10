@@ -146,7 +146,7 @@
 
   async function atualizarEstado() {
     if (ehApk()) {
-      dizer('APK instalado. Toque em Ativar para receber avisos com o app em segundo plano.');
+      dizer('Este celular recebe as viagens atribuídas a você, com som e vibração, mesmo com o app em segundo plano.');
       return;
     }
     if (!window.isSecureContext) {
@@ -304,8 +304,36 @@
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') buscarNovos();
   });
+  async function ligarApk() {
+    if (!ehApk()) return;
+    let token = '';
+    try {
+      if (window.FlnApp && typeof window.FlnApp.requestNotifications === 'function') {
+        window.FlnApp.requestNotifications();
+      }
+      token = window.FlnApp && typeof window.FlnApp.deviceToken === 'function' ? String(window.FlnApp.deviceToken() || '') : '';
+    } catch (err) {
+      token = '';
+    }
+    if (token.length < 32) return;
+    const marca = token + ':' + (corpo.dataset.papel || '') + ':' + (corpo.dataset.mid || '0');
+    try {
+      if (localStorage.getItem('fln-apk-ligado') === marca) return;
+    } catch (err) { /* segue e registra */ }
+    try {
+      await enviar('push_inscrever', { tipo: 'apk', token: token });
+      try { localStorage.setItem('fln-apk-ligado', marca); } catch (err) { /* o aviso continua */ }
+      dizer(corpo.dataset.papel === 'motorista'
+        ? 'Celular ligado. Você recebe aviso quando uma viagem é atribuída, muda de status ou é cancelada.'
+        : 'Celular ligado. Os avisos do painel chegam mesmo com o app em segundo plano.');
+    } catch (err) {
+      dizer(err.message || 'Não foi possível ligar os avisos deste celular.');
+    }
+  }
+
   if (document.getElementById('push-estado')) atualizarEstado();
   else if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js', { scope: './', updateViaCache: 'none' }).catch(() => {});
   }
+  ligarApk();
 })();

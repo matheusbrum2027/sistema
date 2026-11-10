@@ -121,7 +121,7 @@ if (isset($_GET['cron'])) {
 
 if ((string) ($_GET['p'] ?? '') === 'aviso') {
     header('Content-Type: application/json; charset=utf-8');
-    if (empty($_SESSION['auth']) || (($_SESSION['role'] ?? '') !== 'admin')) {
+    if (empty($_SESSION['auth']) || !in_array((string) ($_SESSION['role'] ?? ''), ['admin', 'motorista'], true)) {
         http_response_code(401);
         echo '{"ok":false}';
         exit;
@@ -135,7 +135,12 @@ if ((string) ($_GET['p'] ?? '') === 'aviso') {
         echo '{"ok":false}';
         exit;
     }
-    $itens = is_array($r['itens'] ?? null) ? $r['itens'] : [];
+    $papel = (string) ($_SESSION['role'] ?? 'admin');
+    $mid = (int) ($_SESSION['motorista_id'] ?? 0);
+    $itens = array_values(array_filter(
+        is_array($r['itens'] ?? null) ? $r['itens'] : [],
+        static fn(mixed $item): bool => is_array($item) && aviso_item_para($item, $papel, $mid)
+    ));
     echo json_encode([
         'ok' => true,
         'itens' => $itens,

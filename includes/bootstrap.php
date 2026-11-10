@@ -1731,17 +1731,13 @@ function handle_post(): void
     if (empty($_SESSION['auth'])) {
         redirect(href('entrar'));
     }
-    if (($_SESSION['role'] ?? 'admin') === 'motorista' && $action !== 'set_transfer_status') {
-        flash('Seu acesso mostra apenas as suas viagens. Você pode alterar o status das reservas atribuídas a você.', 'err');
-        redirect(href('agenda'));
-    }
-    if (!csrf_ok()) {
-        flash('A sessão expirou. Tente de novo.', 'err');
-        redirect(safe_back(href('agenda')));
-    }
-
     if (in_array($action, ['push_inscrever', 'push_remover', 'push_testar'], true)) {
         header('Content-Type: application/json; charset=utf-8');
+        if (!csrf_ok()) {
+            http_response_code(403);
+            echo json_encode(['ok' => false, 'erro' => 'Atualize a página e tente de novo.'], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
         try {
             $saida = com_db($action, static function (array &$db) use ($action): array {
                 return push_acao($db, $action);
@@ -1756,6 +1752,14 @@ function handle_post(): void
             echo json_encode(['ok' => false, 'erro' => 'Não foi possível atualizar as notificações.'], JSON_UNESCAPED_UNICODE);
         }
         exit;
+    }
+    if (($_SESSION['role'] ?? 'admin') === 'motorista' && $action !== 'set_transfer_status') {
+        flash('Seu acesso mostra apenas as suas viagens. Você pode alterar o status das reservas atribuídas a você.', 'err');
+        redirect(href('agenda'));
+    }
+    if (!csrf_ok()) {
+        flash('A sessão expirou. Tente de novo.', 'err');
+        redirect(safe_back(href('agenda')));
     }
 
     if ($action === 'inbox_abrir_conversao') {

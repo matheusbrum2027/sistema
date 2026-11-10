@@ -218,9 +218,14 @@ function aviso_resumo_reserva(array $trip): string
     return trim((string) ($trip['cliente'] ?? 'Cliente') . ' · ' . $trecho . ' · ' . trim($quando . ' ' . $hora), " ·");
 }
 
-function aviso_publicar(array &$db, string $tipo, string $titulo, string $corpo, string $url): void
+function aviso_publicar(array &$db, string $tipo, string $titulo, string $corpo, string $url, string $audiencia = 'admin', array $motoristas = []): void
 {
-    if (!aviso_ligado($db, $tipo)) {
+    $motoristas = array_values(array_unique(array_filter(array_map('intval', $motoristas), static fn(int $id): bool => $id > 0)));
+    if ($audiencia === 'motorista') {
+        if ($motoristas === []) {
+            return;
+        }
+    } elseif (!aviso_ligado($db, $tipo)) {
         return;
     }
     if (!isset($db['seq']) || !is_array($db['seq'])) {
@@ -238,6 +243,10 @@ function aviso_publicar(array &$db, string $tipo, string $titulo, string $corpo,
         'vibrar' => !array_key_exists('notif_vibrar', $db['settings']) || !empty($db['settings']['notif_vibrar']),
         'em' => date('Y-m-d H:i'),
     ];
+    if ($audiencia === 'motorista') {
+        $item['audiencia'] = 'motorista';
+        $item['motoristas'] = $motoristas;
+    }
     if (!isset($db['avisos']) || !is_array($db['avisos'])) {
         $db['avisos'] = [];
     }
@@ -246,6 +255,100 @@ function aviso_publicar(array &$db, string $tipo, string $titulo, string $corpo,
         $db['avisos'] = array_slice($db['avisos'], -40);
     }
     $GLOBALS['fln_avisos_enviar'][] = $item;
+}
+
+function ids_motoristas_viagem(array $trip): array
+{
+    $ids = [];
+    foreach (['motorista_id', 'motorista_volta_id'] as $chave) {
+        $id = (int) ($trip[$chave] ?? 0);
+        if ($id > 0) {
+            $ids[$id] = $id;
+        }
+    }
+    foreach ($trip['extras'] ?? [] as $id) {
+        $id = (int) $id;
+        if ($id > 0) {
+            $ids[$id] = $id;
+        }
+    }
+    $eu = (($_SESSION['role'] ?? '') === 'motorista') ? (int) ($_SESSION['motorista_id'] ?? 0) : 0;
+    if ($eu > 0) {
+        unset($ids[$eu]);
+    }
+    return array_values($ids);
+}
+
+function aviso_viagem_motoristas(array &$db, array $trip, string $titulo): void
+{
+    $ids = ids_motoristas_viagem($trip);
+    if ($ids === []) {
+        return;
+    }
+    aviso_publicar(
+        $db,
+        'reserva',
+        $titulo,
+        aviso_resumo_reserva($trip),
+        'index.php?p=agenda&ver=' . (int) ($trip['id'] ?? 0),
+        'motorista',
+        $ids
+    );
+}
+
+function aviso_motoristas_atribuidos(array &$db, array $antes, array $depois): void
+{
+    $tinha = [];
+    foreach (['motorista_id', 'motorista_volta_id'] as $chave) {
+        $id = (int) ($antes[$chave] ?? 0);
+        if ($id > 0) {
+            $tinha[$id] = true;
+        }
+    }
+    foreach ($antes['extras'] ?? [] as $id) {
+        $id = (int) $id;
+        if ($id > 0) {
+            $tinha[$id] = true;
+        }
+    }
+    $novos = [];
+    foreach (ids_motoristas_viagem($depois) as $id) {
+        if (!isset($tinha[$id])) {
+            $novos[] = $id;
+        }
+    }
+    if ($novos === []) {
+        return;
+    }
+    aviso_publicar(
+        $db,
+        'reserva',
+        'Nova viagem #' . (int) ($depois['id'] ?? 0),
+        aviso_resumo_reserva($depois),
+        'index.php?p=agenda&ver=' . (int) ($depois['id'] ?? 0),
+        'motorista',
+        $novos
+    );
+}
+
+function aviso_item_para(array $item, string $papel, int $motoristaId): bool
+{
+    $audiencia = (string) ($item['audiencia'] ?? 'admin');
+    if ($papel === 'motorista') {
+        $lista = array_map('intval', is_array($item['motoristas'] ?? null) ? $item['motoristas'] : []);
+        return $audiencia === 'motorista' && $motoristaId > 0 && in_array($motoristaId, $lista, true);
+    }
+    return $audiencia !== 'motorista';
+}
+
+function push_aparelho_recebe(array $ap, array $item): bool
+{
+    $papel = (string) ($ap['papel'] ?? 'admin');
+    $mid = (int) ($ap['motorista_id'] ?? 0);
+    if ($papel === 'motorista' || $mid > 0) {
+        return aviso_item_para($item, 'motorista', $mid);
+    }
+    return aviso_item_para($item, 'admin', 0);
 }
 
 function aviso_reservas_novas(array &$db, array $trips): void
@@ -257,10 +360,14 @@ function aviso_reservas_novas(array &$db, array $trips): void
     if (count($trips) === 1) {
         $t = $trips[0];
         aviso_publicar($db, 'reserva', 'Nova reserva #' . (int) $t['id'], aviso_resumo_reserva($t), 'index.php?p=agenda&ver=' . (int) $t['id']);
+        aviso_viagem_motoristas($db, $t, 'Nova viagem #' . (int) $t['id']);
         return;
     }
     $nums = array_map(static fn(array $t): string => '#' . (int) $t['id'], $trips);
     aviso_publicar($db, 'reserva', 'Novas reservas ' . implode(' e ', $nums), aviso_resumo_reserva($trips[0]), 'index.php?p=reservas');
+    foreach ($trips as $t) {
+        aviso_viagem_motoristas($db, $t, 'Nova viagem #' . (int) $t['id']);
+    }
 }
 
 function aviso_solicitacao(array &$db, array $registro): void
@@ -277,9 +384,11 @@ function aviso_mudanca_status(array &$db, array $trip, string $antes, string $de
     $url = 'index.php?p=agenda&ver=' . (int) ($trip['id'] ?? 0);
     if ($depois === 'cancelada') {
         aviso_publicar($db, 'cancelamento', 'Reserva #' . (int) $trip['id'] . ' cancelada', aviso_resumo_reserva($trip), $url);
+        aviso_viagem_motoristas($db, $trip, 'Viagem #' . (int) $trip['id'] . ' cancelada');
         return;
     }
     aviso_publicar($db, 'status', 'Reserva #' . (int) $trip['id'] . ' · ' . status_label($depois), aviso_resumo_reserva($trip), $url);
+    aviso_viagem_motoristas($db, $trip, 'Viagem #' . (int) $trip['id'] . ' · ' . status_label($depois));
 }
 
 function push_enviar_lista(array $db, array $itens): void
@@ -312,6 +421,9 @@ function push_enviar_lista(array $db, array $itens): void
                 'vibrar' => !empty($item['vibrar']),
             ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             foreach ($aparelhos as $ap) {
+                if (!push_aparelho_recebe($ap, $item)) {
+                    continue;
+                }
                 // APK usa worker nativo (p=aviso_apk); VAPID só para Chrome/PWA.
                 if ((string) ($ap['kind'] ?? 'web') === 'apk') {
                     continue;
@@ -442,6 +554,8 @@ function push_acao(array &$db, string $action): array
             'p256dh' => '',
             'auth' => '',
             'aparelho' => 'APK · ' . push_nome_aparelho((string) ($_SERVER['HTTP_USER_AGENT'] ?? 'Android')),
+            'papel' => (($_SESSION['role'] ?? 'admin') === 'motorista') ? 'motorista' : 'admin',
+            'motorista_id' => (($_SESSION['role'] ?? 'admin') === 'motorista') ? (int) ($_SESSION['motorista_id'] ?? 0) : 0,
             'criado_em' => date('Y-m-d H:i'),
             'desde' => (int) ($db['seq']['aviso'] ?? 1) - 1,
         ];
@@ -457,8 +571,8 @@ function push_acao(array &$db, string $action): array
         if (!$trocou) {
             $db['push'][] = $novo;
         }
-        if (count($db['push']) > 12) {
-            $db['push'] = array_slice($db['push'], -12);
+        if (count($db['push']) > 40) {
+            $db['push'] = array_slice($db['push'], -40);
         }
         return ['ok' => true, 'id' => $id, 'mensagem' => 'APK ligado. Os avisos aparecem mesmo com o app em segundo plano.'];
     }
@@ -477,6 +591,8 @@ function push_acao(array &$db, string $action): array
         'p256dh' => $p256dh,
         'auth' => $auth,
         'aparelho' => push_nome_aparelho((string) ($_SERVER['HTTP_USER_AGENT'] ?? '')),
+        'papel' => (($_SESSION['role'] ?? 'admin') === 'motorista') ? 'motorista' : 'admin',
+        'motorista_id' => (($_SESSION['role'] ?? 'admin') === 'motorista') ? (int) ($_SESSION['motorista_id'] ?? 0) : 0,
         'criado_em' => date('Y-m-d H:i'),
     ];
     $trocou = false;
@@ -490,10 +606,10 @@ function push_acao(array &$db, string $action): array
     if (!$trocou) {
         $db['push'][] = $novo;
     }
-    if (count($db['push']) > 12) {
-        $db['push'] = array_slice($db['push'], -12);
-    }
-    return ['ok' => true, 'id' => $id, 'mensagem' => 'Este aparelho vai vibrar e tocar quando cair uma reserva.'];
+        if (count($db['push']) > 40) {
+            $db['push'] = array_slice($db['push'], -40);
+        }
+        return ['ok' => true, 'id' => $id, 'mensagem' => 'Este aparelho vai vibrar e tocar quando cair uma reserva.'];
 }
 
 /** Lista avisos novos para um token do APK (sem sessão). */
@@ -522,7 +638,7 @@ function push_avisos_apk(array &$db, string $token, int $desde): array
             if ($idAviso > $ultimo) {
                 $ultimo = $idAviso;
             }
-            if ($idAviso > $desde) {
+            if ($idAviso > $desde && aviso_item_para($aviso, (string) ($ap['papel'] ?? 'admin'), (int) ($ap['motorista_id'] ?? 0))) {
                 $itens[] = $aviso;
             }
         }

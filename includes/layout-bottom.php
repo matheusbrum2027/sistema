@@ -234,7 +234,7 @@ declare(strict_types=1);
 <script src="assets/vendor/leaflet/leaflet.js?v=1"></script>
 <script src="assets/js/chat.js?v=17"></script>
 <script src="assets/js/mapa.js?v=4"></script>
-<script src="assets/js/push.js?v=6"></script>
+<script src="assets/js/push.js?v=7"></script>
 <?php endif; ?>
 <?php endif; ?>
 </body>

@@ -35,7 +35,7 @@ foreach ($db['automacoes'] as $autoRow) {
     [$faviconHref, $faviconMime] = brand_favicon($db);
   ?>
   <link rel="apple-touch-icon" href="<?= e($faviconHref) ?>">
-  <?php if (($_SESSION['role'] ?? '') === 'admin' && !empty($_SESSION['auth'])): ?>
+  <?php if (!empty($_SESSION['auth'])): ?>
   <meta name="csrf" content="<?= e(csrf_token()) ?>">
   <?php endif; ?>
   <link rel="icon" href="<?= e($faviconHref) ?>" type="<?= e($faviconMime) ?>">
@@ -46,17 +46,19 @@ foreach ($db['automacoes'] as $autoRow) {
   <?php endif; ?>
 </head>
 <?php
-$notifAdmin = (($_SESSION['role'] ?? '') === 'admin') && !empty($_SESSION['auth']);
+$notifLigado = !empty($_SESSION['auth']) && in_array((string) ($_SESSION['role'] ?? ''), ['admin', 'motorista'], true);
 $avisoUltimo = 0;
-if ($notifAdmin) {
+if ($notifLigado) {
+    $papelAviso = (string) ($_SESSION['role'] ?? 'admin');
+    $midAviso = (int) ($_SESSION['motorista_id'] ?? 0);
     foreach ($db['avisos'] ?? [] as $avisoLinha) {
-        if (is_array($avisoLinha)) {
+        if (is_array($avisoLinha) && aviso_item_para($avisoLinha, $papelAviso, $midAviso)) {
             $avisoUltimo = max($avisoUltimo, (int) ($avisoLinha['id'] ?? 0));
         }
     }
 }
 ?>
-<body data-page="<?= e($current) ?>" data-autorefresh="<?= $auto ? '1' : '0' ?>"<?php if ($notifAdmin): ?> data-notif="1" data-vapid="<?= e((string) ($db['settings']['vapid_public'] ?? '')) ?>" data-aviso="<?= $avisoUltimo ?>" data-som="<?= empty($db['settings']['notif_som']) && array_key_exists('notif_som', $db['settings']) ? '0' : '1' ?>" data-vibrar="<?= empty($db['settings']['notif_vibrar']) && array_key_exists('notif_vibrar', $db['settings']) ? '0' : '1' ?>"<?php endif; ?>>
+<body data-page="<?= e($current) ?>" data-papel="<?= e((string) ($_SESSION['role'] ?? '')) ?>" data-mid="<?= (int) ($_SESSION['motorista_id'] ?? 0) ?>" data-autorefresh="<?= $auto ? '1' : '0' ?>"<?php if ($notifLigado): ?> data-notif="1" data-vapid="<?= e((string) ($db['settings']['vapid_public'] ?? '')) ?>" data-aviso="<?= $avisoUltimo ?>" data-som="<?= empty($db['settings']['notif_som']) && array_key_exists('notif_som', $db['settings']) ? '0' : '1' ?>" data-vibrar="<?= empty($db['settings']['notif_vibrar']) && array_key_exists('notif_vibrar', $db['settings']) ? '0' : '1' ?>"<?php endif; ?>>
 <?php if ($partial): ?>
   <header class="topbar" data-shell-nav>
     <div class="topbar-brand"></div>
