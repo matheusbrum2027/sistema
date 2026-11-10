@@ -326,8 +326,12 @@
   let passoConfirmacao = 0;
   let textosConfirmacao = [];
   function textosDe(el) {
+    const passos = [];
     const base = el.getAttribute('data-confirm') || '';
-    return base ? [base] : [];
+    if (base) passos.push(base);
+    const extra = el.getAttribute('data-confirm-2') || '';
+    if (extra) passos.push(extra);
+    return passos;
   }
   function textosStatus(form) {
     const status = form.querySelector('select[name="status"][data-status-inicial]');
@@ -340,7 +344,7 @@
     const titulo = document.getElementById('confirma-titulo');
     const texto = document.getElementById('confirma-texto');
     if (!dlg) return;
-    if (titulo) titulo.textContent = 'Confirmar';
+    if (titulo) titulo.textContent = passoConfirmacao > 0 ? 'Segunda confirmação' : 'Confirmar';
     if (texto) texto.textContent = textosConfirmacao[passoConfirmacao] || 'Confirma esta ação?';
     dlg.setAttribute('closedby', 'none');
     if (!dlg.open) dlg.showModal();

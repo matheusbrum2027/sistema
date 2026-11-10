@@ -57,6 +57,25 @@ function drive_status_texto(array $db): string
     return $base . ' · último: ' . $ultimo . ($pasta !== '' ? ' · ' . $pasta : '');
 }
 
+function drive_oauth_start_public(): void
+{
+    $volta = href('configuracoes') . '#google-drive';
+    if (empty($_SESSION['auth']) || (($_SESSION['role'] ?? '') !== 'admin')) {
+        redirect(href('entrar'));
+    }
+    $enviado = (string) ($_GET['csrf'] ?? '');
+    $real = (string) ($_SESSION['csrf'] ?? '');
+    if ($real === '' || !hash_equals($real, $enviado)) {
+        flash('Atualize a página e tente de novo.', 'err');
+        redirect($volta);
+    }
+    if (!drive_oauth_configurado()) {
+        flash('Falta configurar GOOGLE_OAUTH_CLIENT_ID e GOOGLE_OAUTH_CLIENT_SECRET no servidor.', 'err');
+        redirect($volta);
+    }
+    redirect(drive_oauth_url());
+}
+
 function drive_oauth_url(): string
 {
     $state = bin2hex(random_bytes(16));

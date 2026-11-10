@@ -161,6 +161,7 @@ function detalhe_linha(string $rotulo, string $valor): void
 
 function reserva_detalhes(array $db, array $trip): void
 {
+    $trip = trip_com_obs($trip);
     echo '<dl class="detalhe-lista">';
     foreach (reserva_linhas($db, $trip) as $rotulo => $valor) {
         detalhe_linha((string) $rotulo, (string) $valor);
@@ -489,6 +490,7 @@ function reserva_bloco_contrato(string $titulo, string $texto): void
 
 function reserva_folha(array $db, array $trip): void
 {
+    $trip = trip_com_obs($trip);
     $s = $db['settings'];
     $id = (int) $trip['id'];
     $blocos = [];
@@ -555,6 +557,7 @@ function reserva_folha(array $db, array $trip): void
 
 function reserva_dialogos(array $db, array $trip, bool $admin, string $contexto = 'agenda'): void
 {
+    $trip = trip_com_obs($trip);
     $id = (int) $trip['id'];
     $legsCom = agenda_legs($trip);
     ?>

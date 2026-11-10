@@ -21,7 +21,7 @@ declare(strict_types=1);
     <button class="btn btn-danger" type="button" id="confirma-sim">Sim</button>
   </footer>
 </dialog>
-<script src="assets/js/app.js?v=22"></script>
+<script src="assets/js/app.js?v=23"></script>
 <?php if (($_SESSION['role'] ?? '') === 'admin' && !empty($_SESSION['auth']) && empty($bare)): ?>
 <div class="flutuantes-direita" id="flutuantes-direita">
   <div class="chat-borda" id="chat-borda">

@@ -814,6 +814,7 @@ function montar_reservas(array &$db, ?array $current): array
     $obsIda = clip(post('obs_ida'), 800);
     $base['cupom'] = clip(post('cupom'), 40);
     $base['obs'] = $obsGeral !== '' ? $obsGeral : $obsIda;
+    $base['obs_tocada'] = true;
     $base['esconder_valores'] = post('esconder') === '1';
     $usaEquipe = post('equipe_modo') === '1';
     if ($usaEquipe) {
@@ -1079,6 +1080,29 @@ function ops_dispatch(array &$db, string $action): ?array
             if ($current !== null && (string) ($current['status'] ?? '') !== (string) ($trips[0]['status'] ?? '') && post('confirmar') !== 'sim') {
                 return ['Confirme a mudança de status para continuar.', ''];
             }
+            $solId = (int) post('solicitacao_id');
+            if ($current === null && $solId > 0) {
+                if ((int) ($_SESSION['solicitacao_liberada'] ?? 0) !== $solId) {
+                    return ['Confirme a conversão na lista de solicitações antes de salvar.', ''];
+                }
+                if (index_of($db['inbox'] ?? [], $solId) === null) {
+                    return ['Solicitação não encontrada.', ''];
+                }
+                if (post('quem') === 'parceiro') {
+                    return ['A conversão exige um motorista da frota. Parceiro não substitui o motorista.', ''];
+                }
+                foreach ($trips as $tripSol) {
+                    if ((int) ($tripSol['motorista_id'] ?? 0) <= 0) {
+                        return ['Atribua um motorista em cada trecho para concluir a conversão.', ''];
+                    }
+                }
+                $marca = 'Solicitação #' . $solId;
+                foreach ($trips as $nSol => $tripSol) {
+                    if (!str_contains((string) ($tripSol['obs'] ?? ''), $marca)) {
+                        $trips[$nSol]['obs'] = trim($marca . (trim((string) ($tripSol['obs'] ?? '')) !== '' ? "\n" . $tripSol['obs'] : ''));
+                    }
+                }
+            }
             $ids = [];
             $novas = [];
             foreach ($trips as $n => $trip) {
@@ -1101,9 +1125,18 @@ function ops_dispatch(array &$db, string $action): ?array
             if ($current !== null) {
                 return [null, 'Reserva #' . $ids[0] . ' atualizada.'];
             }
+            if ($solId > 0) {
+                $idxSol = index_of($db['inbox'] ?? [], $solId);
+                if ($idxSol !== null) {
+                    array_splice($db['inbox'], $idxSol, 1);
+                }
+            }
             aviso_reservas_novas($db, $novas);
             $waMot = comunicar_reservas_novas_motoristas($db, $novas);
             $sufixoWa = $waMot !== '' ? ' ' . $waMot : '';
+            if ($solId > 0) {
+                $sufixoWa = ' A solicitação #' . $solId . ' foi convertida.' . $sufixoWa;
+            }
             if (count($ids) > 1) {
                 $nums = array_map(static fn(int $id): string => '#' . $id, $ids);
                 $lista = implode(', ', $nums);
@@ -1753,28 +1786,64 @@ function ops_dispatch(array &$db, string $action): ?array
             return [null, 'Automação excluída.'];
 
         case 'inbox_to_reserva':
-            $i = index_of($db['inbox'], (int) post('id'));
-            if ($i === null) {
-                return ['Solicitação não encontrada.', ''];
+            return ['A conversão abre o cadastro da reserva depois de duas confirmações e só conclui com um motorista atribuído.', ''];
+
+        case 'add_webhook_dominio':
+            $host = webhook_dominio_normalizar(post('dominio'));
+            if ($host === '') {
+                return ['Informe um domínio válido, como www.cliente.com.br.', ''];
             }
-            $s = $db['inbox'][$i];
-            $trip = blank_trip(proximo_id_transfer($db));
-            $trip['cliente'] = (string) $s['cliente'];
-            $trip['telefone'] = (string) $s['telefone'];
-            $trip['email'] = (string) $s['email'];
-            $trip['origem'] = (string) $s['origem'];
-            $trip['destino'] = (string) $s['destino'];
-            $trip['data'] = (string) $s['data'];
-            $trip['hora'] = (string) ($s['hora'] ?: '08:00');
-            $trip['valor'] = (float) $s['valor'] > 0 ? (float) $s['valor'] : 1;
-            $trip['tipo'] = one_of((string) ($s['tipo'] ?? 'ida'), ['ida', 'volta', 'ida_volta'], 'ida');
-            $trip['obs'] = 'Veio da solicitação #' . $s['id'];
-            $db['transfers'][] = $trip;
-            array_splice($db['inbox'], $i, 1);
-            sync_trip_finance($db, (int) $trip['id']);
-            aviso_reservas_novas($db, [$trip]);
-            $waMot = comunicar_reservas_novas_motoristas($db, [$trip]);
-            return [null, 'Solicitação virou a reserva #' . $trip['id'] . '.' . ($waMot !== '' ? ' ' . $waMot : '')];
+            $lista = webhook_dominios($db);
+            foreach ($lista as $item) {
+                if ((string) $item['host'] === $host) {
+                    return ['Este domínio já está autorizado.', ''];
+                }
+            }
+            $prox = 1;
+            foreach ($lista as $item) {
+                $prox = max($prox, (int) $item['id'] + 1);
+            }
+            $lista[] = [
+                'id' => $prox,
+                'host' => $host,
+                'criado_em' => today()->format('Y-m-d H:i'),
+            ];
+            $db['settings']['webhook_dominios'] = $lista;
+            return [null, 'Domínio autorizado: ' . $host . '.'];
+
+        case 'update_webhook_dominio':
+            $host = webhook_dominio_normalizar(post('dominio'));
+            if ($host === '') {
+                return ['Informe um domínio válido, como www.cliente.com.br.', ''];
+            }
+            $lista = webhook_dominios($db);
+            $i = null;
+            foreach ($lista as $n => $item) {
+                if ((int) $item['id'] === (int) post('id')) {
+                    $i = $n;
+                } elseif ((string) $item['host'] === $host) {
+                    return ['Este domínio já está autorizado.', ''];
+                }
+            }
+            if ($i === null) {
+                return ['Domínio não encontrado.', ''];
+            }
+            $lista[$i]['host'] = $host;
+            $db['settings']['webhook_dominios'] = array_values($lista);
+            return [null, 'Domínio atualizado: ' . $host . '.'];
+
+        case 'delete_webhook_dominio':
+            if (post('confirmar') !== 'sim') {
+                return ['Confirme a remoção do domínio.', ''];
+            }
+            $lista = webhook_dominios($db);
+            $antes = count($lista);
+            $lista = array_values(array_filter($lista, static fn(array $item): bool => (int) $item['id'] !== (int) post('id')));
+            if (count($lista) === $antes) {
+                return ['Domínio não encontrado.', ''];
+            }
+            $db['settings']['webhook_dominios'] = $lista;
+            return [null, 'Domínio removido. Esse site deixa de poder enviar solicitações.'];
 
         case 'delete_inbox':
             $i = index_of($db['inbox'], (int) post('id'));
@@ -1862,6 +1931,227 @@ function ops_dispatch(array &$db, string $action): ?array
     }
 }
 
+function webhook_dominios(array $db): array
+{
+    $bruto = $db['settings']['webhook_dominios'] ?? [];
+    if (!is_array($bruto)) {
+        return [];
+    }
+    $lista = [];
+    foreach ($bruto as $item) {
+        if (!is_array($item)) {
+            continue;
+        }
+        $host = webhook_dominio_normalizar((string) ($item['host'] ?? ''));
+        $id = (int) ($item['id'] ?? 0);
+        if ($host === '' || $id <= 0) {
+            continue;
+        }
+        $lista[] = [
+            'id' => $id,
+            'host' => $host,
+            'criado_em' => clip((string) ($item['criado_em'] ?? ''), 20),
+        ];
+    }
+    return $lista;
+}
+
+function webhook_dominio_normalizar(string $bruto): string
+{
+    $bruto = strtolower(trim($bruto));
+    if ($bruto === '' || str_contains($bruto, ' ') || str_contains($bruto, '*')) {
+        return '';
+    }
+    if (!str_contains($bruto, '://')) {
+        $bruto = 'https://' . $bruto;
+    }
+    $host = parse_url($bruto, PHP_URL_HOST);
+    if (!is_string($host) || $host === '') {
+        return '';
+    }
+    $host = strtolower(rtrim($host, '.'));
+    if ($host === 'localhost' || filter_var($host, FILTER_VALIDATE_IP)) {
+        return $host;
+    }
+    if (!preg_match('/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,24}$/', $host)) {
+        return '';
+    }
+    return $host;
+}
+
+function webhook_host_requisicao(): string
+{
+    $origem = trim((string) ($_SERVER['HTTP_ORIGIN'] ?? ''));
+    if ($origem === '' || strtolower($origem) === 'null') {
+        $origem = trim((string) ($_SERVER['HTTP_REFERER'] ?? ''));
+    }
+    if ($origem === '' || strtolower($origem) === 'null') {
+        return '';
+    }
+    return webhook_dominio_normalizar($origem);
+}
+
+function webhook_cors_autorizada(): void
+{
+    $host = webhook_host_requisicao();
+    if ($host === '') {
+        return;
+    }
+    $scheme = strtolower((string) parse_url(trim((string) ($_SERVER['HTTP_ORIGIN'] ?? '')), PHP_URL_SCHEME));
+    header('Access-Control-Allow-Origin: ' . ($scheme === 'http' ? 'http' : 'https') . '://' . $host);
+    header('Vary: Origin');
+    header('Access-Control-Allow-Methods: POST, OPTIONS');
+    header('Access-Control-Allow-Headers: Content-Type');
+}
+
+function webhook_origem_autorizada(array $db): bool
+{
+    $host = webhook_host_requisicao();
+    if ($host === '') {
+        return false;
+    }
+    foreach (webhook_dominios($db) as $item) {
+        if (hash_equals((string) $item['host'], $host)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function webhook_dados_limpos(array $data): array
+{
+    $saida = [];
+    foreach ($data as $chave => $valor) {
+        if (count($saida) >= 40) {
+            break;
+        }
+        $nome = strtolower(clip((string) $chave, 40));
+        if ($nome === '' || !preg_match('/^[a-z0-9_.-]{1,40}$/', $nome)) {
+            continue;
+        }
+        if (in_array($nome, ['senha', 'password', 'token', 'secret', 'authorization', 'csrf'], true)) {
+            continue;
+        }
+        if (is_array($valor)) {
+            $valor = json_encode($valor, JSON_UNESCAPED_UNICODE);
+        }
+        if (!is_scalar($valor)) {
+            continue;
+        }
+        $saida[$nome] = clip(trim((string) $valor), 500);
+    }
+    return $saida;
+}
+
+function webhook_data_iso(string $bruta): string
+{
+    $bruta = trim($bruta);
+    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $bruta)) {
+        return $bruta;
+    }
+    if (preg_match('/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/', $bruta, $m)) {
+        $dia = (int) $m[1];
+        $mes = (int) $m[2];
+        $ano = (int) $m[3];
+        if (checkdate($mes, $dia, $ano)) {
+            return sprintf('%04d-%02d-%02d', $ano, $mes, $dia);
+        }
+    }
+    return '';
+}
+
+function webhook_hora(string $bruta): string
+{
+    if (preg_match('/^(\d{1,2})[:h](\d{2})/', trim($bruta), $m)) {
+        $h = (int) $m[1];
+        $i = (int) $m[2];
+        if ($h >= 0 && $h <= 23 && $i >= 0 && $i <= 59) {
+            return sprintf('%02d:%02d', $h, $i);
+        }
+    }
+    return '';
+}
+
+function solicitacao_como_reserva(array $row): array
+{
+    $dados = is_array($row['dados'] ?? null) ? $row['dados'] : [];
+    $pegar = static function (array $src, array $chaves): string {
+        foreach ($chaves as $chave) {
+            if (isset($src[$chave]) && trim((string) $src[$chave]) !== '') {
+                return trim((string) $src[$chave]);
+            }
+        }
+        return '';
+    };
+    $tipoBruto = strtolower($pegar($dados, ['tipo', 'type']) ?: (string) ($row['tipo'] ?? 'ida'));
+    $tipo = match ($tipoBruto) {
+        'hora', 'por hora', 'por_hora' => 'hora',
+        'trajetos', 'multi' => 'trajetos',
+        'ida_volta', 'ida e volta', 'idavolta' => 'ida_volta',
+        default => 'ida',
+    };
+    $data = webhook_data_iso((string) ($row['data'] ?? ''));
+    if ($data === '') {
+        $data = webhook_data_iso($pegar($dados, ['data', 'date']));
+    }
+    $hora = webhook_hora((string) ($row['hora'] ?? ''));
+    if ($hora === '') {
+        $hora = webhook_hora($pegar($dados, ['hora', 'time']));
+    }
+    $pax = (int) $pegar($dados, ['pax', 'passageiros', 'pessoas']);
+    $cat = strtoupper($pegar($dados, ['categoria']));
+    if (!in_array($cat, array_keys(categorias_veiculo()), true)) {
+        $cat = 'SED';
+    }
+    $obsExtra = $pegar($dados, ['obs', 'mensagem', 'message', 'observacao', 'observacoes']);
+    $obs = trim('Solicitação #' . (int) ($row['id'] ?? 0) . ($obsExtra !== '' ? "\n" . $obsExtra : ''));
+    return [
+        'cliente' => (string) ($row['cliente'] ?? ''),
+        'telefone' => (string) ($row['telefone'] ?? ''),
+        'email' => (string) ($row['email'] ?? ''),
+        'documento' => $pegar($dados, ['documento', 'cpf', 'cnpj', 'doc']),
+        'origem' => (string) ($row['origem'] ?? ''),
+        'destino' => (string) ($row['destino'] ?? ''),
+        'data' => $data,
+        'hora' => $hora,
+        'pax' => $pax > 0 ? min(40, $pax) : 1,
+        'valor' => (float) ($row['valor'] ?? 0),
+        'tipo' => $tipo,
+        'categoria' => $cat,
+        'obs' => $obs,
+        'cupom' => $pegar($dados, ['cupom', 'coupon']),
+    ];
+}
+
+function solicitacao_linhas(array $row): array
+{
+    $rotulos = [
+        'id' => 'Número',
+        'criado_em' => 'Recebida em',
+        'cliente' => 'Cliente',
+        'telefone' => 'Telefone',
+        'email' => 'E-mail',
+        'origem' => 'Embarque',
+        'destino' => 'Desembarque',
+        'data' => 'Data',
+        'hora' => 'Hora',
+        'valor' => 'Valor',
+        'tipo' => 'Tipo',
+    ];
+    $linhas = [];
+    foreach ($rotulos as $chave => $rotulo) {
+        if (!array_key_exists($chave, $row) || is_array($row[$chave])) {
+            continue;
+        }
+        $texto = trim((string) $row[$chave]);
+        if ($chave === 'valor' && $texto !== '') {
+            $texto = brl((float) $texto);
+        }
+        $linhas[] = [$rotulo, $texto !== '' ? $texto : '—'];
+    }
+    return $linhas;
+}
+
 function handle_public_hook(string $secret): never
 {
     $db = load_db();
@@ -1940,6 +2230,28 @@ function handle_public_hook(string $secret): never
         echo json_encode(['ok' => true, 'id' => $id]);
         exit;
     }
+    $metodo = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
+    if ($metodo === 'OPTIONS') {
+        if (!webhook_origem_autorizada($db)) {
+            http_response_code(403);
+            echo json_encode(['ok' => false, 'erro' => 'Origem não autorizada.']);
+            exit;
+        }
+        webhook_cors_autorizada();
+        http_response_code(204);
+        exit;
+    }
+    if ($metodo !== 'POST') {
+        http_response_code(405);
+        echo json_encode(['ok' => false, 'erro' => 'Envie a solicitação com POST.']);
+        exit;
+    }
+    if (!webhook_origem_autorizada($db)) {
+        http_response_code(403);
+        echo json_encode(['ok' => false, 'erro' => 'Origem não autorizada.']);
+        exit;
+    }
+    webhook_cors_autorizada();
     $cliente = $pick($data, ['cliente', 'nome', 'name']);
     $origem = $pick($data, ['origem', 'pickup']);
     $destino = $pick($data, ['destino', 'dropoff']);
@@ -1959,6 +2271,7 @@ function handle_public_hook(string $secret): never
         'valor' => (float) str_replace(',', '.', $pick($data, ['valor', 'value'])),
         'tipo' => $pick($data, ['tipo', 'type']) ?: 'ida',
         'criado_em' => today()->format('Y-m-d H:i'),
+        'dados' => webhook_dados_limpos(is_array($data) ? $data : []),
     ];
     $id = hook_gravar('inbox', $registro);
     echo json_encode(['ok' => true, 'id' => $id]);

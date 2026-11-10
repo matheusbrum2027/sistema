@@ -41,6 +41,166 @@ function atendimento_pausado(array $ctx): bool
     return $ate > time();
 }
 
+function atendimento_ja_com_humano(array $db, string $numero): bool
+{
+    $ctx = atendimento_contexto($db, $numero);
+    return is_array($ctx)
+        && !empty($ctx['humano'])
+        && empty($ctx['flood'])
+        && (int) ($ctx['pausado_ate'] ?? 0) === 0;
+}
+
+/**
+ * Atendente assumiu (painel ou aplicativo). Fica pausada até a retomada explícita.
+ */
+function atendimento_assumir_humano(array &$db, string $numero): void
+{
+    if (atendimento_ja_com_humano($db, $numero)) {
+        return;
+    }
+    atendimento_store_garantir($db);
+    $chave = atendimento_fone_chave($numero);
+    if ($chave === '') {
+        return;
+    }
+    $ctx = atendimento_contexto($db, $numero);
+    if (!is_array($ctx)) {
+        $db['atendimento']['por_fone'][$chave] = [
+            'desde' => time(),
+            'reserva_id' => 0,
+            'papel' => '',
+            'ultima_interacao' => time(),
+            'concluida' => false,
+            'ficha' => '',
+            'humano' => true,
+            'confirmado' => false,
+            'avisou_humano' => false,
+            'flood' => false,
+            'burst' => [],
+            'pausado_ate' => 0,
+            'vistos' => [],
+            'ultimo_texto_enviado' => '',
+            'ultimo_envio_em' => 0,
+            'envios_recentes' => [],
+            'avaliacao_enviada' => false,
+            'avaliacao_nota' => 0,
+        ];
+        return;
+    }
+    atendimento_atualizar($db, $numero, [
+        'humano' => true,
+        'pausado_ate' => 0,
+        'ultima_interacao' => time(),
+    ]);
+}
+
+function atendimento_texto_marca(string $texto): string
+{
+    $texto = trim(preg_replace('/\s+/u', ' ', $texto) ?? '');
+    return mb_substr($texto, 0, 400);
+}
+
+function atendimento_registrar_envio(array &$db, string $numero, string $texto): void
+{
+    $marca = atendimento_texto_marca($texto);
+    if ($marca === '') {
+        return;
+    }
+    if (!isset($db['settings']) || !is_array($db['settings'])) {
+        $db['settings'] = [];
+    }
+    $globais = is_array($db['settings']['wa_envios_recentes'] ?? null) ? $db['settings']['wa_envios_recentes'] : [];
+    $globais[] = ['t' => time(), 'txt' => $marca];
+    if (count($globais) > 12) {
+        $globais = array_slice($globais, -12);
+    }
+    $db['settings']['wa_envios_recentes'] = $globais;
+    $ctx = atendimento_contexto($db, $numero) ?? [];
+    $lista = is_array($ctx['envios_recentes'] ?? null) ? $ctx['envios_recentes'] : [];
+    $lista[] = ['t' => time(), 'txt' => $marca];
+    if (count($lista) > 8) {
+        $lista = array_slice($lista, -8);
+    }
+    atendimento_atualizar($db, $numero, [
+        'ultimo_envio_em' => time(),
+        'ultimo_texto_enviado' => $marca,
+        'envios_recentes' => $lista,
+    ]);
+}
+
+/** Texto igual a um envio recente da API/IA: eco, não é o atendente no celular. */
+function atendimento_eco_automatico(array $db, string $numero, string $texto): bool
+{
+    $texto = atendimento_texto_marca($texto);
+    if ($texto === '') {
+        return false;
+    }
+    $limite = time() - 180;
+    $bater = static function (array $lista) use ($texto, $limite): bool {
+        foreach ($lista as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+            if (atendimento_texto_marca((string) ($item['txt'] ?? '')) === $texto && (int) ($item['t'] ?? 0) >= $limite) {
+                return true;
+            }
+        }
+        return false;
+    };
+    $ctx = atendimento_contexto($db, $numero);
+    if (is_array($ctx)) {
+        $ultimo = atendimento_texto_marca((string) ($ctx['ultimo_texto_enviado'] ?? ''));
+        if ($ultimo !== '' && $ultimo === $texto && (int) ($ctx['ultimo_envio_em'] ?? 0) >= $limite) {
+            return true;
+        }
+        $lista = $ctx['envios_recentes'] ?? [];
+        if (is_array($lista) && $bater($lista)) {
+            return true;
+        }
+    }
+    $globais = $db['settings']['wa_envios_recentes'] ?? [];
+    return is_array($globais) && $bater($globais);
+}
+
+/**
+ * Relê só o flag de pausa no banco, sem trocar a versão do documento em memória.
+ * Se a função ainda não existir no projeto, segue o estado local.
+ */
+function atendimento_pausa_confirmada(array &$db, string $numero): bool
+{
+    $ctx = atendimento_contexto($db, $numero);
+    if (is_array($ctx) && (!empty($ctx['flood']) || atendimento_pausado($ctx))) {
+        return true;
+    }
+    if (!function_exists('store_remoto') || !store_remoto() || !function_exists('store_rpc') || !function_exists('store_base')) {
+        return false;
+    }
+    $chaves = atendimento_fone_aliases($numero);
+    if ($chaves === []) {
+        return false;
+    }
+    try {
+        $r = store_rpc('fln_atendimento_pausa', [
+            'p_chaves' => implode(',', $chaves),
+            'p_base' => store_base(),
+        ], 8);
+    } catch (Throwable) {
+        return false;
+    }
+    if (is_string($r)) {
+        $r = json_decode($r, true);
+    }
+    if (!is_array($r) || empty($r['pausada'])) {
+        return false;
+    }
+    atendimento_atualizar($db, $numero, [
+        'humano' => !empty($r['humano']),
+        'flood' => !empty($r['flood']),
+        'pausado_ate' => (int) ($r['pausado_ate'] ?? 0),
+    ]);
+    return true;
+}
+
 function atendimento_palavra_pausa(array $db): string
 {
     $p = mb_strtolower(trim((string) ($db['settings']['chat_ia_parar'] ?? 'parar')));
@@ -201,6 +361,7 @@ function atendimento_vincular(array &$db, string $numero, int $reservaId, string
 
 function atendimento_montar_ficha(array $db, array $trip, string $papel, bool $concluida): string
 {
+    $trip = trip_com_obs($trip);
     $linhas = [
         'Reserva' => '#' . (int) ($trip['id'] ?? 0),
         'Situação' => $concluida ? 'corrida já concluída' : status_label((string) ($trip['status'] ?? '')),
@@ -271,6 +432,7 @@ function atendimento_enviar_avaliacao(array &$db, string $numero, array $trip): 
         'Regular|av3' . $sigla . $id,
         'Ruim|av1' . $sigla . $id,
     ];
+    atendimento_registrar_envio($db, $numero, $texto);
     if (function_exists('uazapi_digitando')) {
         uazapi_digitando($db['settings'], $numero);
     }
@@ -389,6 +551,7 @@ function atendimento_atendente(array $db): array
 
 function atendimento_card_texto_cliente(array $db, array $trip): string
 {
+    $trip = trip_com_obs($trip);
     $marca = (string) ($db['settings']['nome'] ?? 'Transfer FLN');
     $linhas = [
         '✨ *' . $marca . '*',
@@ -409,6 +572,7 @@ function atendimento_card_texto_cliente(array $db, array $trip): string
 
 function atendimento_card_texto_motorista(array $db, array $trip, string $nomeMot, string $trecho): string
 {
+    $trip = trip_com_obs($trip);
     $marca = (string) ($db['settings']['nome'] ?? 'Transfer FLN');
     $cat = (string) ((categorias_veiculo()[(string) ($trip['categoria'] ?? '')] ?? ($trip['categoria'] ?? '')));
     $linhas = [
@@ -494,8 +658,9 @@ function atendimento_enviar_card_cliente(array &$db, array $trip, string $numero
     $choices = [
         'Confirmar reserva|' . atendimento_btn_id('ok', 'cliente', $id),
         'Ver PDF|' . atendimento_btn_id('pdf', 'cliente', $id),
-        'Solicitar atendimento|' . atendimento_btn_id('at', 'cliente', $id),
+        'Solicitar atendimento|' . atendimento_btn_id('at', 'cliente', $id), // id atC + reserva
     ];
+    atendimento_registrar_envio($db, $numero, $texto);
     $url = (string) $db['settings']['uazapi_url'];
     $token = (string) $db['settings']['uazapi_token'];
     [$ok, $det] = uazapi_send_menu($url, $token, $numero, $texto, $choices, 'Transfer FLN · reserva #' . $id);
@@ -517,6 +682,7 @@ function atendimento_enviar_card_motorista(array &$db, array $trip, string $nume
         'Ver roteiro PDF|' . atendimento_btn_id('pdf', 'motorista', $id),
         'Solicitar atendimento|' . atendimento_btn_id('at', 'motorista', $id),
     ];
+    atendimento_registrar_envio($db, $numero, $texto);
     $url = (string) $db['settings']['uazapi_url'];
     $token = (string) $db['settings']['uazapi_token'];
     [$ok, $det] = uazapi_send_menu($url, $token, $numero, $texto, $choices, 'Roteiro sem dados financeiros · #' . $id);
@@ -528,6 +694,7 @@ function atendimento_enviar_card_motorista(array &$db, array $trip, string $nume
 
 function atendimento_pdf_bytes(array $db, array $trip, string $papel): string
 {
+    $trip = trip_com_obs($trip);
     $trip['esconder_valores'] = true;
     if ($papel === 'cliente') {
         $linhas = [
@@ -550,7 +717,7 @@ function atendimento_pdf_bytes(array $db, array $trip, string $papel): string
     return reserva_pdf_motorista($db, $trip, '');
 }
 
-function atendimento_enviar_pdf(array $db, string $numero, array $trip, string $papel): array
+function atendimento_enviar_pdf(array &$db, string $numero, array $trip, string $papel): array
 {
     $pdf = atendimento_pdf_bytes($db, $trip, $papel);
     if ($pdf === '' || !str_starts_with($pdf, '%PDF')) {
@@ -560,6 +727,7 @@ function atendimento_enviar_pdf(array $db, string $numero, array $trip, string $
     $legenda = $papel === 'motorista'
         ? 'Roteiro da reserva #' . (int) $trip['id'] . ' (apenas rotas, sem dados financeiros).'
         : 'PDF da sua reserva #' . (int) $trip['id'] . ' (sem dados financeiros).';
+    atendimento_registrar_envio($db, $numero, $legenda);
     return uazapi_send_document(
         (string) $db['settings']['uazapi_url'],
         (string) $db['settings']['uazapi_token'],
@@ -661,6 +829,8 @@ function atendimento_parece_atendente(string $texto): bool
         'falar com alguém',
         'falar com alguem',
         'quero atendimento',
+        'solicitar atendimento',
+        'solicitar atendimento via whatsapp',
         'falar com o matheus',
         'falar com matheus',
         'chama o matheus',
@@ -771,24 +941,32 @@ function atendimento_texto_eco(array $ctx, string $texto): bool
     return $texto === $ultimo || str_contains($ultimo, $texto);
 }
 
+function atendimento_pedido_humano_texto(string $texto): bool
+{
+    $t = mb_strtolower(trim($texto));
+    if ($t === '') {
+        return false;
+    }
+    if (str_contains($t, 'solicitar atendimento')) {
+        return true;
+    }
+    return atendimento_parece_atendente($t);
+}
+
 /**
- * Avisa o atendente no máximo UMA vez por conversa/telefone.
- * Em flood: nunca avisa — só garante pausa.
+ * Avisa o atendente no máximo UMA vez por conversa.
+ * A pausa já foi gravada antes; um segundo clique não dispara outro aviso.
  */
 function atendimento_avisar_humano_uma_vez(array &$db, string $numeroCliente, array $trip, string $papel, string $trechoMsg): void
 {
     $ctx = atendimento_contexto($db, $numeroCliente) ?? [];
-    if (!empty($ctx['flood'])) {
-        atendimento_atualizar($db, $numeroCliente, ['humano' => true, 'flood' => true]);
-        return;
-    }
     if (!empty($ctx['avisou_humano'])) {
-        atendimento_atualizar($db, $numeroCliente, ['humano' => true]);
+        atendimento_atualizar($db, $numeroCliente, ['humano' => true, 'pausado_ate' => 0]);
         return;
     }
-    // Trava o aviso ANTES do envio (evita race de webhooks duplicados).
     atendimento_atualizar($db, $numeroCliente, [
         'humano' => true,
+        'pausado_ate' => 0,
         'avisou_humano' => true,
         'avisou_em' => time(),
     ]);
@@ -796,8 +974,8 @@ function atendimento_avisar_humano_uma_vez(array &$db, string $numeroCliente, ar
 }
 
 /**
- * Escala para humano: 1 aviso ao atendente + 1 confirmação ao contato.
- * Se flood ou já avisou: só pausa, sem novas mensagens.
+ * Pausa esta conversa na hora, avisa o atendente uma vez e deixa um registro no histórico.
+ * A confirmação ao cliente/motorista é a única resposta automática deste pedido.
  */
 function atendimento_escalar_humano(
     array &$db,
@@ -805,23 +983,46 @@ function atendimento_escalar_humano(
     array $trip,
     string $papel,
     string $trechoMsg,
-    string $confirmacaoCliente
+    string $confirmacaoCliente,
+    string $chatid = ''
 ): void {
+    $papel = $papel === 'motorista' ? 'motorista' : 'cliente';
+    atendimento_assumir_humano($db, $numero);
     $ctx = atendimento_contexto($db, $numero) ?? [];
-    if (!empty($ctx['flood'])) {
-        atendimento_atualizar($db, $numero, ['humano' => true, 'flood' => true]);
-        return;
-    }
     $jaAvisou = !empty($ctx['avisou_humano']);
-    if (!$jaAvisou && $confirmacaoCliente !== '') {
-        // Confirma ao cliente ANTES de marcar pausa (senão a resposta seria bloqueada).
-        atendimento_responder_texto($db, $numero, $confirmacaoCliente);
-        atendimento_atualizar($db, $numero, [
-            'ultimo_envio_em' => time(),
-            'ultimo_texto_enviado' => $confirmacaoCliente,
-        ]);
+    if (!$jaAvisou) {
+        atendimento_registrar_pedido_historico($db, $chatid !== '' ? $chatid : $numero, $papel, (int) ($trip['id'] ?? 0));
+        if ($confirmacaoCliente !== '' && empty($ctx['flood'])) {
+            atendimento_enviar_handoff($db, $numero, $confirmacaoCliente);
+        }
     }
     atendimento_avisar_humano_uma_vez($db, $numero, $trip, $papel, $trechoMsg);
+}
+
+function atendimento_registrar_pedido_historico(array &$db, string $chatid, string $papel, int $reservaId): void
+{
+    if (!function_exists('chat_gravar_mensagem') || !function_exists('chat_id_ok')) {
+        return;
+    }
+    $idChat = trim($chatid);
+    if (!chat_id_ok($idChat)) {
+        $dig = atendimento_fone_chave($chatid);
+        if ($dig === '') {
+            return;
+        }
+        $idChat = $dig . '@s.whatsapp.net';
+    }
+    $quem = $papel === 'motorista' ? 'motorista' : 'cliente';
+    $reserva = $reservaId > 0 ? ' na reserva #' . $reservaId : '';
+    chat_gravar_mensagem($db, [
+        'chatid' => $idChat,
+        'id' => 'humano-' . $reservaId . '-' . $quem . '-' . time(),
+        'texto' => 'Atendimento humano solicitado pelo ' . $quem . $reserva . '. Automação pausada nesta conversa.',
+        'minha' => true,
+        'ts' => time() * 1000,
+        'forcar_agora' => true,
+        'autor' => 'Sistema',
+    ]);
 }
 
 function atendimento_responder_uma_vez(array &$db, string $numero, string $texto): void
@@ -840,10 +1041,7 @@ function atendimento_responder_uma_vez(array &$db, string $numero, string $texto
         return;
     }
     atendimento_responder_texto($db, $numero, $texto);
-    atendimento_atualizar($db, $numero, [
-        'ultimo_envio_em' => time(),
-        'ultimo_texto_enviado' => $texto,
-    ]);
+    atendimento_registrar_envio($db, $numero, $texto);
 }
 
 function atendimento_avisar_humano(array &$db, string $numeroCliente, array $trip, string $papel, string $trechoMsg): array
@@ -914,6 +1112,7 @@ function atendimento_avisar_humano(array &$db, string $numeroCliente, array $tri
         ia_operador_registrar_aviso($db, $trip, $numeroCliente, $papel, $motivo);
     }
 
+    atendimento_registrar_envio($db, (string) $at['numero'], $texto);
     return uazapi_send_text(
         (string) $db['settings']['uazapi_url'],
         (string) $db['settings']['uazapi_token'],
@@ -923,8 +1122,55 @@ function atendimento_avisar_humano(array &$db, string $numeroCliente, array $tri
     );
 }
 
-function atendimento_responder_texto(array $db, string $numero, string $texto): array
+function atendimento_responder_texto(array &$db, string $numero, string $texto): array
 {
+    if (atendimento_pausa_confirmada($db, $numero)) {
+        return [false, 'pausada'];
+    }
+    atendimento_registrar_envio($db, $numero, $texto);
+    if (atendimento_pausa_confirmada($db, $numero)) {
+        return [false, 'pausada'];
+    }
+    if (function_exists('uazapi_digitando')) {
+        uazapi_digitando($db['settings'], $numero);
+    }
+    return uazapi_send_text(
+        (string) $db['settings']['uazapi_url'],
+        (string) $db['settings']['uazapi_token'],
+        $numero,
+        $texto,
+        15
+    );
+}
+
+/** Única resposta automática do pedido de humano. Não serve para continuar a conversa. */
+function atendimento_enviar_handoff(array &$db, string $numero, string $texto): array
+{
+    $texto = trim($texto);
+    if ($texto === '') {
+        return [false, 'vazio'];
+    }
+    atendimento_registrar_envio($db, $numero, $texto);
+    return uazapi_send_text(
+        (string) $db['settings']['uazapi_url'],
+        (string) $db['settings']['uazapi_token'],
+        $numero,
+        $texto,
+        15
+    );
+}
+
+/**
+ * Resposta do canal interno. Só sai para o telefone do atendente
+ * e não olha a pausa da conversa do cliente ou do motorista.
+ */
+function atendimento_enviar_operador(array &$db, string $numero, string $texto): array
+{
+    $texto = trim($texto);
+    if ($texto === '' || !function_exists('ia_operador_eh') || !ia_operador_eh($db, $numero)) {
+        return [false, 'canal'];
+    }
+    atendimento_registrar_envio($db, $numero, $texto);
     if (function_exists('uazapi_digitando')) {
         uazapi_digitando($db['settings'], $numero);
     }
@@ -942,13 +1188,25 @@ function atendimento_responder_texto(array $db, string $numero, string $texto): 
  */
 function atendimento_processar_entrada(array &$db, array $msg, string $chatid, string $textoBruto, string $btnId = ''): bool
 {
-    if (!empty($msg['fromMe']) || !empty($msg['isGroup'])) {
+    $grupo = !empty($msg['isGroup']) || str_ends_with($chatid, '@g.us');
+    if ($grupo) {
+        return false;
+    }
+    $numeroRef = $chatid !== '' ? $chatid : (string) ($msg['sender'] ?? '');
+    $direcao = function_exists('chat_msg_direcao')
+        ? chat_msg_direcao($msg, is_array($db['settings'] ?? null) ? $db['settings'] : [])
+        : ['saida' => ($msg['fromMe'] ?? false) === true || ($msg['fromMe'] ?? null) === 1, 'automatica' => false];
+    if (!empty($direcao['saida'])) {
+        $canalOperador = function_exists('ia_operador_eh') && ia_operador_eh($db, $numeroRef);
+        if (!$canalOperador && empty($direcao['automatica']) && !atendimento_eco_automatico($db, $numeroRef, $textoBruto)) {
+            atendimento_assumir_humano($db, $numeroRef);
+        }
         return false;
     }
     if (!whatsapp_pronto($db)) {
         return false;
     }
-    $numero = atendimento_fone_chave($chatid !== '' ? $chatid : (string) ($msg['sender'] ?? ''));
+    $numero = atendimento_fone_chave($numeroRef);
     if ($numero === '') {
         return false;
     }
@@ -965,6 +1223,48 @@ function atendimento_processar_entrada(array &$db, array $msg, string $chatid, s
     $parsed = $btnId !== '' ? atendimento_parse_btn($btnId) : null;
     if ($parsed === null && $textoBruto !== '') {
         $parsed = atendimento_parse_btn(trim($textoBruto));
+    }
+    $pedidoHumano = ($parsed['acao'] ?? '') === 'at' || atendimento_pedido_humano_texto($textoBruto);
+    if ($pedidoHumano) {
+        $reservaPedido = (int) ($parsed['reserva_id'] ?? 0);
+        $papelPedido = (string) ($parsed['papel'] ?? '');
+        if ($reservaPedido <= 0) {
+            $reservaPedido = (int) ($ctxPre['reserva_id'] ?? 0);
+        }
+        if ($papelPedido !== 'cliente' && $papelPedido !== 'motorista') {
+            $papelPedido = (string) ($ctxPre['papel'] ?? 'cliente');
+        }
+        $tripPedido = $reservaPedido > 0 ? atendimento_trip($db, $reservaPedido) : null;
+        if ($tripPedido === null) {
+            $tripPedido = [
+                'id' => $reservaPedido,
+                'cliente' => '',
+                'origem' => '',
+                'destino' => '',
+                'data' => '',
+                'hora' => '',
+                'status' => '',
+            ];
+        }
+        if ($reservaPedido > 0) {
+            atendimento_vincular($db, $numero, $reservaPedido, $papelPedido);
+        }
+        atendimento_marcar_visto($db, $numero, $msgId);
+        atendimento_escalar_humano(
+            $db,
+            $numero,
+            $tripPedido,
+            $papelPedido,
+            'Pediu atendente pelo botão',
+            'Certo! Avisei o atendente (' . atendimento_atendente($db)['nome'] . '). Em breve alguém assume esta conversa. A resposta automática desta conversa fica pausada.',
+            $chatid
+        );
+        return true;
+    }
+
+    if (!empty($ctxPre['flood']) || atendimento_pausado($ctxPre)) {
+        atendimento_marcar_visto($db, $numero, $msgId);
+        return true;
     }
 
     $ctx = atendimento_contexto($db, $numero);
@@ -1032,11 +1332,6 @@ function atendimento_processar_entrada(array &$db, array $msg, string $chatid, s
             );
             return true;
         }
-        if ($acao === 'at') {
-            atendimento_escalar_humano($db, $numero, $trip, $papel, 'Pediu atendente pelo botão',
-                'Certo! Avisei o atendente (' . atendimento_atendente($db)['nome'] . '). Em breve alguém assume esta conversa.');
-            return true;
-        }
     }
 
     $texto = trim($textoBruto);
@@ -1052,7 +1347,7 @@ function atendimento_processar_entrada(array &$db, array $msg, string $chatid, s
         }
         $msgCli = 'Automação pausada. ' . atendimento_atendente($db)['nome'] . ' foi avisado e assume esta conversa.'
             . ($min > 0 ? ' (pausa por cerca de ' . $min . ' min)' : '');
-        atendimento_escalar_humano($db, $numero, $trip, $papel, 'Pausa da IA: ' . $texto, $msgCli);
+        atendimento_escalar_humano($db, $numero, $trip, $papel, 'Pausa da IA: ' . $texto, $msgCli, $chatid);
         return true;
     }
 
@@ -1063,7 +1358,8 @@ function atendimento_processar_entrada(array &$db, array $msg, string $chatid, s
             $trip,
             $papel,
             $texto,
-            'Entendi! Já avisei ' . atendimento_atendente($db)['nome'] . ' para entrar nesta conversa.'
+            'Entendi! Já avisei ' . atendimento_atendente($db)['nome'] . ' para entrar nesta conversa.',
+            $chatid
         );
         return true;
     }

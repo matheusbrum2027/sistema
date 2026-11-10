@@ -172,6 +172,109 @@ function chat_ignorar_grupos(array $settings): bool
     return !empty($settings['chat_ignorar_grupos']);
 }
 
+function chat_flag_verdadeiro(mixed $valor): bool
+{
+    if (is_bool($valor)) {
+        return $valor;
+    }
+    if (is_int($valor) || is_float($valor)) {
+        return (int) $valor === 1;
+    }
+    $s = strtolower(trim((string) $valor));
+    return in_array($s, ['1', 'true', 'yes', 'sim', 'on'], true);
+}
+
+function chat_digitos_jid(string $jid): string
+{
+    $raw = preg_replace('/@.+$/', '', trim($jid)) ?? '';
+    return preg_replace('/\D+/', '', $raw) ?? '';
+}
+
+/**
+ * Direção da mensagem da UAZAPI.
+ * saida = saiu do número conectado (IA, painel ou WhatsApp do atendente).
+ * automatica = a própria API/IA enviou; não é o atendente no celular.
+ */
+function chat_msg_direcao(array $msg, array $settings = []): array
+{
+    $key = is_array($msg['key'] ?? null) ? $msg['key'] : [];
+    $fromMe = null;
+    foreach ([
+        $msg['fromMe'] ?? null,
+        $msg['from_me'] ?? null,
+        $msg['IsFromMe'] ?? null,
+        $msg['isFromMe'] ?? null,
+        $key['fromMe'] ?? null,
+        $key['from_me'] ?? null,
+    ] as $candidato) {
+        if ($candidato === null || $candidato === '') {
+            continue;
+        }
+        if (chat_flag_verdadeiro($candidato)) {
+            $fromMe = true;
+            break;
+        }
+        $fromMe = false;
+    }
+    $automatica = false;
+    foreach (['wasSentByApi', 'was_sent_by_api', 'sendByApi', 'sentByApi', 'fromApi'] as $campo) {
+        if (array_key_exists($campo, $msg) && chat_flag_verdadeiro($msg[$campo])) {
+            $automatica = true;
+        }
+    }
+    $fonte = strtolower(trim((string) ($msg['source'] ?? $msg['origin'] ?? '')));
+    if (in_array($fonte, ['api', 'chatbot', 'bot', 'ia', 'openai'], true)) {
+        $automatica = true;
+    }
+    $owner = chat_digitos_jid((string) ($msg['owner'] ?? ($settings['wa_owner'] ?? '')));
+    $sender = chat_digitos_jid((string) ($msg['sender'] ?? $msg['participant'] ?? ($key['participant'] ?? '')));
+    $chat = chat_digitos_jid((string) ($msg['chatid'] ?? $msg['chatId'] ?? ($key['remoteJid'] ?? '')));
+    $senderEhDono = false;
+    if ($owner !== '' && $sender !== '' && strlen($owner) >= 10 && strlen($sender) >= 10) {
+        $senderEhDono = $sender === $owner || str_ends_with($sender, $owner) || str_ends_with($owner, $sender);
+    }
+    $saida = $fromMe === true || $automatica || ($senderEhDono && $chat !== '' && $chat !== $sender);
+    if ($fromMe === false && !$automatica && !$senderEhDono) {
+        $saida = false;
+    }
+    return ['saida' => $saida, 'automatica' => $automatica && $saida];
+}
+
+/** Copia direção e remetente que a UAZAPI manda fora do objeto message. */
+function chat_msg_completar(array $msg, array $payload = []): array
+{
+    $chat = is_array($payload['chat'] ?? null) ? $payload['chat'] : [];
+    foreach (['fromMe', 'from_me', 'owner', 'wasSentByApi', 'sender', 'chatid', 'isGroup', 'source'] as $campo) {
+        $vazio = !array_key_exists($campo, $msg) || $msg[$campo] === '' || $msg[$campo] === null;
+        if ($vazio && array_key_exists($campo, $payload)) {
+            $msg[$campo] = $payload[$campo];
+        }
+    }
+    if (trim((string) ($msg['chatid'] ?? '')) === '') {
+        $key = is_array($msg['key'] ?? null) ? $msg['key'] : [];
+        $msg['chatid'] = (string) ($chat['wa_chatid'] ?? ($key['remoteJid'] ?? ''));
+    }
+    if (empty($msg['isGroup']) && !empty($chat['wa_isGroup'])) {
+        $msg['isGroup'] = true;
+    }
+    return $msg;
+}
+
+/** entrada = cliente; pausar = atendente no celular; ignorar = eco da IA/API ou grupo. */
+function chat_acao_mensagem(array $direcao, bool $eco, bool $grupo): string
+{
+    if ($grupo) {
+        return 'ignorar';
+    }
+    if (!empty($direcao['saida'])) {
+        if (!empty($direcao['automatica']) || $eco) {
+            return 'ignorar';
+        }
+        return 'pausar';
+    }
+    return 'entrada';
+}
+
 function chat_telefone_de(string $jid, string $phone = ''): string
 {
     $raw = trim($phone);
@@ -598,6 +701,7 @@ function chat_webhook_recebido(array $payload): void
     if (!is_array($msg)) {
         return;
     }
+    $msg = chat_msg_completar($msg, $payload);
     $chatSnap = is_array($payload['chat'] ?? null) ? $payload['chat'] : [];
     $chatid = trim((string) ($msg['chatid'] ?? $chatSnap['wa_chatid'] ?? ''));
     $texto = chat_texto_msg($msg);
@@ -617,28 +721,46 @@ function chat_webhook_recebido(array $payload): void
             if (($db['settings']['wa_status'] ?? '') !== 'conectado') {
                 return false;
             }
+            $owner = chat_digitos_jid((string) ($msg['owner'] ?? ''));
+            if ($owner !== '') {
+                $db['settings']['wa_owner'] = $owner;
+            }
+            $direcao = chat_msg_direcao($msg, $db['settings'] ?? []);
+            $grupo = !empty($msg['isGroup']) || !empty($chatSnap['wa_isGroup']) || str_ends_with($chatid, '@g.us');
+            $eco = !empty($direcao['saida'])
+                && function_exists('atendimento_eco_automatico')
+                && atendimento_eco_automatico($db, $chatid, $texto);
+            $acao = chat_acao_mensagem($direcao, $eco, $grupo);
             $gravou = chat_gravar_mensagem($db, [
                 'chatid' => $chatid,
                 'id' => (string) ($msg['id'] ?? $msg['messageid'] ?? ''),
                 'texto' => $texto !== '' ? $texto : ($btnId !== '' ? $btnId : ''),
-                'minha' => !empty($msg['fromMe']),
+                'minha' => !empty($direcao['saida']),
                 'ts' => (int) ($msg['messageTimestamp'] ?? 0),
                 'autor' => (string) ($msg['senderName'] ?? ''),
                 'nome' => $nome,
                 'fone' => (string) ($chatSnap['phone'] ?? ''),
-                'grupo' => !empty($msg['isGroup']) || !empty($chatSnap['wa_isGroup']),
+                'grupo' => $grupo,
                 'foto' => (string) ($chatSnap['imagePreview'] ?? $chatSnap['image'] ?? ''),
             ]);
-            // Atendimento IA / botões da reserva comunicada (só esta reserva).
             chat_presenca_manter($db);
-            if (empty($msg['fromMe']) && empty($msg['isGroup']) && function_exists('atendimento_processar_entrada')) {
+            $pausou = false;
+            if ($acao === 'pausar' && function_exists('atendimento_assumir_humano')) {
+                $numeroPausa = $chatid !== '' ? $chatid : (string) ($msg['sender'] ?? '');
+                $canalOperador = function_exists('ia_operador_eh') && ia_operador_eh($db, $numeroPausa);
+                if (!$canalOperador) {
+                    $jaHumano = function_exists('atendimento_ja_com_humano') && atendimento_ja_com_humano($db, $numeroPausa);
+                    atendimento_assumir_humano($db, $numeroPausa);
+                    $pausou = !$jaHumano;
+                }
+            } elseif ($acao === 'entrada' && function_exists('atendimento_processar_entrada')) {
                 try {
                     atendimento_processar_entrada($db, $msg, $chatid, $texto, $btnId);
                 } catch (Throwable $e) {
                     error_log('fln atendimento: ' . $e->getMessage());
                 }
             }
-            return $gravou;
+            return $gravou || $pausou;
         });
     } catch (Throwable $e) {
         error_log('fln chat hook: ' . $e->getMessage());
@@ -780,11 +902,13 @@ function chat_puxar_novas(array $db): int
             if ($texto === '') {
                 continue;
             }
+            $direcao = chat_msg_direcao($msg, $settings);
             $entradas[] = [
                 'chatid' => $id,
                 'id' => (string) ($msg['id'] ?? $msg['messageid'] ?? ''),
                 'texto' => $texto,
-                'minha' => !empty($msg['fromMe']),
+                'minha' => !empty($direcao['saida']),
+                'automatica' => !empty($direcao['automatica']),
                 'ts' => $ts,
                 'autor' => (string) ($msg['senderName'] ?? ''),
                 'nome' => $nome !== '' ? $nome : (string) ($msg['senderName'] ?? ''),
@@ -804,7 +928,26 @@ function chat_puxar_novas(array $db): int
             }
             $qtd = 0;
             foreach ($entradas as $entrada) {
-                if (chat_gravar_mensagem($store, $entrada)) {
+                $eco = !empty($entrada['minha'])
+                    && function_exists('atendimento_eco_automatico')
+                    && atendimento_eco_automatico($store, (string) $entrada['chatid'], (string) $entrada['texto']);
+                $acao = chat_acao_mensagem(
+                    ['saida' => !empty($entrada['minha']), 'automatica' => !empty($entrada['automatica'])],
+                    $eco,
+                    !empty($entrada['grupo'])
+                );
+                $mudou = chat_gravar_mensagem($store, $entrada);
+                $canalOperador = $acao === 'pausar'
+                    && function_exists('ia_operador_eh')
+                    && ia_operador_eh($store, (string) $entrada['chatid']);
+                if ($acao === 'pausar' && function_exists('atendimento_assumir_humano') && !$canalOperador) {
+                    $jaHumano = function_exists('atendimento_ja_com_humano') && atendimento_ja_com_humano($store, (string) $entrada['chatid']);
+                    if (!$jaHumano) {
+                        atendimento_assumir_humano($store, (string) $entrada['chatid']);
+                        $mudou = true;
+                    }
+                }
+                if ($mudou) {
                     $qtd++;
                 }
             }
@@ -855,7 +998,7 @@ function chat_pausar_ia(array &$db, string $id, bool $pausar): array
         return ['ok' => false, 'erro' => 'Módulo de atendimento indisponível.'];
     }
     $ctx = atendimento_contexto($db, $id);
-    if (!is_array($ctx) || (int) ($ctx['reserva_id'] ?? 0) <= 0) {
+    if (!is_array($ctx)) {
         // Cria contexto mínimo para pausar mesmo sem vínculo antigo.
         if ($pausar && function_exists('atendimento_store_garantir') && function_exists('atendimento_fone_chave')) {
             atendimento_store_garantir($db);
@@ -881,7 +1024,13 @@ function chat_pausar_ia(array &$db, string $id, bool $pausar): array
         atendimento_atualizar($db, $id, ['humano' => true, 'pausado_ate' => 0]);
         return ['ok' => true, 'pausada' => true, 'msg' => 'IA pausada nesta conversa. Você assume o atendimento.'];
     }
-    atendimento_atualizar($db, $id, ['humano' => false, 'pausado_ate' => 0]);
+    atendimento_atualizar($db, $id, [
+        'humano' => false,
+        'pausado_ate' => 0,
+        'flood' => false,
+        'avisou_humano' => false,
+        'ultimo_envio_em' => 0,
+    ]);
     return ['ok' => true, 'pausada' => false, 'msg' => 'IA retomada nesta conversa.'];
 }
 
@@ -1203,6 +1352,18 @@ function chat_enviar(array $db, string $id, string $texto): array
     if (!uazapi_settings_ready($settings) || (($settings['wa_status'] ?? '') !== 'conectado')) {
         return ['ok' => false, 'erro' => 'WhatsApp desconectado. Reconecte no Comunicador para enviar. A conversa continua salva aqui.'];
     }
+    try {
+        com_db('chat_out_marca', static function (array &$store) use ($id, $texto): bool {
+            if (function_exists('atendimento_registrar_envio')) {
+                atendimento_registrar_envio($store, $id, $texto);
+            }
+            if (function_exists('atendimento_assumir_humano')) {
+                atendimento_assumir_humano($store, $id);
+            }
+            return true;
+        });
+    } catch (Throwable) {
+    }
     [$ok, $detalhe] = uazapi_send_text(
         (string) ($settings['uazapi_url'] ?? ''),
         (string) ($settings['uazapi_token'] ?? ''),
@@ -1231,26 +1392,8 @@ function chat_enviar(array $db, string $id, string $texto): array
             if (isset($store['chat']['conversas'][$id])) {
                 $store['chat']['conversas'][$id]['naoLidas'] = 0;
             }
-            // Mensagem humana do painel: pausa a IA desta conversa na hora.
-            if (function_exists('atendimento_contexto') && function_exists('atendimento_atualizar')) {
-                $ctx = atendimento_contexto($store, $id);
-                $min = max(0, (int) ($store['settings']['chat_ia_pausar_manual'] ?? 5));
-                $patch = ['humano' => true];
-                if ($min > 0) {
-                    $patch['pausado_ate'] = time() + ($min * 60);
-                }
-                if (is_array($ctx)) {
-                    atendimento_atualizar($store, $id, $patch);
-                } elseif (function_exists('atendimento_store_garantir') && function_exists('atendimento_fone_chave')) {
-                    atendimento_store_garantir($store);
-                    $chave = atendimento_fone_chave($id);
-                    if ($chave !== '') {
-                        $store['atendimento']['por_fone'][$chave] = array_merge(
-                            is_array($store['atendimento']['por_fone'][$chave] ?? null) ? $store['atendimento']['por_fone'][$chave] : [],
-                            $patch + ['ultima_interacao' => time(), 'papel' => 'cliente', 'reserva_id' => 0]
-                        );
-                    }
-                }
+            if (function_exists('atendimento_assumir_humano')) {
+                atendimento_assumir_humano($store, $id);
             }
             return true;
         });

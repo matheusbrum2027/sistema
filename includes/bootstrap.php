@@ -581,6 +581,7 @@ function normalize_db(array $db): array
         'chat_ia_parar_min' => 30,
         'chat_ia_pausar_manual' => 5,
         'chat_openai_key' => '',
+        'webhook_dominios' => [],
         'atendente_nome' => 'Matheus Brum',
         'atendente_fone' => '(48) 99967-2557',
         'dono_nome' => 'Matheus Brum',
@@ -1722,7 +1723,33 @@ function handle_post(): void
         exit;
     }
 
-    $acoesExcluir = ['delete_veiculo', 'delete_motorista', 'delete_cliente', 'delete_lancamento', 'delete_grupo', 'delete_nota', 'delete_automacao', 'delete_inbox', 'delete_transfer', 'apagar_lixo', 'reset_demo', 'remove_logo', 'drive_desconectar'];
+    if ($action === 'inbox_abrir_conversao') {
+        if (post('confirmar') !== 'sim') {
+            flash('A conversão só começa depois das duas confirmações.', 'err');
+            redirect(href('solicitacoes'));
+        }
+        $idSol = (int) post('id');
+        $achou = false;
+        try {
+            foreach (load_db()['inbox'] ?? [] as $linha) {
+                if (is_array($linha) && (int) ($linha['id'] ?? 0) === $idSol) {
+                    $achou = true;
+                    break;
+                }
+            }
+        } catch (Throwable) {
+            flash('Não foi possível abrir a solicitação.', 'err');
+            redirect(href('solicitacoes'));
+        }
+        if (!$achou) {
+            flash('Solicitação não encontrada.', 'err');
+            redirect(href('solicitacoes'));
+        }
+        $_SESSION['solicitacao_liberada'] = $idSol;
+        redirect(href('reservas', ['solicitacao' => $idSol]));
+    }
+
+    $acoesExcluir = ['delete_veiculo', 'delete_motorista', 'delete_cliente', 'delete_lancamento', 'delete_grupo', 'delete_nota', 'delete_automacao', 'delete_inbox', 'delete_transfer', 'delete_webhook_dominio', 'apagar_lixo', 'reset_demo', 'remove_logo', 'drive_desconectar'];
     if (in_array($action, $acoesExcluir, true) && post('confirmar') !== 'sim') {
         flash('A exclusão só é concluída depois do Sim na tela de confirmação.', 'err');
         redirect(safe_back(href('agenda')));
@@ -1762,12 +1789,19 @@ function handle_post(): void
             if ($idRascunho > 0) {
                 $params['edit'] = $idRascunho;
             }
+            $solRascunho = (int) ($postSnap['solicitacao_id'] ?? 0);
+            if ($solRascunho > 0) {
+                $params['solicitacao'] = $solRascunho;
+            }
             redirect(href('reservas', $params));
         }
         redirect(safe_back(href('agenda')));
     }
     if ($precisaRascunho) {
         unset($_SESSION['reserva_draft'], $_SESSION['reserva_draft_erro']);
+        if ((int) post('solicitacao_id') > 0) {
+            unset($_SESSION['solicitacao_liberada']);
+        }
     }
     flash($msg);
     redirect(safe_back(href('agenda')));

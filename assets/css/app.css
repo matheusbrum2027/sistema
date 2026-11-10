@@ -1785,7 +1785,7 @@ html[data-theme="dark"] .cfg-danger { border-color: #6a3030; }
 }
 .flutuantes-direita {
   position: fixed; right: 0; top: 34%; z-index: 40;
-  display: flex; flex-direction: column; align-items: flex-end; gap: 0;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 8px;
   width: max-content; max-width: 100%;
   pointer-events: none;
   touch-action: manipulation;
@@ -1799,59 +1799,85 @@ html[data-theme="dark"] .cfg-danger { border-color: #6a3030; }
   pointer-events: auto;
   touch-action: manipulation;
 }
-.dock-aba {
+.dock-aba,
+html[data-theme="dark"] .dock-aba {
   position: relative;
-  display: flex; align-items: center; gap: 8px; height: 40px; width: 40px;
-  overflow: hidden; border: 1px solid var(--nav-strong); border-right: 0; border-radius: 0;
-  background: var(--nav-strong); color: #fff; padding: 0 0 0 11px;
-  box-shadow: none;
+  display: flex; align-items: center; justify-content: center; gap: 0;
+  height: 46px; width: 46px;
+  overflow: visible;
+  border: 1px solid #3a4454; border-right: 0; border-radius: 12px 0 0 12px;
+  background: #1c2430; color: #f26b1a; padding: 0;
+  box-shadow: -8px 4px 18px rgba(22, 27, 36, .22);
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
-  transition: width .12s ease, background .12s ease, border-color .12s ease;
+  transition: background .12s ease, box-shadow .12s ease, padding .12s ease, gap .12s ease, color .12s ease;
 }
-.dock-ico {
+.dock-ico,
+html[data-theme="dark"] .dock-ico {
   flex: 0 0 auto; width: 18px; height: 18px; border-radius: 0;
-  display: grid; place-items: center; color: #fff; background: transparent;
+  display: grid; place-items: center; color: #f26b1a; background: transparent;
   pointer-events: none;
 }
-.dock-ico .ico { width: 18px; height: 18px; stroke: currentColor; }
+.dock-aba .dock-ico .ico,
+html[data-theme="dark"] .dock-aba .dock-ico .ico { width: 18px; height: 18px; color: #f26b1a; stroke: #f26b1a; }
 .dock-chat .dock-ico,
 .dock-camp .dock-ico,
 .dock-mapa .dock-ico,
-.dock-analise .dock-ico { background: transparent; color: #fff; }
+.dock-analise .dock-ico,
+html[data-theme="dark"] .dock-chat .dock-ico,
+html[data-theme="dark"] .dock-camp .dock-ico,
+html[data-theme="dark"] .dock-mapa .dock-ico,
+html[data-theme="dark"] .dock-analise .dock-ico { background: transparent; color: #f26b1a; }
 .dock-aba-txt {
-  white-space: nowrap; font-weight: 650; font-size: 12px; opacity: 0;
+  max-width: 0; overflow: hidden; white-space: nowrap;
+  font-weight: 650; font-size: 12px; opacity: 0;
   color: #fff; pointer-events: none;
+  transition: max-width .12s ease, opacity .12s ease;
 }
 .dock-aba-badge {
-  position: absolute; top: 0; left: 0; min-width: 16px; height: 16px;
-  padding: 0 4px; border-radius: 0; background: var(--orange); color: #fff;
-  font: 700 10px/16px Poppins, sans-serif; text-align: center;
-  box-shadow: none; pointer-events: none;
+  position: absolute; top: -7px; left: -10px; z-index: 1;
+  min-width: 20px; height: 20px; padding: 0 6px; box-sizing: border-box;
+  border-radius: 999px; background: var(--orange); color: #fff;
+  font: 700 11px/20px Poppins, sans-serif; font-variant-numeric: tabular-nums;
+  text-align: center; letter-spacing: 0;
+  box-shadow: 0 0 0 2px var(--bg);
+  pointer-events: none;
 }
 .dock-aba:hover,
 .dock-aba:focus-visible {
-  width: 148px;
+  width: auto;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 0 14px 0 14px;
   background: var(--orange);
-  border-color: var(--orange);
-  padding-right: 12px;
+  box-shadow: -8px 4px 18px rgba(242, 107, 26, .28);
 }
+.dock-aba:hover,
+html[data-theme="dark"] .dock-aba:hover,
+.dock-aba:focus-visible,
+html[data-theme="dark"] .dock-aba:focus-visible { color: #fff; border-color: var(--orange); }
 .dock-aba:hover .dock-ico,
-.dock-aba:focus-visible .dock-ico { color: #fff; }
-.dock-chat:hover, .dock-chat:focus-visible,
-.dock-camp:hover, .dock-camp:focus-visible,
-.dock-mapa:hover, .dock-mapa:focus-visible,
-.dock-analise:hover, .dock-analise:focus-visible { border-color: var(--orange); }
+.dock-aba:focus-visible .dock-ico,
+html[data-theme="dark"] .dock-aba:hover .dock-ico,
+html[data-theme="dark"] .dock-aba:focus-visible .dock-ico,
+.dock-aba:hover .dock-ico .ico,
+.dock-aba:focus-visible .dock-ico .ico,
+html[data-theme="dark"] .dock-aba:hover .dock-ico .ico,
+html[data-theme="dark"] .dock-aba:focus-visible .dock-ico .ico { color: #fff; stroke: #fff; }
 .dock-aba:hover .dock-aba-txt,
-.dock-aba:focus-visible .dock-aba-txt { opacity: 1; }
+.dock-aba:focus-visible .dock-aba-txt { max-width: 120px; opacity: 1; }
+.dock-aba:hover .dock-aba-badge,
+.dock-aba:focus-visible .dock-aba-badge {
+  background: #fff; color: var(--orange-dark); box-shadow: 0 0 0 2px var(--orange);
+}
 @media (max-width: 720px) {
-  .flutuantes-direita { top: auto; bottom: 88px; gap: 0; }
-  .dock-aba { height: 40px; width: 40px; }
+  .flutuantes-direita { top: auto; bottom: 88px; gap: 8px; }
+  .dock-aba { height: 46px; width: 46px; }
   .dock-ico, .dock-ico .ico { width: 18px; height: 18px; }
   .dock-aba:hover,
-  .dock-aba:focus-visible { width: 40px; padding-right: 0; }
+  .dock-aba:focus-visible { width: 46px; padding: 0; gap: 0; justify-content: center; }
   .dock-aba:hover .dock-aba-txt,
-  .dock-aba:focus-visible .dock-aba-txt { opacity: 0; }
+  .dock-aba:focus-visible .dock-aba-txt { max-width: 0; opacity: 0; }
 }
 
 .analise-painel {

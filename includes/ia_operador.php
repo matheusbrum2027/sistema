@@ -217,6 +217,40 @@ function ia_operador_so_cumprimento(string $texto): bool
     ], true);
 }
 
+function ia_operador_falar(array &$db, string $numero, string $texto): void
+{
+    if (function_exists('atendimento_enviar_operador')) {
+        atendimento_enviar_operador($db, $numero, $texto);
+        return;
+    }
+    atendimento_responder_texto($db, $numero, $texto);
+}
+
+function ia_operador_acao_critica(string $acao, array $campos): bool
+{
+    if (in_array($acao, ['excluir_reserva', 'faturar_reserva', 'comunicar_reserva'], true)) {
+        return true;
+    }
+    if ($acao !== 'mudar_status') {
+        return false;
+    }
+    return ia_operador_status_normal((string) ($campos['status'] ?? '')) === 'cancelada';
+}
+
+function ia_operador_texto_confirma(string $texto): ?bool
+{
+    $t = mb_strtolower(trim($texto));
+    $t = preg_replace('/[^\p{L}\p{N}\s]+/u', '', $t) ?? $t;
+    $t = trim(preg_replace('/\s+/u', ' ', $t) ?? $t);
+    if (in_array($t, ['sim', 'confirmo', 'confirmar', 'pode executar', 'sim confirmo'], true)) {
+        return true;
+    }
+    if (in_array($t, ['nao', 'não', 'cancelar', 'cancela', 'nao confirmo', 'não confirmo'], true)) {
+        return false;
+    }
+    return null;
+}
+
 function ia_operador_entrada(array &$db, string $numero, string $textoBruto, string $msgId): void
 {
     atendimento_store_garantir($db);
@@ -261,7 +295,7 @@ function ia_operador_entrada(array &$db, string $numero, string $textoBruto, str
         if ($liberouAgora === false && ia_operador_credenciais_na_mensagem($textoBruto, $id, $token) === false) {
             // Credenciais erradas/parciais: nunca confirma o que faltou.
             if (preg_match('/FLN[A-F0-9]{8}/i', $textoBruto) || preg_match('/\b[a-f0-9]{32}\b/i', $textoBruto)) {
-                atendimento_responder_texto(
+                ia_operador_falar(
                     $db,
                     $numero,
                     'ID ou token inválidos nesta conversa. Envie o *ID exclusivo* e o *token exclusivo* juntos, exatamente como estão no painel. Sem os dois corretos eu não executo nada.'
@@ -277,7 +311,7 @@ function ia_operador_entrada(array &$db, string $numero, string $textoBruto, str
             return;
         }
         $db['atendimento']['operador']['pedido_em'] = time();
-        atendimento_responder_texto(
+        ia_operador_falar(
             $db,
             $numero,
             'Canal exclusivo bloqueado. Envie nesta conversa o *ID exclusivo* e o *token exclusivo* juntos (Configurações do chat no painel). Sem os dois eu não crio reserva, não mudo status e não comunico ninguém.'
@@ -287,6 +321,28 @@ function ia_operador_entrada(array &$db, string $numero, string $textoBruto, str
 
     if (isset($db['atendimento']['operador']['sessao']) && is_array($db['atendimento']['operador']['sessao'])) {
         $db['atendimento']['operador']['sessao']['ultimo'] = time();
+    }
+
+    $confirma = $db['atendimento']['operador']['confirma'] ?? null;
+    $voto = ia_operador_texto_confirma($texto);
+    if (is_array($confirma) && (int) ($confirma['expira'] ?? 0) >= time() && $voto !== null) {
+        unset($db['atendimento']['operador']['confirma']);
+        if ($voto === false) {
+            ia_operador_falar($db, $numero, 'Pedido cancelado. Nada foi executado.');
+            return;
+        }
+        $acaoC = (string) ($confirma['acao'] ?? '');
+        $camposC = is_array($confirma['campos'] ?? null) ? $confirma['campos'] : [];
+        $permissoesC = ia_operador_permissoes($db);
+        if ($acaoC === '' || empty($permissoesC[$acaoC]) || !ia_operador_acao_critica($acaoC, $camposC)) {
+            ia_operador_falar($db, $numero, 'Esse pedido não está mais autorizado. Nada foi executado.');
+            return;
+        }
+        ia_operador_falar($db, $numero, ia_operador_executar($db, $acaoC, $camposC));
+        return;
+    }
+    if (is_array($confirma)) {
+        unset($db['atendimento']['operador']['confirma']);
     }
 
     $permissoes = ia_operador_permissoes($db);
@@ -302,7 +358,7 @@ function ia_operador_entrada(array &$db, string $numero, string $textoBruto, str
     if (ia_operador_so_cumprimento($texto)) {
         if ($liberouAgora) {
             $lista = $rotulos !== [] ? implode('; ', $rotulos) : 'nenhuma (marque no painel)';
-            atendimento_responder_texto(
+            ia_operador_falar(
                 $db,
                 $numero,
                 'Acesso exclusivo liberado. Eu executo sempre o que você pedir, desde que esteja liberado nas permissões: ' . $lista . '. Pode mandar criar reserva, consultar, agenda, status, comunicar etc.'
@@ -313,11 +369,11 @@ function ia_operador_entrada(array &$db, string $numero, string $textoBruto, str
 
     // Camada 3: só ações marcadas pelo admin.
     if ($ativas === []) {
-        atendimento_responder_texto($db, $numero, 'O admin não marcou nenhuma ação para a IA executar. Nada foi feito.');
+        ia_operador_falar($db, $numero, 'O admin não marcou nenhuma ação para a IA executar. Nada foi feito.');
         return;
     }
     if (atendimento_openai_key($db) === '') {
-        atendimento_responder_texto($db, $numero, 'A chave OpenAI ainda não está no painel. Sem ela eu não interpreto o pedido e não executo nada.');
+        ia_operador_falar($db, $numero, 'A chave OpenAI ainda não está no painel. Sem ela eu não interpreto o pedido e não executo nada.');
         return;
     }
 
@@ -326,7 +382,7 @@ function ia_operador_entrada(array &$db, string $numero, string $textoBruto, str
         : null;
     [$ok, $decisao] = ia_operador_decidir($db, $texto, $ativas, $pendente);
     if (!$ok || !is_array($decisao)) {
-        atendimento_responder_texto($db, $numero, 'Não consegui interpretar o pedido com segurança. Nada foi executado. Reformule em uma frase.');
+        ia_operador_falar($db, $numero, 'Não consegui interpretar o pedido com segurança. Nada foi executado. Reformule em uma frase.');
         return;
     }
     $acao = (string) ($decisao['acao'] ?? 'nenhuma');
@@ -334,7 +390,7 @@ function ia_operador_entrada(array &$db, string $numero, string $textoBruto, str
     $fala = trim((string) ($decisao['resposta'] ?? ''));
     $catalogo = ia_operador_catalogo();
     if ($acao === '' || $acao === 'nenhuma' || !isset($catalogo[$acao])) {
-        atendimento_responder_texto(
+        ia_operador_falar(
             $db,
             $numero,
             $fala !== '' ? mb_substr($fala, 0, 700) : 'Me diga a ação e os dados (ex.: criar reserva com cliente, telefone, origem, destino, data, hora e valor).'
@@ -342,13 +398,27 @@ function ia_operador_entrada(array &$db, string $numero, string $textoBruto, str
         return;
     }
     if (empty($permissoes[$acao])) {
-        atendimento_responder_texto($db, $numero, 'A ação "' . $catalogo[$acao] . '" está bloqueada nas permissões do admin. Nada foi executado.');
+        ia_operador_falar($db, $numero, 'A ação "' . $catalogo[$acao] . '" está bloqueada nas permissões do admin. Nada foi executado.');
         return;
     }
 
-    // Com sessão + permissão: executa sempre (sem pedir confirmação extra).
+    if (ia_operador_acao_critica($acao, $campos)) {
+        $db['atendimento']['operador']['confirma'] = [
+            'acao' => $acao,
+            'campos' => $campos,
+            'expira' => time() + 600,
+        ];
+        $nomeAcao = $catalogo[$acao] ?? $acao;
+        ia_operador_falar(
+            $db,
+            $numero,
+            'A ação "' . $nomeAcao . '" altera dados ou avisa outras pessoas. Responda SIM para executar ou NAO para cancelar. Nada foi feito ainda.'
+        );
+        return;
+    }
+
     $resultado = ia_operador_executar($db, $acao, $campos);
-    atendimento_responder_texto($db, $numero, $resultado);
+    ia_operador_falar($db, $numero, $resultado);
 }
 
 function ia_operador_decidir(array $db, string $pedido, array $ativas, ?array $pendente = null): array
@@ -565,6 +635,7 @@ function ia_operador_criar(array &$db, array $campos): string
     $trip['canal'] = 'whatsapp';
     $obs = clip(ia_operador_campo($campos, 'obs'), 400);
     $trip['obs'] = $obs !== '' ? $obs : 'Criada pelo canal exclusivo do atendente.';
+    $trip['obs_tocada'] = true;
     $db['transfers'][] = $trip;
     sync_trip_finance($db, (int) $trip['id']);
     if (function_exists('aviso_reservas_novas')) {

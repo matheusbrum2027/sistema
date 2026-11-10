@@ -11,6 +11,7 @@ set_error_handler(static function (int $severity, string $message, string $file,
 });
 
 define('APP', true);
+set_time_limit(180);
 
 require __DIR__ . '/includes/bootstrap.php';
 
@@ -30,7 +31,7 @@ header('X-Content-Type-Options: nosniff');
 header('Referrer-Policy: same-origin');
 header('Permissions-Policy: camera=(), microphone=(), geolocation=()');
 header('Cache-Control: private, no-store');
-header("Content-Security-Policy: default-src 'self'; img-src 'self' data: blob: https://pps.whatsapp.net https://*.whatsapp.net https://api.qrserver.com https://tile.openstreetmap.org https://*.tile.openstreetmap.org https://unpkg.com; media-src 'self'; style-src 'self' https://fonts.googleapis.com https://unpkg.com 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com data:; script-src 'self' https://unpkg.com 'unsafe-inline'; connect-src 'self' https://*.tile.openstreetmap.org; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
+header("Content-Security-Policy: default-src 'self'; img-src 'self' data: blob: https://pps.whatsapp.net https://*.whatsapp.net https://api.qrserver.com https://tile.openstreetmap.org https://*.tile.openstreetmap.org https://unpkg.com; media-src 'self'; style-src 'self' https://fonts.googleapis.com https://unpkg.com 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com data:; script-src 'self' https://unpkg.com 'unsafe-inline'; connect-src 'self' https://*.tile.openstreetmap.org; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://www.driverflntransfer.app https://driverflntransfer.app https://accounts.google.com");
 if ((string) ($_GET['p'] ?? '') === 'marca') {
     $chave = (string) ($_GET['k'] ?? '');
     if (!in_array($chave, ['logo', 'logo_lateral', 'favicon', 'assinatura'], true)) {
@@ -55,6 +56,9 @@ if ((string) ($_GET['p'] ?? '') === 'marca') {
 }
 if (isset($_GET['hook'])) {
     handle_public_hook((string) $_GET['hook']);
+}
+if ((string) ($_GET['drive'] ?? '') === 'conectar') {
+    drive_oauth_start_public();
 }
 if ((string) ($_GET['drive'] ?? '') === 'oauth') {
     drive_oauth_callback_public();
@@ -387,7 +391,18 @@ if ($role === 'motorista' && !in_array($current, ['entrar', 'agenda', 'seja-moto
 $route = $routes[$current];
 $bare = !empty($route['bare']);
 $site = !empty($route['site']);
-$db = load_db();
+$acessoLogin = strtolower((string) ($_GET['acesso'] ?? ''));
+if (in_array($current, $paginasPublicas, true) && !preg_match('/^[a-f0-9]{32}$/', $acessoLogin)) {
+    $db = [
+        'settings' => ['nome' => 'Transfer FLN'],
+        'motoristas' => [],
+        'automacoes' => [],
+        'transfers' => [],
+        'avisos' => [],
+    ];
+} else {
+    $db = load_db();
+}
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET') {
     // CSRF/captcha/flash precisam gravar antes de soltar o lock da sessão.
     sessao_preparar_get($current, $db);
@@ -414,11 +429,12 @@ if ($current === 'agenda' && (string) ($_GET['fragment'] ?? '') === 'reserva') {
         }
     }
     $adminFragment = $role !== 'motorista';
-    if (!$trip || (!$adminFragment && !viagem_do_motorista($trip, (int) ($_SESSION['motorista_id'] ?? 0)))) {
+    if (!is_array($trip) || (!$adminFragment && !viagem_do_motorista($trip, (int) ($_SESSION['motorista_id'] ?? 0)))) {
         http_response_code(404);
         echo 'Reserva não encontrada.';
         exit;
     }
+    $trip = trip_com_obs($trip);
     header('Content-Type: text/html; charset=utf-8');
     header('Cache-Control: private, no-store');
     $contexto = (string) ($_GET['contexto'] ?? 'agenda') === 'reservas' ? 'reservas' : 'agenda';

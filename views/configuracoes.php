@@ -235,6 +235,49 @@ $classe2fa = $estado2fa === 'on' ? 'ok' : ($estado2fa === 'setup' ? 'warn' : 'of
   </div>
 </section>
 
+<section class="card cfg-card" id="webhook-dominios">
+  <header class="card-h">
+    <div>
+      <h2>Domínios do webhook de reservas</h2>
+      <p class="cfg-lead">Só estes sites podem enviar solicitações. O servidor confere a origem de cada chamada e recusa o resto, inclusive um POST direto na URL.</p>
+    </div>
+  </header>
+  <?php $dominiosHook = webhook_dominios($db); ?>
+  <?php if ($dominiosHook === []): ?>
+    <p class="hint">Nenhum domínio autorizado. Enquanto a lista estiver vazia, o webhook de reservas não aceita pedidos.</p>
+  <?php else: ?>
+    <div class="table-wrap">
+      <table class="table-lista">
+        <thead><tr><th>Domínio</th><th>Desde</th><th></th></tr></thead>
+        <tbody>
+          <?php foreach ($dominiosHook as $dom): ?>
+            <tr>
+              <td>
+                <form method="post" action="index.php" class="form-grid">
+                  <?= csrf_fields('update_webhook_dominio') ?>
+                  <input type="hidden" name="id" value="<?= (int) $dom['id'] ?>">
+                  <label class="field">Domínio <input name="dominio" required maxlength="120" value="<?= e((string) $dom['host']) ?>" placeholder="www.cliente.com.br"></label>
+                  <div class="form-actions"><button class="btn btn-sm btn-primary" type="submit">Salvar</button></div>
+                </form>
+              </td>
+              <td><?= e((string) ($dom['criado_em'] ?? '')) ?></td>
+              <td class="actions">
+                <form method="post" action="index.php" data-confirm="Remover <?= e((string) $dom['host']) ?>? Esse site deixa de poder enviar solicitações."><?= csrf_fields('delete_webhook_dominio') ?><input type="hidden" name="id" value="<?= (int) $dom['id'] ?>"><button class="btn btn-sm btn-danger" type="submit">Remover</button></form>
+              </td>
+            </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+  <?php endif; ?>
+  <form method="post" action="index.php" class="form-grid" style="margin-top:12px">
+    <?= csrf_fields('add_webhook_dominio') ?>
+    <label class="field">Novo domínio <input name="dominio" required maxlength="120" placeholder="www.cliente.com.br"></label>
+    <div class="form-actions"><button class="btn btn-primary" type="submit">Autorizar domínio</button></div>
+  </form>
+  <p class="hint">Cadastre o host exato, com ou sem www. O painel aceita https://www.site.com.br e guarda só www.site.com.br. Chamada sem Origin ou Referer desse host é rejeitada.</p>
+</section>
+
 <section class="card cfg-card" id="notificacoes">
   <header class="card-h">
     <div>
@@ -302,10 +345,7 @@ $classe2fa = $estado2fa === 'on' ? 'ok' : ($estado2fa === 'setup' ? 'warn' : 'of
   <?php if (!drive_conectado($db)): ?>
     <p class="help">Com um clique o sistema cria a pasta <strong>FLN Transfer Backups</strong> e, todo dia, uma subpasta <strong>backup DD/MM/AAAA</strong> com o JSON do estado.</p>
     <?php if (drive_oauth_configurado()): ?>
-      <form method="post" action="index.php" style="margin-top:12px">
-        <?= csrf_fields('drive_oauth_start') ?>
-        <button class="btn btn-primary" type="submit">Conectar Google Drive</button>
-      </form>
+      <a class="btn btn-primary" style="margin-top:12px" href="<?= e('index.php?drive=conectar&csrf=' . rawurlencode(csrf_token())) ?>">Conectar Google Drive</a>
     <?php else: ?>
       <p class="help" style="margin-top:10px">No Google Cloud: crie um OAuth Client (tipo Web), URI de redirecionamento <code><?= e(drive_redirect_uri()) ?></code>, e cadastre <code>GOOGLE_OAUTH_CLIENT_ID</code> + <code>GOOGLE_OAUTH_CLIENT_SECRET</code> no Vercel.</p>
     <?php endif; ?>

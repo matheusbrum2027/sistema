@@ -146,6 +146,29 @@ function store_midia(string $chave): string
     return is_string($r) ? $r : '';
 }
 
+function store_anotacao(int $id): string
+{
+    if ($id <= 0 || !store_remoto()) {
+        return '';
+    }
+    try {
+        $r = store_rpc('fln_anotacao', ['p_id' => $id, 'p_base' => store_base()], 8);
+    } catch (Throwable) {
+        return '';
+    }
+    return is_string($r) ? $r : '';
+}
+
+/** A observação fica fora do documento grande. Busca só a reserva aberta. */
+function trip_com_obs(array $trip): array
+{
+    if (array_key_exists('obs', $trip)) {
+        return $trip;
+    }
+    $trip['obs'] = store_anotacao((int) ($trip['id'] ?? 0));
+    return $trip;
+}
+
 function store_gravar(array $db, string $acao): void
 {
     $nova = (int) store_rpc('fln_salvar', [
@@ -186,6 +209,8 @@ function com_db(string $acao, callable $alterar): mixed
 
 final class SessaoBanco implements SessionHandlerInterface
 {
+    private bool $leituraOk = false;
+
     public function open(string $path, string $name): bool
     {
         return true;
@@ -199,14 +224,21 @@ final class SessaoBanco implements SessionHandlerInterface
     public function read(string $id): string|false
     {
         try {
-            return (string) store_rpc('fln_sessao_ler', ['p_id' => $id], 8);
+            $dados = (string) store_rpc('fln_sessao_ler', ['p_id' => $id], 8);
+            $this->leituraOk = true;
+            return $dados;
         } catch (Throwable) {
-            return '';
+            // Não devolve sessão vazia: o PHP gravaria isso e apagaria o login.
+            $this->leituraOk = false;
+            return false;
         }
     }
 
     public function write(string $id, string $data): bool
     {
+        if (!$this->leituraOk) {
+            return true;
+        }
         try {
             store_rpc('fln_sessao_gravar', ['p_id' => $id, 'p_dados' => $data, 'p_segundos' => (int) ini_get('session.gc_maxlifetime')], 8);
             return true;

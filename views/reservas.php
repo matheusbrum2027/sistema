@@ -41,13 +41,43 @@ $rows = array_values(array_filter($rows, static function (array $t) use ($de, $a
 }));
 foreach ($db['transfers'] as $t) {
     if ((int) $t['id'] === $editId) {
-        $edit = $t;
+        $edit = trip_com_obs($t);
     }
 }
+$solPedido = (int) ($_GET['solicitacao'] ?? 0);
+$solLiberada = (int) ($_SESSION['solicitacao_liberada'] ?? 0);
+$convertendo = null;
+$solNegada = false;
+if (!$edit && $solPedido > 0) {
+    if ($solLiberada !== $solPedido) {
+        $solNegada = true;
+    } else {
+        foreach ($db['inbox'] as $linhaSol) {
+            if ((int) ($linhaSol['id'] ?? 0) === $solPedido) {
+                $convertendo = $linhaSol;
+                break;
+            }
+        }
+        if ($convertendo === null) {
+            $solNegada = true;
+        }
+    }
+}
+$pre = is_array($convertendo) ? solicitacao_como_reserva($convertendo) : [];
+$campo = static function (string $chave) use ($edit, $pre): string {
+    if (is_array($edit) && trim((string) ($edit[$chave] ?? '')) !== '') {
+        return (string) $edit[$chave];
+    }
+    return (string) ($pre[$chave] ?? '');
+};
+$solForm = (int) ($convertendo['id'] ?? 0);
 $pg = slice_page($rows);
 $keep = array_filter(['de' => $de, 'ate' => $ate, 'estado' => $estado, 'motorista' => $mot ?: null, 'faturado' => $fat, 'q' => $q]);
 view_head('<button class="btn btn-primary" type="button" data-open-dialog="dlg-reserva">+ Criar Reserva</button>', 'Transfer (' . count($db['transfers']) . ')');
 ?>
+<?php if ($solNegada): ?>
+  <div class="flash flash-err" role="alert">A conversão só abre depois das duas confirmações na lista de solicitações.</div>
+<?php endif; ?>
 <form class="filters" method="get" action="index.php">
   <input type="hidden" name="p" value="reservas">
   <label>Data (de) <input type="date" name="de" value="<?= e($de) ?>" placeholder="dd/mm/aaaa"></label>
@@ -115,8 +145,14 @@ if ((string) ($_GET['rascunho'] ?? '') === '1' && !empty($_SESSION['reserva_draf
     $draft = $_SESSION['reserva_draft'];
     $draftErro = (string) ($_SESSION['reserva_draft_erro'] ?? '');
     unset($_SESSION['reserva_draft'], $_SESSION['reserva_draft_erro']);
+    if ($solForm === 0) {
+        $solForm = (int) ($draft['solicitacao_id'] ?? 0);
+    }
 }
-$tipoForm = 'ida';
+$tipoForm = (string) ($pre['tipo'] ?? 'ida');
+if (!in_array($tipoForm, ['ida', 'ida_volta', 'trajetos', 'hora'], true)) {
+    $tipoForm = 'ida';
+}
 if ($edit) {
     $tipoForm = match ((string) ($edit['tipo'] ?? 'ida')) {
         'hora' => 'hora',
@@ -129,7 +165,7 @@ if ($edit) {
         },
     };
 }
-$docEdit = (string) ($edit['documento'] ?? '');
+$docEdit = is_array($edit) ? (string) ($edit['documento'] ?? '') : (string) ($pre['documento'] ?? '');
 if ($edit && $docEdit === '' && !empty($edit['cliente_id'])) {
     foreach ($db['clientes'] as $c) {
         if ((int) $c['id'] === (int) $edit['cliente_id']) {
@@ -147,6 +183,8 @@ $manualEdit = '';
 if ($edit && (float) $edit['valor'] > 0 && abs($somaPag - (float) $edit['valor']) > 0.009) {
     $manualEdit = number_format((float) $edit['valor'], 2, ',', '');
     $pagEdit = [];
+} elseif (!$edit && (float) ($pre['valor'] ?? 0) > 0) {
+    $manualEdit = number_format((float) $pre['valor'], 2, ',', '');
 }
 $trechosForm = [
     ['embarque' => '', 'desembarque' => '', 'data' => '', 'hora' => '', 'pax' => 1],
@@ -185,15 +223,15 @@ foreach ($db['motoristas'] as $m) {
     }
 }
 $catsOk = array_keys(categorias_veiculo());
-$catAtual = is_array($edit) ? (string) ($edit['categoria'] ?? 'SED') : 'SED';
+$catAtual = is_array($edit) ? (string) ($edit['categoria'] ?? 'SED') : (string) ($pre['categoria'] ?? 'SED');
 $catEdit = in_array($catAtual, $catsOk, true) ? $catAtual : 'SED';
 ?>
-<dialog id="dlg-reserva" class="dlg-reserva" <?= ($edit || $draft) ? 'open' : '' ?>>
+<dialog id="dlg-reserva" class="dlg-reserva" <?= ($edit || $draft || $convertendo) ? 'open' : '' ?>>
   <form method="post" action="index.php" id="form-reserva" data-mode="<?= $edit ? 'edit' : 'create' ?>" data-perna="<?= e($pernaForm) ?>" data-ordem="<?= (int) $ordemForm ?>">
     <header class="dialog-h dlg-top">
       <div>
-        <h2><?= $edit ? 'Editar reserva #' . (int) $edit['id'] : 'Criar Nova Reserva' ?></h2>
-        <p><?= $edit ? 'Altere os campos necessários e salve. Use Fechar para voltar à lista sem salvar.' : 'Preencha os dados para criar uma nova reserva manual.' ?></p>
+        <h2><?= $edit ? 'Editar reserva #' . (int) $edit['id'] : ($convertendo ? 'Converter solicitação #' . (int) $convertendo['id'] : 'Criar Nova Reserva') ?></h2>
+        <p><?= $edit ? 'Altere os campos necessários e salve. Use Fechar para voltar à lista sem salvar.' : ($convertendo ? 'Os dados do webhook já estão nos campos. Confira, atribua um motorista e só então conclua.' : 'Preencha os dados para criar uma nova reserva manual.') ?></p>
       </div>
       <div class="dialog-tools">
         <button class="btn btn-sm" type="button" data-close-dialog>Fechar</button>
@@ -204,16 +242,20 @@ $catEdit = in_array($catAtual, $catsOk, true) ? $catAtual : 'SED';
       <?php if ($draftErro !== ''): ?>
         <div class="flash flash-err" role="alert"><?= e($draftErro) ?> Os dados preenchidos foram mantidos.</div>
       <?php endif; ?>
+      <?php if ($convertendo): ?>
+        <div class="box box-warn">Conversão da solicitação #<?= (int) $convertendo['id'] ?>. É obrigatório atribuir um motorista da frota. Sem motorista o cadastro não é concluído.</div>
+      <?php endif; ?>
       <?= csrf_fields($edit ? 'update_transfer' : 'add_transfer') ?>
       <?php if ($edit): ?><input type="hidden" name="id" value="<?= (int) $edit['id'] ?>"><?php endif; ?>
+      <?php if ($solForm > 0): ?><input type="hidden" name="solicitacao_id" value="<?= (int) $solForm ?>"><?php endif; ?>
       <input type="hidden" name="cliente_id" id="cliente-id" value="<?= (int) ($edit['cliente_id'] ?? 0) ?>">
 
       <h3 class="sec-title">Informações do Cliente</h3>
       <div class="box">
         <span class="lbl">Origem do cliente</span>
         <div class="origin-row">
-          <label><input type="radio" name="origem_cliente" value="cadastrado" checked> Cliente cadastrado</label>
-          <label><input type="radio" name="origem_cliente" value="novo"> NOVO CLIENTE</label>
+          <label><input type="radio" name="origem_cliente" value="cadastrado"<?= $pre === [] ? ' checked' : '' ?>> Cliente cadastrado</label>
+          <label><input type="radio" name="origem_cliente" value="novo"<?= $pre !== [] ? ' checked' : '' ?>> NOVO CLIENTE</label>
         </div>
         <div id="bloco-busca">
           <label class="field">Buscar e selecionar
@@ -228,16 +270,16 @@ $catEdit = in_array($catAtual, $catsOk, true) ? $catAtual : 'SED';
         </div>
         <div class="form-grid" style="margin-top:10px">
           <label class="field">Nome Completo *
-            <input name="cliente" required maxlength="80" value="<?= e($edit['cliente'] ?? '') ?>" placeholder="Paulo Henrique Correa de Macedo">
+            <input name="cliente" required maxlength="80" value="<?= e($campo('cliente')) ?>" placeholder="Paulo Henrique Correa de Macedo">
           </label>
           <label class="field">CPF/CNPJ *
             <input name="documento" required maxlength="20" value="<?= e($docEdit) ?>" placeholder="000.000.000-00">
           </label>
           <label class="field">Email *
-            <input type="email" name="email" required maxlength="80" value="<?= e($edit['email'] ?? '') ?>" placeholder="financeiroflnsc@gmail.com">
+            <input type="email" name="email" required maxlength="80" value="<?= e($campo('email')) ?>" placeholder="financeiroflnsc@gmail.com">
           </label>
           <label class="field">Telefone *
-            <input name="telefone" required maxlength="30" value="<?= e($edit['telefone'] ?? '') ?>" placeholder="(48) 98822-2534">
+            <input name="telefone" required maxlength="30" value="<?= e($campo('telefone')) ?>" placeholder="(48) 98822-2534">
           </label>
         </div>
       </div>
@@ -265,25 +307,25 @@ $catEdit = in_array($catAtual, $catsOk, true) ? $catAtual : 'SED';
         <strong class="bloco-h">→ Ida</strong>
         <div class="form-grid">
           <label class="field">Local de Embarque (IDA) *
-            <input name="embarque" maxlength="180" value="<?= e($edit['origem'] ?? '') ?>" placeholder="Endereço completo de embarque">
+            <input name="embarque" maxlength="180" value="<?= e($campo('origem')) ?>" placeholder="Endereço completo de embarque">
           </label>
           <label class="field">Local de Desembarque (IDA) *
-            <input name="desembarque" maxlength="180" value="<?= e($edit['destino'] ?? '') ?>" placeholder="Endereço completo de destino">
+            <input name="desembarque" maxlength="180" value="<?= e($campo('destino')) ?>" placeholder="Endereço completo de destino">
           </label>
           <label class="field">Data do Embarque (IDA) *
-            <input type="date" name="data" value="<?= e($edit['data'] ?? '') ?>" placeholder="dd/mm/aaaa">
+            <input type="date" name="data" value="<?= e($campo('data')) ?>" placeholder="dd/mm/aaaa">
           </label>
           <label class="field">Hora
-            <input type="time" name="hora" value="<?= e($edit['hora'] ?? '') ?>" placeholder="--:--">
+            <input type="time" name="hora" value="<?= e($campo('hora')) ?>" placeholder="--:--">
           </label>
           <label class="field">Número de Passageiros *
-            <input type="number" name="pax" min="1" max="40" value="<?= (int) ($edit['pax'] ?? 1) ?>" placeholder="2">
+            <input type="number" name="pax" min="1" max="40" value="<?= (int) ($campo('pax') !== '' ? $campo('pax') : 1) ?>" placeholder="2">
           </label>
           <label class="field">Cupom
-            <input name="cupom" maxlength="40" value="<?= e($edit['cupom'] ?? '') ?>" placeholder="FLN10">
+            <input name="cupom" maxlength="40" value="<?= e($campo('cupom')) ?>" placeholder="FLN10">
           </label>
           <label class="field full">Mensagem / Observações
-            <textarea name="obs_ida" maxlength="800" placeholder="Duas malas grandes, voo G3 1234"><?= e(($tipoForm === 'ida' || $tipoForm === 'ida_volta') ? (string) ($edit['obs'] ?? '') : '') ?></textarea>
+            <textarea name="obs_ida" maxlength="800" placeholder="Duas malas grandes, voo G3 1234"><?= e(($tipoForm === 'ida' || $tipoForm === 'ida_volta') ? $campo('obs') : '') ?></textarea>
           </label>
         </div>
       </div>
@@ -348,33 +390,34 @@ $catEdit = in_array($catAtual, $catsOk, true) ? $catAtual : 'SED';
         <strong class="bloco-h">Por Hora</strong>
         <div class="form-grid">
           <label class="field">Endereço de Início
-            <input name="inicio" maxlength="180" value="<?= e(($edit['tipo'] ?? '') === 'hora' ? (string) $edit['origem'] : '') ?>" placeholder="Endereço completo">
+            <input name="inicio" maxlength="180" value="<?= e($tipoForm === 'hora' ? $campo('origem') : '') ?>" placeholder="Endereço completo">
           </label>
           <label class="field">Ponto de Encerramento
-            <input name="encerramento" maxlength="180" value="<?= e(($edit['tipo'] ?? '') === 'hora' ? (string) $edit['destino'] : '') ?>" placeholder="Endereço completo">
+            <input name="encerramento" maxlength="180" value="<?= e($tipoForm === 'hora' ? $campo('destino') : '') ?>" placeholder="Endereço completo">
           </label>
           <label class="field">Data
-            <input type="date" name="data_hora" value="<?= e(($edit['tipo'] ?? '') === 'hora' ? (string) $edit['data'] : '') ?>" placeholder="dd/mm/aaaa">
+            <input type="date" name="data_hora" value="<?= e($tipoForm === 'hora' ? $campo('data') : '') ?>" placeholder="dd/mm/aaaa">
           </label>
           <label class="field">Hora
-            <input type="time" name="hora_servico" value="<?= e(($edit['tipo'] ?? '') === 'hora' ? (string) $edit['hora'] : '') ?>" placeholder="--:--">
+            <input type="time" name="hora_servico" value="<?= e($tipoForm === 'hora' ? $campo('hora') : '') ?>" placeholder="--:--">
           </label>
           <label class="field">Passageiros
-            <input type="number" name="pax_hora" min="1" max="40" value="<?= (int) (($edit['tipo'] ?? '') === 'hora' ? ($edit['pax'] ?? 1) : 1) ?>" placeholder="2">
+            <input type="number" name="pax_hora" min="1" max="40" value="<?= (int) ($tipoForm === 'hora' ? ($campo('pax') !== '' ? $campo('pax') : 1) : 1) ?>" placeholder="2">
           </label>
           <label class="field">Qtd. Horas
             <input name="qtd_horas" maxlength="10" value="<?= e((string) ($edit['qtd_horas'] ?? '')) ?>" placeholder="4">
           </label>
           <label class="field full">Cupom
-            <input name="cupom_hora" maxlength="40" value="<?= e(($edit['tipo'] ?? '') === 'hora' ? (string) ($edit['cupom'] ?? '') : '') ?>" placeholder="FLN10">
+            <input name="cupom_hora" maxlength="40" value="<?= e($tipoForm === 'hora' ? $campo('cupom') : '') ?>" placeholder="FLN10">
           </label>
           <label class="field full">Itinerário / Observações
-            <textarea name="itinerario" maxlength="800" placeholder="Roteiro do dia, paradas e horários"><?= e(($edit['tipo'] ?? '') === 'hora' ? (string) ($edit['obs'] ?? '') : '') ?></textarea>
+            <textarea name="itinerario" maxlength="800" placeholder="Roteiro do dia, paradas e horários"><?= e($tipoForm === 'hora' ? $campo('obs') : '') ?></textarea>
           </label>
         </div>
       </div>
 
       <h3 class="sec-title">Veículo e Motorista</h3>
+      <?php if ($solForm > 0): ?><p class="hint">Obrigatório: arraste um motorista da frota e solte no trecho. A conversão não conclui sem motorista.</p><?php endif; ?>
       <label class="field">Quem fará a viagem? *
         <select name="quem" id="quem-viagem">
           <option value="motorista"<?= ($edit['quem'] ?? 'motorista') !== 'parceiro' ? ' selected' : '' ?>>Motorista</option>
@@ -440,12 +483,12 @@ $catEdit = in_array($catAtual, $catsOk, true) ? $catAtual : 'SED';
         <span class="hint">Em Concluída, com repasse &gt; 0, gera automaticamente a despesa do motorista no Financeiro.</span>
       </label>
       <label class="field">Observações
-        <textarea name="obs" maxlength="800" placeholder="Uma informação por linha. Enter quebra a linha.&#10;Ex.: Nome do passageiro&#10;Voo e horário"><?= e((string) ($edit['obs'] ?? '')) ?></textarea>
+        <textarea name="obs" maxlength="800" placeholder="Uma informação por linha. Enter quebra a linha.&#10;Ex.: Nome do passageiro&#10;Voo e horário"><?= e($campo('obs')) ?></textarea>
       </label>
     </div>
     <footer class="dlg-foot">
       <button class="btn" type="button" data-close-dialog>Fechar</button>
-      <button class="btn btn-primary" type="submit"><?= $edit ? 'Salvar reserva' : 'Criar Reserva' ?></button>
+      <button class="btn btn-primary" type="submit"><?= $edit ? 'Salvar reserva' : ($solForm > 0 ? 'Concluir conversão' : 'Criar Reserva') ?></button>
     </footer>
   </form>
 </dialog>
@@ -835,7 +878,34 @@ foreach ($db['motoristas'] as $m) {
   }
   const obsIda = form.elements.obs_ida;
   if (obsIda && form.elements.obs.value === '' && obsIda.value !== '') form.elements.obs.value = obsIda.value;
-  form.addEventListener('submit', () => {
+  form.addEventListener('submit', (event) => {
+    const sol = form.elements.solicitacao_id;
+    if (sol && String(sol.value || '') !== '' && String(sol.value) !== '0') {
+      const tipoAtual = form.elements.tipo_viagem ? form.elements.tipo_viagem.value : 'ida';
+      const temNa = (chave) => Array.isArray(times[chave]) && times[chave].length > 0;
+      let temMotorista = form.elements.quem && form.elements.quem.value !== 'parceiro';
+      if (!temMotorista) {
+        temMotorista = false;
+      } else if (tipoAtual === 'hora') {
+        temMotorista = temNa('hora');
+      } else if (tipoAtual === 'trajetos') {
+        const caixas = form.querySelectorAll('#trajeto-lista .trajeto');
+        temMotorista = caixas.length > 0;
+        caixas.forEach((box, i) => {
+          if (!temNa('t' + i)) temMotorista = false;
+        });
+      } else {
+        temMotorista = temNa('ida');
+        if (tipoAtual === 'ida_volta' && !temNa('volta')) temMotorista = false;
+      }
+      if (!temMotorista) {
+        event.preventDefault();
+        event.stopPropagation();
+        aviso.hidden = false;
+        aviso.textContent = 'Atribua um motorista da frota em cada trecho para concluir a conversão.';
+        return;
+      }
+    }
     sincronizarEquipe();
     const btnSalvar = form.querySelector('footer [type="submit"]');
     if (btnSalvar instanceof HTMLButtonElement) btnSalvar.disabled = true;
