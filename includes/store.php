@@ -234,16 +234,20 @@ function store_gravar(array $db, string $acao): void
  * Lê o estado atual, aplica $alterar e grava. Se outra gravação ocorrer no meio,
  * relê e aplica de novo; $alterar não pode ter efeito fora de $db.
  */
-function com_db(string $acao, callable $alterar): mixed
+function com_db(string $acao, callable $alterar, bool $leve = false): mixed
 {
     for ($tentativa = 0; $tentativa < 4; $tentativa++) {
-        $db = load_db(true, true);
+        $db = $leve ? load_db(true, false, 'casca') : load_db(true, true);
         $resultado = $alterar($db);
         if ($resultado === false) {
             return false;
         }
+        $gravar = $db;
+        if ($leve) {
+            unset($gravar['transfers'], $gravar['lancamentos'], $gravar['_menu']);
+        }
         try {
-            save_db($db, $acao);
+            save_db($gravar, $acao);
             return $resultado;
         } catch (BancoConflito) {
             db_request_cache(null, true);

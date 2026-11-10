@@ -1745,7 +1745,7 @@ function handle_post(): void
         try {
             $saida = com_db($action, static function (array &$db) use ($action): array {
                 return push_acao($db, $action);
-            });
+            }, true);
             if (!is_array($saida)) {
                 $saida = ['ok' => false, 'erro' => 'Não foi possível atualizar as notificações.'];
             }

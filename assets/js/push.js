@@ -130,8 +130,10 @@
     dados.set('action', acao);
     Object.keys(campos || {}).forEach((chave) => dados.set(chave, campos[chave]));
     const resposta = await fetch('index.php?p=configuracoes', { method: 'POST', body: dados, credentials: 'same-origin' });
-    const json = await resposta.json();
-    if (!json.ok) throw new Error(json.erro || 'Não foi possível concluir.');
+    const json = await resposta.json().catch(() => null);
+    if (!resposta.ok || !json || !json.ok) {
+      throw new Error((json && json.erro) || 'O servidor demorou para concluir. Espere um instante e tente de novo.');
+    }
     return json;
   }
 
@@ -252,11 +254,16 @@
     if (alvo.id === 'push-ativar') ativar().catch((err) => dizer(textoFalha(err)));
     else if (alvo.id === 'push-testar') testar();
     else if (alvo.id === 'push-desligar') desligar().catch((err) => dizer(err.message || 'Não foi possível desligar.'));
-    else if (alvo.id === 'push-instalar' && instalarEvento) {
-      instalarEvento.prompt();
-      instalarEvento.userChoice.finally(() => {
+    else if (alvo.id === 'push-instalar') {
+      if (!instalarEvento) {
+        dizer('No Android, use o APK FLN Transfer nesta mesma tela. Neste computador, o Chrome oferece a instalação.');
+        return;
+      }
+      instalarEvento.prompt().then(() => {
         instalarEvento = null;
         alvo.hidden = true;
+      }).catch(() => {
+        dizer('A instalação não foi concluída. No Android, baixe o APK FLN Transfer nesta mesma tela.');
       });
     } else if (alvo.hasAttribute('data-push-remover')) {
       enviar('push_remover', { id: alvo.getAttribute('data-push-remover') || '' })
