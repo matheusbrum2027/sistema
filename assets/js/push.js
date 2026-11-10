@@ -143,12 +143,16 @@
   }
 
   async function atualizarEstado() {
+    if (ehApk()) {
+      dizer('APK instalado. Toque em Ativar para receber avisos com o app em segundo plano.');
+      return;
+    }
     if (!window.isSecureContext) {
       dizer('Este endereço não é seguro. No celular, abra o painel publicado em https e toque em Ativar.');
       return;
     }
     if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) {
-      dizer('Este navegador não mostra notificação de aplicativo. Use o Chrome no Android ou no computador.');
+      dizer('Este navegador não mostra notificação de aplicativo. Use o APK no Android ou o Chrome.');
       return;
     }
     if (Notification.permission === 'denied') {
@@ -289,7 +293,7 @@
     } catch (err) { /* próxima tentativa */ }
   }
 
-  window.setInterval(buscarNovos, ehApk() ? 8000 : 12000);
+  window.setInterval(buscarNovos, ehApk() ? 25000 : 20000);
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') buscarNovos();
   });

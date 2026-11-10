@@ -67,7 +67,7 @@ view_head('<a class="btn btn-sm" href="' . e(href('lancamentos')) . '">Lançamen
             <td><?= e($mid > 0 ? nome_motorista($db, $mid) : (string) ($row['cliente'] ?? '—')) ?></td>
             <td class="money-neg"><?= e(brl((float) $row['valor'])) ?></td>
             <td>
-              <form method="post" action="index.php" data-confirm-vezes="2" data-confirm="Pagar <?= e($row['descricao']) ?>?" data-confirm-2="Confirme novamente: esta conta ficará paga."><?= csrf_fields('baixar_lancamento') ?><input type="hidden" name="id" value="<?= (int) $row['id'] ?>"><button class="btn btn-sm" type="submit">Pagar</button></form>
+              <form method="post" action="index.php" data-confirm="Pagar <?= e($row['descricao']) ?>?"><?= csrf_fields('baixar_lancamento') ?><input type="hidden" name="id" value="<?= (int) $row['id'] ?>"><button class="btn btn-sm" type="submit">Pagar</button></form>
             </td>
           </tr>
         <?php endforeach; ?>

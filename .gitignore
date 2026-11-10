@@ -3,3 +3,10 @@
 .vercel
 android/
 scripts/pdf_preview/
+.env*
+mobile/android/local.properties
+mobile/android/.gradle/
+mobile/android/**/build/
+mobile/android/*.jks
+mobile/android/keystore.properties
+mobile/android/assets/

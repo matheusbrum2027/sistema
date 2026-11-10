@@ -52,7 +52,7 @@ $nomeVei = static function (array $db, $id): string {
 
 $actionBtn = static function (int $id, string $status, string $label, string $class = '') {
     $nome = status_label($status);
-    echo '<form method="post" action="index.php" data-confirm-vezes="2" data-confirm="Marcar a reserva #' . $id . ' como ' . e($nome) . '?" data-confirm-2="Confirme novamente: a reserva #' . $id . ' ficará como ' . e($nome) . '.">';
+    echo '<form method="post" action="index.php" data-confirm="Marcar a reserva #' . $id . ' como ' . e($nome) . '?">';
     echo csrf_fields('set_transfer_status');
     echo '<input type="hidden" name="id" value="' . $id . '">';
     echo '<input type="hidden" name="status" value="' . e($status) . '">';

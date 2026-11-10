@@ -24,16 +24,16 @@ view_head('<button class="btn btn-primary" type="button" data-open-dialog="dlg-c
   <section class="card">
   <div class="table-wrap">
     <table class="table-lista">
-        <thead><tr><th></th><th>Nome</th><th>Tipo</th><th>E-mail</th><th>Telefone</th><th>Perfil</th><th></th></tr></thead>
+        <thead><tr><th></th><th>Nome</th><th>Tipo</th><th>E-mail</th><th>Telefone</th><th>Perfil</th><th class="col-acoes">Ações</th></tr></thead>
         <tbody>
-          <?php foreach ($pg['rows'] as $c): $pct = perfil_cliente($c); ?>
+          <?php foreach ($pg['rows'] as $c): $pct = perfil_cliente($c); $letra = mb_strtoupper(mb_substr(trim((string) ($c['nome'] ?? '')), 0, 1)); if ($letra === '') { $letra = '?'; } ?>
             <tr>
-              <td><b class="avatar"><?= e(mb_strtoupper(mb_substr((string) $c['nome'], 0, 1))) ?></b></td>
+              <td><span class="avatar" aria-hidden="true"><?= e($letra) ?></span></td>
               <td><?= e($c['nome']) ?></td>
               <td><?= e($c['tipo'] ?? 'PF') ?></td>
               <td><?= e($c['email'] ?: 'Não informado') ?></td>
               <td><?= e($c['telefone'] ?: 'Não informado') ?></td>
-              <td><span class="perfil" title="<?= $pct ?>%"><i style="width:<?= $pct ?>%"></i></span> <?= $pct ?>%</td>
+              <td class="col-perfil"><span class="perfil" title="<?= $pct ?>%"><i style="width:<?= $pct ?>%"></i></span> <?= $pct ?>%</td>
               <td class="actions">
                 <a class="btn btn-sm" href="<?= e(href('clientes', ['edit' => $c['id']])) ?>">Editar</a>
                 <form method="post" action="index.php" data-confirm="Excluir o cliente <?= e($c['nome']) ?>? Esta ação não pode ser desfeita."><?= csrf_fields('delete_cliente') ?><input type="hidden" name="id" value="<?= (int) $c['id'] ?>"><button class="btn btn-sm btn-danger" type="submit">Excluir</button></form>

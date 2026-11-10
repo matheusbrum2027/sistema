@@ -16,7 +16,9 @@
   const cfgForm = document.getElementById('chat-cfg-form');
   const cfgAviso = document.getElementById('chat-cfg-aviso');
   const badge = document.getElementById('chat-aba-badge');
+  const btnIa = document.getElementById('chat-pausar-ia');
   if (!borda || !painel || !abrir || !lista || !msgs || !form || !texto) return;
+  let iaPausada = false;
 
   const csrf = document.querySelector('meta[name="csrf"]')?.getAttribute('content') || '';
   const icoExpand = btnFull?.innerHTML || '';
@@ -134,13 +136,16 @@
     pollTimer = 0;
   }
 
+  let pollTick = 0;
   function iniciarPoll() {
     pararPoll();
-    // Com o painel aberto: puxa UAZAPI com calma (não a cada poucos segundos).
+    pollTick = 0;
+    // Lista local a cada 20s; UAZAPI só a cada ~60s.
     pollTimer = window.setInterval(() => {
       if (!aberta || document.hidden || authFail || painel.classList.contains('is-cfg')) return;
-      puxarFundo(true, true);
-    }, 25000);
+      pollTick += 1;
+      puxarFundo(true, pollTick % 3 === 0);
+    }, 20000);
   }
 
   function iniciarFundo() {
@@ -149,7 +154,7 @@
     fundoTimer = window.setInterval(() => {
       if (document.hidden || authFail || aberta) return;
       puxarFundo(false, false);
-    }, 20000);
+    }, 45000);
     puxarFundo(false, false);
   }
 
@@ -167,6 +172,9 @@
   }
 
   function abrirPainel() {
+    document.dispatchEvent(new CustomEvent('fln:fechar-campanha'));
+    document.dispatchEvent(new CustomEvent('fln:fechar-mapa'));
+    document.dispatchEvent(new CustomEvent('fln:fechar-analise'));
     aberta = true;
     authFail = false;
     painel.hidden = false;
@@ -175,7 +183,13 @@
     setFull(false);
     mostrarCfg(false);
     travarZoomMobile();
-    sincronizar(false);
+    // Lista local imediata; UAZAPI só em segundo plano (não bloqueia a abertura).
+    if (conversas.length) pintarLista();
+    else lista.innerHTML = '<p class="chat-vazio">Carregando conversas…</p>';
+    carregarLista(true);
+    window.setTimeout(() => {
+      if (aberta && !authFail) puxarFundo(true, true);
+    }, 50);
     iniciarPoll();
   }
 
@@ -192,6 +206,10 @@
     if (msgsCtrl) msgsCtrl.abort();
     travarZoomMobile();
   }
+
+  document.addEventListener('fln:fechar-chat', () => {
+    if (aberta) fecharPainel();
+  });
 
   let toqueAba = false;
   abrir.addEventListener('touchend', (event) => {
@@ -342,11 +360,16 @@
     lista.innerHTML = itens.map((c) => (
       '<button type="button" class="chat-item' + (c.id === ativa ? ' is-on' : '') + '" data-id="' + esc(c.id) + '">'
       + '<span class="chat-avatar">' + avatarHtml(c.foto, c.letra) + '</span>'
-      + '<span class="chat-item-meio"><strong>' + esc(c.nome) + (c.grupo ? ' · grupo' : '') + '</strong><small>' + esc(c.preview) + '</small></span>'
+      + '<span class="chat-item-meio"><strong>' + esc(c.nome) + (c.grupo ? ' · grupo' : '') + '</strong><small class="' + (c.digitando ? 'is-digitando' : '') + '">' + esc(c.digitando || c.preview) + '</small></span>'
       + '<span class="chat-item-lado"><time>' + esc(c.hora) + '</time>'
       + (c.naoLidas ? '<b>' + esc(c.naoLidas > 99 ? '99+' : c.naoLidas) + '</b>' : '')
       + '</span></button>'
     )).join('');
+    if (ativa) {
+      const abertaAgora = conversas.find((c) => c.id === ativa);
+      const fone = document.getElementById('chat-fone');
+      if (abertaAgora && fone) fone.textContent = abertaAgora.digitando || abertaAgora.fone || '';
+    }
   }
 
   busca?.addEventListener('input', pintarLista);
@@ -357,13 +380,71 @@
     ativa = item.getAttribute('data-id') || '';
     const conv = conversas.find((c) => c.id === ativa);
     document.getElementById('chat-nome').textContent = conv ? conv.nome : 'Conversa';
-    document.getElementById('chat-fone').textContent = conv ? conv.fone : '';
+    document.getElementById('chat-fone').textContent = conv ? (conv.digitando || conv.fone) : '';
     pintarAvatarCabecalho(conv?.foto || '', conv?.letra || '');
     painel.classList.add('is-fio');
     pintarLista();
     msgs.innerHTML = '<p class="chat-vazio">Carregando…</p>';
     carregarMsgs(ativa, false);
+    atualizarBotaoIa(ativa);
     if (!isMobile()) texto.focus();
+  });
+
+  function pintarBotaoIa() {
+    if (!btnIa) return;
+    if (!ativa) {
+      btnIa.hidden = true;
+      return;
+    }
+    btnIa.hidden = false;
+    btnIa.classList.toggle('is-pausada', iaPausada);
+    btnIa.textContent = iaPausada ? 'Retomar IA' : 'Pausar IA';
+    btnIa.title = iaPausada
+      ? 'Retomar a automação nesta conversa'
+      : 'Pausar a automação nesta conversa agora';
+  }
+
+  async function atualizarBotaoIa(id) {
+    if (!btnIa || !id) {
+      if (btnIa) btnIa.hidden = true;
+      return;
+    }
+    try {
+      const r = await fetch('index.php?p=chat&acao=estado_ia&id=' + encodeURIComponent(id), {
+        credentials: 'same-origin',
+        cache: 'no-store',
+      });
+      const j = await r.json();
+      iaPausada = !!j.pausada;
+      pintarBotaoIa();
+    } catch (e) {
+      pintarBotaoIa();
+    }
+  }
+
+  btnIa?.addEventListener('click', async () => {
+    if (!ativa || authFail) return;
+    const acao = iaPausada ? 'retomar_ia' : 'pausar_ia';
+    btnIa.disabled = true;
+    try {
+      const corpo = new URLSearchParams({ csrf, id: ativa });
+      const r = await fetch('index.php?p=chat&acao=' + acao, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: corpo,
+      });
+      const j = await r.json();
+      if (!j.ok) {
+        window.alert(j.erro || 'Não foi possível alterar a IA.');
+      } else {
+        iaPausada = !!j.pausada;
+        pintarBotaoIa();
+      }
+    } catch (e) {
+      window.alert('Não foi possível alterar a IA.');
+    }
+    btnIa.disabled = false;
   });
 
   async function carregarMsgs(id, silencioso) {
@@ -446,6 +527,8 @@
         if (/Comunicador|expirou|token/i.test(String(dados.erro || ''))) authFail = true;
       } else {
         texto.value = '';
+        iaPausada = true;
+        pintarBotaoIa();
         await carregarMsgs(ativa, false);
         carregarLista(true);
       }
@@ -465,7 +548,28 @@
     const openai = document.getElementById('cfg-openai');
     const hint = document.getElementById('cfg-openai-hint');
     if (ignorar) ignorar.checked = !!dados.ignorar_grupos;
-    if (ia) ia.checked = !!dados.ia_ativa;
+    if (ia) ia.checked = dados.ia_ativa !== false && dados.ia_ativa !== 0;
+    const digitando = document.getElementById('cfg-mostrar-digitando');
+    const online = document.getElementById('cfg-online-ativo');
+    const inicio = document.getElementById('cfg-online-inicio');
+    const fim = document.getElementById('cfg-online-fim');
+    const avaliacao = document.getElementById('cfg-avaliacao-auto');
+    if (digitando) digitando.checked = dados.mostrar_digitando !== false;
+    if (online) online.checked = dados.online_ativo !== false;
+    if (inicio) inicio.value = dados.online_inicio || '06:00';
+    if (fim) fim.value = dados.online_fim || '22:00';
+    if (avaliacao) avaliacao.checked = dados.avaliacao_auto !== false;
+    const opId = document.getElementById('cfg-operador-id');
+    const opToken = document.getElementById('cfg-operador-token');
+    if (opId && dados.operador_id) opId.value = dados.operador_id;
+    if (opToken && dados.operador_token) opToken.value = dados.operador_token;
+    if (dados.permissoes && typeof dados.permissoes === 'object') {
+      document.querySelectorAll('.cfg-ia-perm').forEach((caixa) => {
+        if (Object.prototype.hasOwnProperty.call(dados.permissoes, caixa.value)) {
+          caixa.checked = !!dados.permissoes[caixa.value];
+        }
+      });
+    }
     if (parar) parar.value = dados.ia_parar || 'parar';
     if (pararMin) pararMin.value = String(dados.ia_parar_min ?? 30);
     if (pausar) pausar.value = String(dados.ia_pausar_manual ?? 5);
@@ -475,8 +579,8 @@
     }
     if (hint) {
       hint.textContent = dados.openai_tem
-        ? 'Já existe uma chave salva. Preencha só se quiser trocar.'
-        : 'Usada pela UAZAPI para áudio, embeddings e agentes.';
+        ? 'Chave salva (painel ou OPENAI_API_KEY). A IA responde só sobre a reserva do Comunicar até o status Concluída; aí manda o card de avaliação se estiver ligado.'
+        : 'Cole a chave OpenAI (sk-…) e salve. Sem ela a IA não conversa — só os botões do card. Depois do Comunicar a memória fica só daquela reserva.';
     }
     if (dados.comunicador) comunicador = dados.comunicador;
     if (typeof dados.ignorar_grupos === 'boolean') ignorarGrupos = dados.ignorar_grupos;
@@ -518,8 +622,20 @@
       ia_parar: document.getElementById('cfg-ia-parar')?.value || 'parar',
       ia_parar_min: document.getElementById('cfg-ia-parar-min')?.value || '30',
       ia_pausar_manual: document.getElementById('cfg-ia-pausar-manual')?.value || '5',
+      mostrar_digitando: document.getElementById('cfg-mostrar-digitando')?.checked ? '1' : '0',
+      online_ativo: document.getElementById('cfg-online-ativo')?.checked ? '1' : '0',
+      online_inicio: document.getElementById('cfg-online-inicio')?.value || '06:00',
+      online_fim: document.getElementById('cfg-online-fim')?.value || '22:00',
+      avaliacao_auto: document.getElementById('cfg-avaliacao-auto')?.checked ? '1' : '0',
       openai_key: document.getElementById('cfg-openai')?.value || '',
     });
+    const permMarcadas = [];
+    document.querySelectorAll('.cfg-ia-perm').forEach((caixa) => {
+      if (caixa.checked) permMarcadas.push(caixa.value);
+    });
+    if (document.querySelector('.cfg-ia-perm')) {
+      corpo.set('ia_perm', permMarcadas.join(','));
+    }
     if (cfgAviso) {
       cfgAviso.hidden = false;
       cfgAviso.textContent = 'Salvando…';

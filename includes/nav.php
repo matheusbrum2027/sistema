@@ -126,5 +126,16 @@ function route_map(): array
         'group' => '',
         'bare' => true,
     ];
+    $map['seja-motorista'] = [
+        'id' => 'seja-motorista',
+        'title' => 'Seja motorista',
+        'icon' => 'users',
+        'subtitle' => '',
+        'view' => 'views/seja-motorista.php',
+        'filters' => false,
+        'group' => '',
+        'bare' => true,
+        'site' => true,
+    ];
     return $map;
 }

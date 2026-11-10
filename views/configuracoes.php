@@ -31,10 +31,11 @@ view_head('', 'Cada bloco salva sozinho. Toque em Editar para liberar os campos.
       <label class="field">Logo <input type="file" name="logo" accept="image/png,image/jpeg,image/webp"></label>
       <label class="field">Logo lateral <input type="file" name="logo_lateral" accept="image/png,image/jpeg,image/webp"></label>
       <label class="field">Favicon <input type="file" name="favicon" accept="image/png,image/jpeg,image/webp"></label>
+      <p class="hint full">O favicon do sistema usa exatamente a logo da empresa. Se enviar só o favicon, ele também vira a logo.</p>
       <div class="form-actions full"><button class="btn btn-primary" type="submit">Salvar dados</button></div>
     </fieldset>
   </form>
-  <?php if (!empty($s['logo'])): ?><p class="hint">Logo atual carregada.</p><?php endif; ?>
+  <?php if (!empty($s['logo']) || !empty($s['tem_logo'])): ?><p class="hint">Logo atual carregada (também usada no favicon).</p><?php endif; ?>
 </section>
 
 <section class="card cfg-card">
@@ -73,7 +74,7 @@ view_head('', 'Cada bloco salva sozinho. Toque em Editar para liberar os campos.
       <div class="form-actions full"><button class="btn btn-primary" type="submit">Salvar assinatura</button></div>
     </fieldset>
   </form>
-  <?php if (!empty($s['assinatura'])): ?><p class="hint">Assinatura ativa no contrato e no PDF da reserva.</p><?php endif; ?>
+  <?php if (!empty($s['assinatura']) || !empty($s['tem_assinatura'])): ?><p class="hint">Assinatura ativa no contrato e no PDF da reserva.</p><?php endif; ?>
 </section>
 
 <section class="card cfg-card">
@@ -108,9 +109,13 @@ view_head('', 'Cada bloco salva sozinho. Toque em Editar para liberar os campos.
     <?= csrf_fields('save_pagamentos') ?>
     <input type="hidden" name="editando" value="0">
     <fieldset disabled>
-      <label class="field">Chave Pix <input name="pix" maxlength="80" value="<?= e($s['pix']) ?>" placeholder="flnexecutivoads@gmail.com"></label>
+      <label class="field">Chave Pix <input name="pix" maxlength="80" value="<?= e($s['pix']) ?>" placeholder="chave Pix da empresa"></label>
       <label class="field">Cidade do recebedor <input name="pix_cidade" maxlength="60" value="<?= e($s['pix_cidade'] ?? '') ?>" placeholder="Florianópolis"></label>
-      <label class="field full">Token PagBank <input name="pagbank_token" maxlength="200" value="<?= e($s['pagbank_token'] ?? '') ?>" placeholder="cole o token PagBank" autocomplete="off"></label>
+      <?php $temPagTok = segredo_cadastrado((string) ($s['pagbank_token'] ?? '')); ?>
+      <label class="field full">Token PagBank
+        <input type="password" name="pagbank_token" maxlength="200" value="" placeholder="<?= $temPagTok ? '•••••••• (salvo — deixe em branco para manter)' : 'cole o token PagBank' ?>" autocomplete="new-password">
+      </label>
+      <?php if ($temPagTok): ?><p class="hint full">Token PagBank cadastrado e oculto. Preencha só para trocar.</p><?php endif; ?>
       <label class="cfg-switch full"><input type="checkbox" name="pagbank_ativo" value="1"<?= !empty($s['pagbank_ativo']) ? ' checked' : '' ?>> <span>PagBank ativo<small>Liga a cobrança com o token acima.</small></span></label>
       <div class="form-actions full"><button class="btn btn-primary" type="submit">Salvar pagamentos</button></div>
     </fieldset>
@@ -132,18 +137,102 @@ view_head('', 'Cada bloco salva sozinho. Toque em Editar para liberar os campos.
       <label class="field">Antecedência mínima (horas) <input type="number" name="antecedencia" min="0" max="72" value="<?= e($s['antecedencia']) ?>" placeholder="2"></label>
       <label class="field">Intervalo entre viagens (minutos) <input type="number" name="intervalo_motorista" min="15" max="720" step="5" required value="<?= e($s['intervalo_motorista'] ?? '120') ?>" placeholder="120"></label>
       <label class="cfg-switch"><input type="checkbox" name="modo_simples" value="1"<?= !empty($s['modo_simples']) ? ' checked' : '' ?>> <span>Modo simples<small>Enxuga a operação do dia a dia.</small></span></label>
-      <label class="cfg-switch"><input type="checkbox" name="verificacao_2fa" value="1"<?= !empty($s['verificacao_2fa']) ? ' checked' : '' ?>> <span>Código no login<small>Desligado, entra só com usuário e senha.</small></span></label>
-      <label class="field">Usuário do administrador <input name="usuario" required maxlength="40" value="<?= e($s['usuario'] ?? 'admin') ?>" placeholder="admin" autocomplete="off"></label>
-      <label class="field">Senha do administrador <input name="senha" maxlength="40" value="<?= e($s['senha'] ?? '') ?>" placeholder="admin123" autocomplete="off"></label>
+      <label class="field">Usuário do administrador <input name="usuario" required maxlength="80" value="<?= e($s['usuario'] ?? 'admin') ?>" placeholder="admin" autocomplete="username"></label>
+      <?php $temSenhaAdmin = segredo_cadastrado((string) ($s['senha'] ?? '')); ?>
+      <label class="field">Senha do administrador
+        <input type="password" name="senha" maxlength="80" value="" placeholder="<?= $temSenhaAdmin ? '•••••••• (salva — deixe em branco para manter)' : 'defina uma senha forte' ?>" autocomplete="new-password">
+      </label>
+      <?php if ($temSenhaAdmin): ?><p class="hint full">Senha já cadastrada. O valor nunca é exibido. Preencha só para trocar.</p><?php endif; ?>
       <p class="cfg-split">Instância WhatsApp</p>
-      <label class="field full">Token permanente da API <input name="uazapi_admin_token" maxlength="512" value="<?= e($s['uazapi_admin_token'] ?? '') ?>" placeholder="token permanente uazapiGO" autocomplete="off"></label>
-      <label class="field full">URL create-instance (opcional) <input name="uazapi_create_url" maxlength="220" value="<?= e($s['uazapi_create_url'] ?? '') ?>" placeholder="https://….supabase.co/functions/v1/create-instance-url"></label>
-      <label class="field">URL da instância <input name="uazapi_url" maxlength="160" value="<?= e($s['uazapi_url'] ?? '') ?>" placeholder="preenchido ao gerar QR no Comunicador" readonly></label>
-      <label class="field">Token da instância <input name="uazapi_token" maxlength="4096" value="<?= e($s['uazapi_token'] ?? '') ?>" placeholder="gerado automaticamente" autocomplete="off" readonly></label>
+      <?php $temAdminTok = segredo_cadastrado((string) ($s['uazapi_admin_token'] ?? '')); ?>
+      <label class="field full">Token permanente da API
+        <input type="password" name="uazapi_admin_token" maxlength="512" value="" placeholder="<?= $temAdminTok ? '•••••••• (salvo — deixe em branco para manter)' : 'token permanente uazapiGO' ?>" autocomplete="new-password">
+      </label>
+      <?php if ($temAdminTok): ?><p class="hint full">Token permanente cadastrado e oculto. Preencha só para trocar.</p><?php endif; ?>
+      <label class="field full">URL create-instance (opcional) <input name="uazapi_create_url" maxlength="220" value="<?= e($s['uazapi_create_url'] ?? '') ?>" placeholder="https://….supabase.co/functions/v1/create-instance-url" autocomplete="off"></label>
+      <?php
+        $temUrlInst = trim((string) ($s['uazapi_url'] ?? '')) !== '';
+        $temTokInst = segredo_cadastrado((string) ($s['uazapi_token'] ?? ''));
+      ?>
+      <p class="hint full">URL da instância: <?= $temUrlInst ? 'conectada (gerenciada no Comunicador — valor oculto aqui)' : 'ainda não gerada — use o Comunicador' ?>.</p>
+      <p class="hint full">Token da instância: <?= $temTokInst ? 'cadastrado e oculto' : 'ainda não gerado' ?>.</p>
       <label class="cfg-switch full"><input type="checkbox" name="whatsapp_ativo" value="1"<?= !empty($s['whatsapp_ativo']) ? ' checked' : '' ?>> <span>Avisar o motorista no WhatsApp<small>Envia 1 dia antes e no dia da viagem.</small></span></label>
       <div class="form-actions full"><button class="btn btn-primary" type="submit">Salvar operação</button></div>
     </fieldset>
   </form>
+</section>
+
+<?php
+$estado2fa = totp_estado($db);
+$secret2fa = totp_secret_limpo((string) ($s['totp_secret'] ?? ''));
+$conta2fa = (string) ($s['usuario'] ?? 'admin');
+$uri2fa = $secret2fa !== '' ? totp_uri($secret2fa, $conta2fa, (string) ($s['nome'] ?? 'FLN Transfer')) : '';
+$qr2fa = $uri2fa !== '' ? totp_qr_url($uri2fa, 240) : '';
+$rotulo2fa = $estado2fa === 'on' ? 'Ativa' : ($estado2fa === 'setup' ? 'Aguardando confirmação' : 'Desligada');
+$classe2fa = $estado2fa === 'on' ? 'ok' : ($estado2fa === 'setup' ? 'warn' : 'off');
+?>
+<section class="card cfg-card" id="seguranca-2fa">
+  <header class="card-h">
+    <div>
+      <h2>Verificação em 2 passos (2FA)</h2>
+      <p class="cfg-lead">Só para o administrador. O código visual anti-bot continua obrigatório para todos.</p>
+    </div>
+    <span class="fa2-badge fa2-badge-<?= e($classe2fa) ?>"><?= e($rotulo2fa) ?></span>
+  </header>
+
+  <div class="fa2-painel">
+    <?php if ($estado2fa === 'off'): ?>
+    <ol class="fa2-passos">
+      <li>Instale o Google Authenticator ou Authy no celular</li>
+      <li>Toque em <strong>Ativar 2FA</strong> e escaneie o QR</li>
+      <li>Digite o código de 6 dígitos para confirmar</li>
+    </ol>
+    <form method="post" action="index.php" class="fa2-acoes">
+      <?= csrf_fields('2fa_iniciar') ?>
+      <button class="btn btn-primary" type="submit">Ativar 2FA</button>
+    </form>
+
+    <?php elseif ($estado2fa === 'setup'): ?>
+    <div class="fa2-setup">
+      <div class="fa2-qr-wrap">
+        <img class="fa2-qr" src="<?= e($qr2fa) ?>" width="240" height="240" alt="QR Code 2FA">
+        <p class="fa2-dica">Escaneie com o autenticador</p>
+      </div>
+      <div class="fa2-chave-wrap">
+        <p class="fa2-dica">Ou digite esta chave no app</p>
+        <code class="fa2-chave" id="fa2-chave"><?= e(totp_secret_exibir($secret2fa)) ?></code>
+        <button class="btn" type="button" data-copy="<?= e($secret2fa) ?>" data-copy-keep="1">Copiar chave</button>
+        <a class="btn" href="<?= e($uri2fa) ?>">Abrir no celular</a>
+      </div>
+    </div>
+    <form method="post" action="index.php" class="fa2-confirmar">
+      <?= csrf_fields('2fa_confirmar') ?>
+      <label class="field" for="cfg_codigo_2fa">Código de 6 dígitos do app
+        <input id="cfg_codigo_2fa" class="auth-2fa-input" name="codigo_2fa" required maxlength="6" minlength="6" inputmode="numeric" pattern="[0-9]{6}" autocomplete="one-time-code" placeholder="000000">
+      </label>
+      <div class="fa2-acoes">
+        <button class="btn btn-primary" type="submit">Confirmar e ligar</button>
+      </div>
+    </form>
+    <form method="post" action="index.php" class="fa2-acoes" onsubmit="return confirm('Cancelar a configuração da 2FA?');">
+      <?= csrf_fields('2fa_desligar') ?>
+      <button class="btn" type="submit">Cancelar</button>
+    </form>
+
+    <?php else: ?>
+    <p class="fa2-ok-txt">No login do admin, depois da senha e do código visual, o sistema pede o código do autenticador.</p>
+    <div class="fa2-acoes">
+      <form method="post" action="index.php" onsubmit="return confirm('Gerar nova chave? O app antigo deixa de funcionar.');">
+        <?= csrf_fields('2fa_iniciar') ?>
+        <button class="btn" type="submit">Trocar chave</button>
+      </form>
+      <form method="post" action="index.php" onsubmit="return confirm('Desligar a 2FA?');">
+        <?= csrf_fields('2fa_desligar') ?>
+        <button class="btn" type="submit">Desligar 2FA</button>
+      </form>
+    </div>
+    <?php endif; ?>
+  </div>
 </section>
 
 <section class="card cfg-card" id="notificacoes">
@@ -193,13 +282,64 @@ view_head('', 'Cada bloco salva sozinho. Toque em Editar para liberar os campos.
     </ul>
   <?php endif; ?>
   <ol class="cfg-passos">
-    <li><strong>Computador.</strong> Toque em Ativar neste aparelho e permita as notificações.</li>
-    <li><strong>Celular.</strong> Abra o endereço https do painel no Chrome. O endereço desta máquina não acorda o telefone.</li>
-    <li><strong>Instalar.</strong> No Chrome, use Instalar aplicativo ou o menu Adicionar à tela inicial. No iPhone, abra pelo ícone da Tela de Início.</li>
+    <li><strong>Android.</strong> Baixe o <a href="assets/app/fln-transfer.apk" download="fln-transfer.apk">APK FLN Transfer</a>, instale, entre no app e toque em Ativar neste aparelho.</li>
+    <li><strong>iPhone.</strong> No Safari, use Compartilhar → Adicionar à Tela de Início. Abra o ícone e ative as notificações.</li>
+    <li><strong>Computador.</strong> No Chrome, toque em Ativar neste aparelho (e Instalar aplicativo, se aparecer).</li>
     <li><strong>Teste.</strong> Feche o painel, bloqueie a tela e toque em Testar som e vibração.</li>
   </ol>
   <?php if (trim((string) ($s['vapid_public'] ?? '')) === ''): ?>
     <p class="help">Este servidor ainda não preparou a chave das notificações. Atualize a página.</p>
+  <?php endif; ?>
+</section>
+
+<section class="card cfg-card" id="google-drive">
+  <header class="card-h">
+    <div>
+      <h2>Google Drive · backup diário</h2>
+      <p class="cfg-lead"><?= e(drive_status_texto($db)) ?></p>
+    </div>
+  </header>
+  <?php if (!drive_conectado($db)): ?>
+    <p class="help">Com um clique o sistema cria a pasta <strong>FLN Transfer Backups</strong> e, todo dia, uma subpasta <strong>backup DD/MM/AAAA</strong> com o JSON do estado.</p>
+    <?php if (drive_oauth_configurado()): ?>
+      <form method="post" action="index.php" style="margin-top:12px">
+        <?= csrf_fields('drive_oauth_start') ?>
+        <button class="btn btn-primary" type="submit">Conectar Google Drive</button>
+      </form>
+    <?php else: ?>
+      <p class="help" style="margin-top:10px">No Google Cloud: crie um OAuth Client (tipo Web), URI de redirecionamento <code><?= e(drive_redirect_uri()) ?></code>, e cadastre <code>GOOGLE_OAUTH_CLIENT_ID</code> + <code>GOOGLE_OAUTH_CLIENT_SECRET</code> no Vercel.</p>
+    <?php endif; ?>
+    <p class="help" style="margin-top:10px">Chave de API (<code>GOOGLE_API_KEY</code>): <?= google_api_configurada() ? 'configurada no servidor (usada com key= nas APIs Google; não vai para o browser).' : 'ausente — cadastre no .env / Vercel.' ?></p>
+  <?php else: ?>
+    <ul class="help" style="margin:0;padding-left:18px;line-height:1.7">
+      <li>Conta: <?= e(drive_email_mascarado($db)) ?></li>
+      <li>Pasta do dia: <code><?= e(drive_nome_pasta_dia()) ?></code></li>
+      <?php if (trim((string) ($s['drive_ultimo_backup'] ?? '')) !== ''): ?>
+        <li>Último envio: <?= e((string) $s['drive_ultimo_backup']) ?><?php if (trim((string) ($s['drive_ultimo_pasta'] ?? '')) !== ''): ?> · <?= e((string) $s['drive_ultimo_pasta']) ?><?php endif; ?></li>
+      <?php endif; ?>
+      <?php if (trim((string) ($s['drive_ultimo_erro'] ?? '')) !== ''): ?>
+        <li style="color:#b42318">Último erro: <?= e((string) $s['drive_ultimo_erro']) ?></li>
+      <?php endif; ?>
+    </ul>
+    <form method="post" action="index.php" style="margin-top:12px;display:inline-block">
+      <?= csrf_fields('drive_backup_now') ?>
+      <button class="btn btn-sm btn-primary" type="submit">Enviar backup agora</button>
+    </form>
+    <?php
+      $pastaId = trim((string) ($s['drive_root_folder_id'] ?? ''));
+      if ($pastaId !== ''):
+    ?>
+      <a class="btn btn-sm" style="margin-left:6px" href="https://drive.google.com/drive/folders/<?= e($pastaId) ?>" target="_blank" rel="noopener">Abrir pasta no Drive</a>
+    <?php endif; ?>
+    <details class="cfg-drive-risco" style="margin-top:18px;border-top:1px solid var(--line,#e5e7eb);padding-top:12px">
+      <summary style="cursor:pointer;color:#6b7280;font-size:.9rem">Opções avançadas (evitar)</summary>
+      <p class="help" style="margin-top:10px">Desconectar remove o acesso e <strong>para</strong> os backups automáticos. Só use se for trocar de conta.</p>
+      <form method="post" action="index.php" class="form-grid" style="margin-top:8px" data-confirm="Desconectar o Google Drive? Os backups diários vão parar.">
+        <?= csrf_fields('drive_desconectar') ?>
+        <label class="field">Digite DESCONECTAR <input name="confirmar_texto" required maxlength="20" autocomplete="off" placeholder="DESCONECTAR"></label>
+        <div class="form-actions"><button class="btn btn-sm btn-danger" type="submit">Remover integração</button></div>
+      </form>
+    </details>
   <?php endif; ?>
 </section>
 

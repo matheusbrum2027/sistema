@@ -35,7 +35,7 @@ self.addEventListener('push', (event) => {
       janelas.forEach((janela) => janela.postMessage({ tipo: 'aviso', aviso: dados }));
       return;
     }
-    const icone = new URL('assets/icon-192.png', self.registration.scope).href;
+    const icone = new URL('assets/brand/logo-fln.jpg', self.registration.scope).href;
     await self.registration.showNotification(dados.titulo || 'Transfer FLN', {
       body: dados.corpo || '',
       icon: icone,

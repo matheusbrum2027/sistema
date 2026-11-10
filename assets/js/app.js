@@ -327,27 +327,20 @@
   let textosConfirmacao = [];
   function textosDe(el) {
     const base = el.getAttribute('data-confirm') || '';
-    const vezes = Number(el.getAttribute('data-confirm-vezes') || (base ? '1' : '0'));
-    if (!base || vezes < 1) return [];
-    const lista = [base];
-    if (vezes >= 2) lista.push(el.getAttribute('data-confirm-2') || ('Confirme novamente: ' + base));
-    return lista;
+    return base ? [base] : [];
   }
   function textosStatus(form) {
     const status = form.querySelector('select[name="status"][data-status-inicial]');
     if (!status || status.value === status.dataset.statusInicial) return [];
     const nome = status.options[status.selectedIndex]?.textContent?.trim() || status.value;
-    return [
-      'Marcar como ' + nome + '?',
-      'Confirme novamente: o status ficará como ' + nome + '.'
-    ];
+    return ['Marcar como ' + nome + '?'];
   }
   function mostrarConfirmacao() {
     const dlg = document.getElementById('dlg-confirma');
     const titulo = document.getElementById('confirma-titulo');
     const texto = document.getElementById('confirma-texto');
     if (!dlg) return;
-    if (titulo) titulo.textContent = passoConfirmacao === 0 ? 'Confirmar' : 'Confirmar novamente';
+    if (titulo) titulo.textContent = 'Confirmar';
     if (texto) texto.textContent = textosConfirmacao[passoConfirmacao] || 'Confirma esta ação?';
     dlg.setAttribute('closedby', 'none');
     if (!dlg.open) dlg.showModal();
@@ -368,9 +361,33 @@
       document.body.appendChild(root);
     }
     root.innerHTML = folha.outerHTML;
+    let limparTimer = 0;
+    const mql = window.matchMedia ? window.matchMedia('print') : null;
+    const noPrintChange = (ev) => {
+      if (!ev.matches) limpar();
+    };
+    const limpar = () => {
+      if (!document.body.classList.contains('printing')) return;
+      if (limparTimer) clearTimeout(limparTimer);
+      limparTimer = 0;
+      document.body.classList.remove('printing');
+      window.removeEventListener('afterprint', limpar);
+      if (mql) {
+        if (mql.removeEventListener) mql.removeEventListener('change', noPrintChange);
+        else if (mql.removeListener) mql.removeListener(noPrintChange);
+      }
+    };
     document.body.classList.add('printing');
-    window.print();
-    setTimeout(function () { document.body.classList.remove('printing'); }, 2500);
+    window.addEventListener('afterprint', limpar);
+    if (mql) {
+      if (mql.addEventListener) mql.addEventListener('change', noPrintChange);
+      else if (mql.addListener) mql.addListener(noPrintChange);
+    }
+    // Rede de segurança se afterprint não disparar.
+    limparTimer = setTimeout(limpar, 120000);
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () { window.print(); });
+    });
   }
   function aplicarTema(tema, gravar) {
     if (tema === 'dark') document.documentElement.dataset.theme = 'dark';
@@ -379,11 +396,6 @@
       el.textContent = tema === 'dark' ? 'Modo claro' : 'Modo escuro';
     });
     if (gravar !== false) localStorage.setItem('fln-tema', tema === 'dark' ? 'dark' : 'light');
-  }
-  function exigeDuplo(form) {
-    if (Number(form.getAttribute('data-confirm-vezes') || 0) >= 2) return true;
-    const status = form.querySelector('select[name="status"][data-status-inicial]');
-    return !!(status && status.value !== status.dataset.statusInicial);
   }
   function marcarConfirmado(form) {
     let campo = form.querySelector('input[name="confirmar"]');
@@ -417,10 +429,24 @@
     }
   });
 
+  function marcarFormBusy(form) {
+    if (form.dataset.busy === '1') return false;
+    form.dataset.busy = '1';
+    form.querySelectorAll('button[type="submit"]').forEach((btn) => {
+      btn.disabled = true;
+      if (!btn.dataset.labelOriginal) btn.dataset.labelOriginal = btn.textContent || '';
+      btn.textContent = 'Salvando…';
+    });
+    return true;
+  }
   document.addEventListener('submit', (event) => {
     const form = event.target;
-    if (!(form instanceof HTMLFormElement) || form.dataset.confirmed === '1') return;
-    if (form.classList.contains('com-form')) {
+    if (!(form instanceof HTMLFormElement)) return;
+    if (form.dataset.busy === '1') {
+      event.preventDefault();
+      return;
+    }
+    if (form.classList.contains('com-form') && form.dataset.confirmed !== '1') {
       const marcados = form.querySelectorAll('input[name="destino[]"]:checked:not(:disabled)');
       if (marcados.length === 0) {
         event.preventDefault();
@@ -436,32 +462,20 @@
       }
       form.querySelector('.com-aviso')?.remove();
     }
-    if (exigeDuplo(form)) {
-      const btn = event.submitter || form.querySelector('[type="submit"]');
-      if (form.dataset.armed !== '1') {
+    if (form.dataset.confirmed !== '1') {
+      const textos = textosDe(form);
+      const status = textos.length > 0 ? [] : textosStatus(form);
+      const lista = textos.length > 0 ? textos : status;
+      if (lista.length > 0) {
         event.preventDefault();
-        form.dataset.armed = '1';
-        if (btn) {
-          if (!btn.dataset.labelOriginal) btn.dataset.labelOriginal = btn.textContent;
-          btn.textContent = 'Clique outra vez';
-        }
-        window.setTimeout(() => {
-          if (form.dataset.confirmed === '1') return;
-          form.dataset.armed = '';
-          if (btn && btn.dataset.labelOriginal) btn.textContent = btn.dataset.labelOriginal;
-        }, 6000);
+        pedirConfirmacao(lista, () => {
+          marcarConfirmado(form);
+          form.requestSubmit();
+        });
         return;
       }
-      marcarConfirmado(form);
-      return;
     }
-    const textos = textosDe(form);
-    if (textos.length === 0) return;
-    event.preventDefault();
-    pedirConfirmacao(textos, () => {
-      marcarConfirmado(form);
-      form.requestSubmit();
-    });
+    marcarFormBusy(form);
   });
   document.getElementById('confirma-sim')?.addEventListener('click', () => {
     if (passoConfirmacao < textosConfirmacao.length - 1) {

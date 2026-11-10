@@ -83,7 +83,7 @@ view_head('<a class="btn btn-sm" href="' . e(href('lancamentos')) . '">Todos os 
             <td><?= $faturado ? 'Boleto no fim do mês' : 'Na hora' ?></td>
             <td><?= e(brl((float) $row['valor'])) ?></td>
             <td>
-              <form method="post" action="index.php" data-confirm-vezes="2" data-confirm="Dar baixa em <?= e($row['descricao']) ?>?" data-confirm-2="Confirme novamente: este recebimento ficará pago."><?= csrf_fields('baixar_lancamento') ?><input type="hidden" name="id" value="<?= (int) $row['id'] ?>"><button class="btn btn-sm" type="submit">Baixar</button></form>
+              <form method="post" action="index.php" data-confirm="Dar baixa em <?= e($row['descricao']) ?>?"><?= csrf_fields('baixar_lancamento') ?><input type="hidden" name="id" value="<?= (int) $row['id'] ?>"><button class="btn btn-sm" type="submit">Baixar</button></form>
             </td>
           </tr>
         <?php endforeach; ?>

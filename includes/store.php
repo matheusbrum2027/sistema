@@ -63,7 +63,7 @@ function store_rpc(string $funcao, array $args, int $timeout = 12): mixed
         if ($resposta !== false && $code > 0 && $code < 500) {
             break;
         }
-        usleep(300000);
+        usleep(80000);
     }
     curl_close($ch);
     perf_add('store_rpc_ms', (microtime(true) - $inicio) * 1000, strlen((string) $resposta));
@@ -94,9 +94,9 @@ function store_base(): int
     return env_valor('FLN_BASE', '1') === '2' ? 2 : 1;
 }
 
-function store_ler(): ?array
+function store_ler(bool $completo = true): ?array
 {
-    $r = store_rpc('fln_ler', ['p_base' => store_base()], 40);
+    $r = store_rpc($completo ? 'fln_ler' : 'fln_ler_leve', ['p_base' => store_base()], 40);
     if (!is_array($r)) {
         throw new BancoIndisponivel('Resposta inválida do banco de dados.');
     }
@@ -111,6 +111,39 @@ function store_quem(): string
         return 'motorista#' . (int) ($_SESSION['motorista_id'] ?? 0);
     }
     return $papel !== '' ? $papel : 'sistema';
+}
+
+function store_avisos(int $desde): array
+{
+    $r = store_rpc('fln_avisos', ['p_desde' => $desde, 'p_base' => store_base()], 12);
+    if (!is_array($r)) {
+        throw new BancoIndisponivel('Resposta inválida dos avisos.');
+    }
+    return $r;
+}
+
+function store_chat_banco(): array
+{
+    $r = store_rpc('fln_chat_resumo', ['p_base' => store_base()], 12);
+    if (!is_array($r)) {
+        throw new BancoIndisponivel('Resposta inválida do chat.');
+    }
+    return [
+        'settings' => is_array($r['settings'] ?? null) ? $r['settings'] : [],
+        'chat' => is_array($r['chat'] ?? null) ? $r['chat'] : [],
+    ];
+}
+
+function store_mapa(): array
+{
+    $r = store_rpc('fln_mapa', ['p_base' => store_base()], 12);
+    return is_array($r) ? $r : [];
+}
+
+function store_midia(string $chave): string
+{
+    $r = store_rpc('fln_midia', ['p_base' => store_base(), 'p_chave' => $chave], 15);
+    return is_string($r) ? $r : '';
 }
 
 function store_gravar(array $db, string $acao): void
@@ -135,7 +168,7 @@ function store_gravar(array $db, string $acao): void
 function com_db(string $acao, callable $alterar): mixed
 {
     for ($tentativa = 0; $tentativa < 4; $tentativa++) {
-        $db = load_db();
+        $db = load_db(true, true);
         $resultado = $alterar($db);
         if ($resultado === false) {
             return false;
@@ -145,7 +178,7 @@ function com_db(string $acao, callable $alterar): mixed
             return $resultado;
         } catch (BancoConflito) {
             db_request_cache(null, true);
-            usleep(150000 * ($tentativa + 1));
+            usleep(40000 * ($tentativa + 1));
         }
     }
     throw new BancoIndisponivel('O banco de dados está ocupado. Tente de novo.');

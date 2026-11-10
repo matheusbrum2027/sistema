@@ -20,10 +20,15 @@ require_once __DIR__ . '/reserva_doc.php';
 require_once __DIR__ . '/pdf_simples.php';
 require_once __DIR__ . '/atendimento.php';
 require_once __DIR__ . '/captcha.php';
+require_once __DIR__ . '/totp.php';
+require_once __DIR__ . '/campanha.php';
+require_once __DIR__ . '/mapa.php';
+require_once __DIR__ . '/analise.php';
 require_once __DIR__ . '/supabase.php';
 require_once __DIR__ . '/store.php';
 require_once __DIR__ . '/integridade.php';
 require_once __DIR__ . '/sheets.php';
+require_once __DIR__ . '/drive.php';
 
 date_default_timezone_set('America/Sao_Paulo');
 
@@ -45,15 +50,56 @@ function perf_enabled(): bool
     return env_valor('FLN_PERF_LOG', '0') === '1';
 }
 
+function db_cache_completo(?bool $marcar = null): bool
+{
+    static $completo = false;
+    if ($marcar !== null) {
+        $completo = $marcar;
+    }
+    return $completo;
+}
+
 function db_request_cache(?array $nova = null, bool $limpar = false): ?array
 {
     static $db = null;
     if ($limpar) {
         $db = null;
+        db_cache_completo(false);
     } elseif ($nova !== null) {
         $db = $nova;
     }
     return $db;
+}
+
+/** Favicon = logo da empresa (mesma imagem). Retorna [href, mime]. */
+function brand_favicon(array $db): array
+{
+    $s = is_array($db['settings'] ?? null) ? $db['settings'] : [];
+    // Ordem: logo da empresa (principal), lateral, favicon legado, arquivo estático.
+    $marcaV = (int) ($s['marca_v'] ?? 1);
+    foreach (['logo', 'logo_lateral', 'favicon'] as $chave) {
+        if (trim((string) ($s[$chave] ?? '')) === '' && !empty($s['tem_' . $chave])) {
+            return ['index.php?p=marca&k=' . $chave . '&v=' . $marcaV, 'image/png'];
+        }
+        $href = trim((string) ($s[$chave] ?? ''));
+        if ($href === '') {
+            continue;
+        }
+        $mime = 'image/png';
+        if (preg_match('#^data:(image/[a-z0-9.+-]+)#i', $href, $m)) {
+            $mime = strtolower($m[1]);
+        } elseif (preg_match('/\.jpe?g($|\?)/i', $href)) {
+            $mime = 'image/jpeg';
+        } elseif (preg_match('/\.webp($|\?)/i', $href)) {
+            $mime = 'image/webp';
+        } elseif (preg_match('/\.gif($|\?)/i', $href)) {
+            $mime = 'image/gif';
+        } elseif (preg_match('/\.svg($|\?)/i', $href)) {
+            $mime = 'image/svg+xml';
+        }
+        return [$href, $mime];
+    }
+    return ['assets/brand/logo-fln.jpg', 'image/jpeg'];
 }
 
 function e(mixed $value): string
@@ -125,6 +171,25 @@ function br_date(string $iso): string
 {
     $d = DateTimeImmutable::createFromFormat('!Y-m-d', substr($iso, 0, 10));
     return $d ? $d->format('d/m/Y') : '—';
+}
+
+/** Nunca renderize o valor real de senha/token no HTML — só status mascarado. */
+function mascara_segredo(string $valor): string
+{
+    $valor = trim($valor);
+    if ($valor === '') {
+        return '';
+    }
+    $len = strlen($valor);
+    if ($len <= 8) {
+        return str_repeat('•', max(4, $len));
+    }
+    return substr($valor, 0, 2) . str_repeat('•', max(8, $len - 4)) . substr($valor, -2);
+}
+
+function segredo_cadastrado(string $valor): bool
+{
+    return trim($valor) !== '';
 }
 
 function plural(int $n, string $one, string $many): string
@@ -208,13 +273,31 @@ function render_flash(): string
     } else {
         return '';
     }
-    if ((string) $message === 'O código de verificação está incorreto ou expirou.') {
-        $estado = db_request_cache();
-        if (!is_array($estado) || !verificacao_2fa_ativa($estado)) {
-            return '';
-        }
-    }
     return '<div class="flash flash-' . e($type) . '" role="status">' . e((string) $message) . '</div>';
+}
+
+function login_aplicar_sessao(string $role, int $motoristaId = 0): void
+{
+    $_SESSION['auth'] = true;
+    $_SESSION['role'] = $role;
+    $_SESSION['motorista_id'] = $motoristaId;
+    unset($_SESSION['pending_2fa']);
+    login_liberar();
+    session_regenerate_id(true);
+}
+
+function login_pendente_2fa(?array $pendente = null): ?array
+{
+    if ($pendente !== null) {
+        $_SESSION['pending_2fa'] = $pendente;
+        return $pendente;
+    }
+    $atual = $_SESSION['pending_2fa'] ?? null;
+    if (!is_array($atual) || (int) ($atual['expira'] ?? 0) < time()) {
+        unset($_SESSION['pending_2fa']);
+        return null;
+    }
+    return $atual;
 }
 
 /** Grava na sessão o que a tela GET ainda precisa antes de liberar o lock. */
@@ -226,7 +309,8 @@ function sessao_preparar_get(string $pagina, array $db): void
         if ((int) ($_SESSION['login_bloqueio'] ?? 0) > 0 && (int) $_SESSION['login_bloqueio'] <= time()) {
             unset($_SESSION['login_bloqueio'], $_SESSION['login_falhas']);
         }
-        if (verificacao_2fa_ativa($db)) {
+        $etapa = (string) ($_GET['etapa'] ?? '');
+        if ($etapa !== '2fa') {
             captcha_garantir();
         }
     }
@@ -473,10 +557,12 @@ function normalize_db(array $db): array
     if (!isset($db['mensagens']) || !is_array($db['mensagens'])) {
         $db['mensagens'] = [];
     }
+    campanha_store_garantir($db);
     $GLOBALS['fln_acesso_novo'] = false;
     $GLOBALS['fln_vapid_novo'] = false;
     $GLOBALS['fln_chat_novo'] = false;
     $GLOBALS['fln_lixo_novo'] = false;
+    $GLOBALS['fln_ia_operador_novo'] = false;
     foreach ([
         'notif_reserva' => true,
         'notif_solicitacao' => true,
@@ -485,7 +571,12 @@ function normalize_db(array $db): array
         'notif_som' => true,
         'notif_vibrar' => true,
         'chat_ignorar_grupos' => true,
-        'chat_ia_ativa' => false,
+        'chat_ia_ativa' => true,
+        'wa_mostrar_digitando' => true,
+        'wa_online_ativo' => true,
+        'wa_online_inicio' => '06:00',
+        'wa_online_fim' => '22:00',
+        'wa_avaliacao_auto' => true,
         'chat_ia_parar' => 'parar',
         'chat_ia_parar_min' => 30,
         'chat_ia_pausar_manual' => 5,
@@ -500,8 +591,39 @@ function normalize_db(array $db): array
             $db['settings'][$chaveNotif] = $valorNotif;
         }
     }
+    if (empty($db['settings']['wa_cfg_v2'])) {
+        $db['settings']['wa_mostrar_digitando'] = true;
+        $db['settings']['wa_online_ativo'] = true;
+        $db['settings']['wa_online_inicio'] = (string) ($db['settings']['wa_online_inicio'] ?? '06:00') ?: '06:00';
+        $db['settings']['wa_online_fim'] = (string) ($db['settings']['wa_online_fim'] ?? '22:00') ?: '22:00';
+        $db['settings']['wa_avaliacao_auto'] = true;
+        $db['settings']['chat_ia_ativa'] = true;
+        $db['settings']['wa_cfg_reserva_ok'] = true;
+        $db['settings']['wa_cfg_v2'] = true;
+    }
     if (function_exists('atendimento_store_garantir')) {
         atendimento_store_garantir($db);
+    }
+    // Normaliza chaves antigas de telefone (com/sem 9) uma vez.
+    if (empty($db['settings']['wa_atend_norm_v1']) && function_exists('atendimento_fone_chave') && isset($db['atendimento']['por_fone']) && is_array($db['atendimento']['por_fone'])) {
+        $novo = [];
+        foreach ($db['atendimento']['por_fone'] as $foneAntigo => $ctx) {
+            if (!is_array($ctx)) {
+                continue;
+            }
+            $chave = atendimento_fone_chave((string) $foneAntigo);
+            if ($chave === '') {
+                continue;
+            }
+            $novo[$chave] = isset($novo[$chave]) && is_array($novo[$chave])
+                ? array_merge($novo[$chave], $ctx)
+                : $ctx;
+        }
+        $db['atendimento']['por_fone'] = $novo;
+        $db['settings']['wa_atend_norm_v1'] = true;
+    }
+    if (function_exists('ia_operador_garantir')) {
+        ia_operador_garantir($db);
     }
     if (!isset($db['push']) || !is_array($db['push'])) {
         $db['push'] = [];
@@ -511,7 +633,14 @@ function normalize_db(array $db): array
     }
     chat_store_garantir($db);
     lixo_reservas_garantir($db);
-    lixo_reservas_expirar($db);
+    // Expira lixo no máx. 1x/dia — evita varrer a cada page load.
+    $hojeLixo = today()->format('Y-m-d');
+    if ((string) ($db['settings']['lixo_expurgo_em'] ?? '') !== $hojeLixo) {
+        if (lixo_reservas_expirar($db) >= 0) {
+            $db['settings']['lixo_expurgo_em'] = $hojeLixo;
+            $GLOBALS['fln_lixo_novo'] = true;
+        }
+    }
     if (!isset($db['seq']) || !is_array($db['seq'])) {
         $db['seq'] = [];
     }
@@ -535,13 +664,14 @@ function normalize_db(array $db): array
 
 function persistir_acesso_motorista(array $db): array
 {
-    if (empty($GLOBALS['fln_acesso_novo']) && empty($GLOBALS['fln_vapid_novo']) && empty($GLOBALS['fln_chat_novo']) && empty($GLOBALS['fln_lixo_novo'])) {
+    if (empty($GLOBALS['fln_acesso_novo']) && empty($GLOBALS['fln_vapid_novo']) && empty($GLOBALS['fln_chat_novo']) && empty($GLOBALS['fln_lixo_novo']) && empty($GLOBALS['fln_ia_operador_novo'])) {
         return $db;
     }
     $GLOBALS['fln_acesso_novo'] = false;
     $GLOBALS['fln_vapid_novo'] = false;
     $GLOBALS['fln_chat_novo'] = false;
     $GLOBALS['fln_lixo_novo'] = false;
+    $GLOBALS['fln_ia_operador_novo'] = false;
     db_request_cache($db);
     try {
         save_db($db, 'acesso_motorista');
@@ -551,15 +681,15 @@ function persistir_acesso_motorista(array $db): array
     return $db;
 }
 
-function load_db(bool $fresh = false): array
+function load_db(bool $fresh = false, bool $completo = false): array
 {
-    if (!$fresh && ($cache = db_request_cache()) !== null) {
+    if (!$fresh && ($cache = db_request_cache()) !== null && (!$completo || db_cache_completo())) {
         perf_count('db_cache_hits');
         return $cache;
     }
     $inicio = microtime(true);
     if (store_remoto()) {
-        $dados = store_ler();
+        $dados = store_ler($completo);
         if ($dados === null) {
             $inicial = normalize_db(seed_data());
             try {
@@ -568,11 +698,13 @@ function load_db(bool $fresh = false): array
                 return load_db();
             }
             db_request_cache($inicial);
+            db_cache_completo(true);
             perf_add('load_db_ms', (microtime(true) - $inicio) * 1000);
             return $inicial;
         }
         $normalizado = persistir_acesso_motorista(normalize_db($dados));
         db_request_cache($normalizado);
+        db_cache_completo($completo);
         perf_add('load_db_ms', (microtime(true) - $inicio) * 1000);
         return $normalizado;
     }
@@ -581,6 +713,7 @@ function load_db(bool $fresh = false): array
     }
     $_SESSION['db'] = persistir_acesso_motorista(normalize_db($_SESSION['db']));
     db_request_cache($_SESSION['db']);
+    db_cache_completo(true);
     perf_add('load_db_ms', (microtime(true) - $inicio) * 1000);
     return $_SESSION['db'];
 }
@@ -593,6 +726,13 @@ function wa_number(string $phone): string
     }
     if ($digits !== '' && !str_starts_with($digits, '55') && strlen($digits) <= 11) {
         $digits = '55' . $digits;
+    }
+    // Celular BR sem o 9º dígito → padroniza (mesmo critério do atendimento).
+    if (strlen($digits) === 12 && str_starts_with($digits, '55')) {
+        $resto = substr($digits, 4);
+        if (strlen($resto) === 8 && $resto !== '' && $resto[0] >= '6') {
+            $digits = substr($digits, 0, 4) . '9' . $resto;
+        }
     }
     return $digits;
 }
@@ -818,6 +958,45 @@ function whatsapp_registrar(array &$db, array $item, bool $ok, string $detalhe):
     ];
 }
 
+function fone_pessoa(array $pessoa): string
+{
+    foreach (['telefone', 'whatsapp', 'celular', 'fone'] as $chave) {
+        $valor = trim((string) ($pessoa[$chave] ?? ''));
+        if ($valor !== '') {
+            return $valor;
+        }
+    }
+    return '';
+}
+
+function item_comunicar_motorista(array $db, array $trip, array $mot, string $trecho, bool $opcional): array
+{
+    $mid = (int) ($mot['id'] ?? 0);
+    $nomeMot = (string) ($mot['nome'] ?? '');
+    $fone = fone_pessoa($mot);
+    $tripLeg = $trip;
+    $tripLeg['motorista_id'] = $mid;
+    $tripLeg['esconder_valores'] = true;
+    $rotulo = $trecho !== '' ? $trecho : 'Reserva';
+    return [
+        'key' => 'mot:' . $mid . ':' . $rotulo . ':' . (int) $trip['id'],
+        'papel' => 'motorista',
+        'tipo' => 'manual',
+        'titulo' => 'WhatsApp · roteiro da reserva',
+        'viagem' => (int) $trip['id'],
+        'trecho' => $rotulo,
+        'motorista' => $nomeMot,
+        'nome' => $nomeMot,
+        'telefone' => $fone,
+        'numero' => wa_number($fone),
+        'texto' => reserva_texto_motorista($db, $tripLeg, $rotulo, $nomeMot),
+        'pdf' => true,
+        'pdf_nome' => 'reserva-' . (int) $trip['id'] . '-' . preg_replace('/[^A-Za-z0-9_-]+/', '', $rotulo) . '.pdf',
+        'trip_leg' => $tripLeg,
+        'opcional' => $opcional,
+    ];
+}
+
 function itens_comunicar_reserva(array $db, array $trip): array
 {
     $motPorId = [];
@@ -826,9 +1005,36 @@ function itens_comunicar_reserva(array $db, array $trip): array
     }
     $itens = [];
     $vistos = [];
-    foreach (agenda_legs($trip) as $leg) {
-        foreach (motoristas_do_trecho($trip, (string) $leg['kind']) as $mid) {
-            if (!isset($motPorId[$mid]) || (string) ($motPorId[$mid]['status'] ?? 'ativo') !== 'ativo') {
+    $legs = agenda_legs($trip);
+    foreach ($legs as $i => $leg) {
+        $ids = motoristas_do_trecho($trip, (string) $leg['kind']);
+        $trechos = $trip['trajetos'] ?? [];
+        if (is_array($trechos) && isset($trechos[$i]) && is_array($trechos[$i])) {
+            foreach ($trechos[$i]['motoristas'] ?? [] as $extraId) {
+                $eid = is_array($extraId) ? (int) ($extraId['id'] ?? $extraId['motorista_id'] ?? 0) : (int) $extraId;
+                if ($eid > 0) {
+                    $ids[] = $eid;
+                }
+            }
+        }
+        if ($ids === []) {
+            $principal = (int) ($trip['motorista_id'] ?? 0);
+            if (($leg['kind'] ?? '') === 'volta' && (int) ($trip['motorista_volta_id'] ?? 0) > 0) {
+                $principal = (int) $trip['motorista_volta_id'];
+            }
+            if ($principal > 0) {
+                $ids[] = $principal;
+            }
+            foreach ($trip['extras'] ?? [] as $extra) {
+                $eid = is_array($extra) ? (int) ($extra['id'] ?? $extra['motorista_id'] ?? 0) : (int) $extra;
+                if ($eid > 0) {
+                    $ids[] = $eid;
+                }
+            }
+        }
+        $ids = array_values(array_unique($ids));
+        foreach ($ids as $mid) {
+            if (!isset($motPorId[$mid])) {
                 continue;
             }
             $chaveUnica = $mid . '|' . $leg['label'];
@@ -849,25 +1055,7 @@ function itens_comunicar_reserva(array $db, array $trip): array
             $tripLeg['motorista_id'] = $mid;
             // Nunca incluir valores no texto ao motorista.
             $tripLeg['esconder_valores'] = true;
-            $rotuloTrecho = (string) $leg['label'];
-            $fone = (string) ($mot['telefone'] ?? '');
-            $nomeMot = (string) ($mot['nome'] ?? '');
-            $itens[] = [
-                'key' => 'mot:' . $mid . ':' . $leg['label'] . ':' . (int) $trip['id'],
-                'papel' => 'motorista',
-                'tipo' => 'manual',
-                'titulo' => 'WhatsApp · roteiro da reserva',
-                'viagem' => (int) $trip['id'],
-                'trecho' => $rotuloTrecho,
-                'motorista' => $nomeMot,
-                'nome' => $nomeMot,
-                'telefone' => $fone,
-                'numero' => wa_number($fone),
-                'texto' => reserva_texto_motorista($db, $tripLeg, $rotuloTrecho, $nomeMot),
-                'pdf' => true,
-                'pdf_nome' => 'reserva-' . (int) $trip['id'] . '-' . preg_replace('/[^A-Za-z0-9_-]+/', '', $rotuloTrecho) . '.pdf',
-                'trip_leg' => $tripLeg,
-            ];
+            $itens[] = item_comunicar_motorista($db, $tripLeg, $mot, (string) $leg['label'], false);
         }
     }
     return $itens;
@@ -892,15 +1080,55 @@ function item_comunicar_cliente(array $db, array $trip): array
         'telefone' => $fone,
         'numero' => wa_number($fone),
         'texto' => apply_template($tpl, $trip, $db),
+        // Cliente só entra se o admin marcar o card.
+        'opcional' => true,
     ];
 }
 
 /** Destinatários possíveis (motoristas + cliente) para os cards de comunicação. */
 function destinatarios_comunicar(array $db, array $trip, string $perna = ''): array
 {
-    $itens = itens_comunicar_reserva($db, $trip);
+    $todos = itens_comunicar_reserva($db, $trip);
+    $itens = $todos;
     if ($perna !== '') {
-        $itens = array_values(array_filter($itens, static fn (array $item): bool => (string) $item['trecho'] === $perna));
+        $filtrados = array_values(array_filter($todos, static fn (array $item): bool => (string) $item['trecho'] === $perna));
+        if ($filtrados !== []) {
+            $itens = $filtrados;
+        }
+    }
+    $comFoneOk = static fn (array $item): bool => strlen((string) ($item['numero'] ?? '')) >= 12;
+    $motorsComFone = array_values(array_filter($itens, static fn (array $it): bool => ($it['papel'] ?? '') === 'motorista' && $comFoneOk($it)));
+    // Sem motorista atribuído (ou telefone inválido): oferece escolher entre os ativos.
+    if ($motorsComFone === []) {
+        $rotulo = $perna !== '' ? $perna : 'Reserva';
+        $ja = [];
+        foreach ($itens as $it) {
+            if (($it['papel'] ?? '') === 'motorista' && preg_match('/^mot:(\d+):/', (string) ($it['key'] ?? ''), $m)) {
+                $ja[(int) $m[1]] = true;
+            }
+        }
+        $extras = [];
+        foreach ($db['motoristas'] as $mot) {
+            if ((string) ($mot['status'] ?? 'ativo') !== 'ativo') {
+                continue;
+            }
+            $mid = (int) ($mot['id'] ?? 0);
+            if ($mid <= 0 || isset($ja[$mid])) {
+                continue;
+            }
+            $cand = item_comunicar_motorista($db, $trip, $mot, $rotulo, true);
+            if ($comFoneOk($cand)) {
+                $extras[] = $cand;
+            }
+        }
+        // Um único motorista com telefone: já deixa marcado (é o destino óbvio).
+        if (count($extras) === 1) {
+            $extras[0]['opcional'] = false;
+        }
+        $itens = array_merge(
+            array_values(array_filter($itens, static fn (array $it): bool => ($it['papel'] ?? '') === 'motorista')),
+            $extras
+        );
     }
     $itens[] = item_comunicar_cliente($db, $trip);
     return $itens;
@@ -1158,7 +1386,13 @@ function template_text(array $db, string $id): string
 
 function save_db(array $db, string $acao = ''): void
 {
-    if (empty($GLOBALS['fln_sheets_skip']) && sheets_ativo()) {
+    $acaoNorm = strtolower(trim($acao));
+    $semSheets = $acaoNorm === ''
+        || str_starts_with($acaoNorm, 'chat_')
+        || str_starts_with($acaoNorm, 'push_')
+        || str_starts_with($acaoNorm, 'drive_')
+        || in_array($acaoNorm, ['acesso_motorista', 'aviso_apk', 'candidatura_motorista'], true);
+    if (empty($GLOBALS['fln_sheets_skip']) && sheets_ativo() && !$semSheets) {
         $db['settings']['sheets_sync_pendente'] = true;
         $db['settings']['sheets_sync_pendente_em'] = date('Y-m-d H:i');
     }
@@ -1278,6 +1512,9 @@ function apply_status_side_effects(array &$db, array $trip, string $old, string 
     if ($old !== 'andamento' && $new === 'andamento' && auto_on($db, 'caminho')) {
         queue_message($db, 'caminho', $trip, $now);
     }
+    if ($old !== 'concluida' && $new === 'concluida' && function_exists('atendimento_marcar_concluida')) {
+        atendimento_marcar_concluida($db, $trip);
+    }
 }
 
 function handle_post(): void
@@ -1293,6 +1530,78 @@ function handle_post(): void
         return;
     }
 
+    if ($action === 'drive_oauth_start') {
+        $volta = href('configuracoes') . '#google-drive';
+        if (empty($_SESSION['auth']) || (($_SESSION['role'] ?? '') !== 'admin')) {
+            redirect(href('entrar'));
+        }
+        if (!csrf_ok()) {
+            flash('Atualize a página e tente de novo.', 'err');
+            redirect($volta);
+        }
+        if (!drive_oauth_configurado()) {
+            flash('Falta configurar GOOGLE_OAUTH_CLIENT_ID e GOOGLE_OAUTH_CLIENT_SECRET no servidor.', 'err');
+            redirect($volta);
+        }
+        redirect(drive_oauth_url());
+    }
+
+    if ($action === 'candidatura_motorista') {
+        $volta = href('seja-motorista') . '#inscricao';
+        if (!csrf_ok()) {
+            flash('Não foi possível enviar. Atualize a página e tente de novo.', 'err');
+            redirect($volta);
+        }
+        $ult = (int) ($_SESSION['mot_solic_ts'] ?? 0);
+        if ($ult > 0 && (time() - $ult) < 45) {
+            flash('Aguarde alguns segundos antes de enviar outra inscrição.', 'err');
+            redirect($volta);
+        }
+        try {
+            com_db('candidatura_motorista', static function (array &$db): bool {
+                [$err] = executar_acao($db, 'candidatura_motorista');
+                if (is_string($err) && $err !== '') {
+                    throw new RuntimeException($err);
+                }
+                return true;
+            });
+            $_SESSION['mot_solic_ts'] = time();
+            flash('Inscrição recebida. Em breve o Matheus entra em contato para marcar a reunião.');
+            redirect(href('seja-motorista', ['ok' => '1']) . '#inscricao');
+        } catch (Throwable $e) {
+            $falha = trim($e->getMessage());
+            flash($falha !== '' ? $falha : 'Não foi possível enviar a inscrição.', 'err');
+            redirect($volta);
+        }
+    }
+
+    if ($action === 'login_2fa') {
+        $volta = href('entrar', ['etapa' => '2fa']);
+        if (!csrf_ok()) {
+            flash('Não foi possível continuar. Atualize a página.', 'err');
+            redirect(href('entrar'));
+        }
+        if (login_bloqueado()) {
+            flash('Muitas tentativas. Aguarde alguns minutos e tente de novo.', 'err');
+            redirect(href('entrar'));
+        }
+        $pendente = login_pendente_2fa();
+        if ($pendente === null) {
+            flash('A etapa 2FA expirou. Entre de novo com usuário, senha e código visual.', 'err');
+            redirect(href('entrar'));
+        }
+        $db = load_db();
+        $secret = strtoupper((string) ($db['settings']['totp_secret'] ?? ''));
+        $codigo = preg_replace('/\D+/', '', post('codigo_2fa')) ?? '';
+        if (!autenticacao_2fa_pronta($db) || !totp_confere($secret, $codigo)) {
+            login_falhou();
+            flash('Código incorreto. Use o número de 6 dígitos que aparece agora no autenticador.', 'err');
+            redirect($volta);
+        }
+        login_aplicar_sessao((string) ($pendente['role'] ?? 'admin'), (int) ($pendente['motorista_id'] ?? 0));
+        redirect(href('agenda'));
+    }
+
     if ($action === 'login' || $action === 'recuperar') {
         $volta = $action === 'recuperar' ? href('entrar', ['recuperar' => '1']) : href('entrar');
         if (!csrf_ok()) {
@@ -1304,9 +1613,9 @@ function handle_post(): void
             redirect($volta);
         }
         $db = load_db();
-        if (verificacao_2fa_ativa($db) && !captcha_confere(post('captcha'))) {
+        if (!captcha_confere(post('captcha'))) {
             login_falhou();
-            flash('O código de verificação está incorreto ou expirou.', 'err');
+            flash('O código de verificação visual está incorreto ou expirou.', 'err');
             redirect($volta);
         }
         if ($action === 'recuperar') {
@@ -1320,11 +1629,12 @@ function handle_post(): void
         $usuario = mb_strtolower(clip(post('usuario'), 80));
         $senha = post('senha');
         $entrou = false;
+        $role = '';
+        $motoristaId = 0;
         $adminUser = mb_strtolower((string) ($db['settings']['usuario'] ?? 'admin'));
         if ($usuario !== '' && $senha !== '' && $usuario === $adminUser && hash_equals((string) $db['settings']['senha'], $senha)) {
-            $_SESSION['auth'] = true;
-            $_SESSION['role'] = 'admin';
-            $_SESSION['motorista_id'] = 0;
+            $role = 'admin';
+            $motoristaId = 0;
             $entrou = true;
         }
         if (!$entrou && $usuario !== '' && $senha !== '') {
@@ -1336,9 +1646,8 @@ function handle_post(): void
                 $email = mb_strtolower(trim((string) ($mot['email'] ?? '')));
                 $bate = $usuario === $login || ($email !== '' && $usuario === $email);
                 if ($bate && hash_equals((string) ($mot['senha'] ?? ''), $senha)) {
-                    $_SESSION['auth'] = true;
-                    $_SESSION['role'] = 'motorista';
-                    $_SESSION['motorista_id'] = (int) $mot['id'];
+                    $role = 'motorista';
+                    $motoristaId = (int) $mot['id'];
                     $entrou = true;
                     break;
                 }
@@ -1346,14 +1655,24 @@ function handle_post(): void
         }
         // E-mail de motorista tem prioridade sobre Auth do Supabase.
         if (!$entrou && $usuario !== '' && str_contains($usuario, '@') && supabase_configurado() && supabase_entrar($usuario, $senha)) {
+            $role = (string) ($_SESSION['role'] ?? 'admin');
+            $motoristaId = (int) ($_SESSION['motorista_id'] ?? 0);
             $entrou = true;
         }
         if ($entrou) {
-            login_liberar();
-            if (!verificacao_2fa_ativa($db) && (($_SESSION['flash'][0] ?? '') === 'O código de verificação está incorreto ou expirou.')) {
-                unset($_SESSION['flash']);
+            if ($role === 'admin' && autenticacao_2fa_pronta($db)) {
+                $_SESSION['auth'] = false;
+                $_SESSION['role'] = '';
+                $_SESSION['motorista_id'] = 0;
+                login_pendente_2fa([
+                    'role' => 'admin',
+                    'motorista_id' => 0,
+                    'expira' => time() + 600,
+                ]);
+                session_regenerate_id(true);
+                redirect(href('entrar', ['etapa' => '2fa']));
             }
-            session_regenerate_id(true);
+            login_aplicar_sessao($role !== '' ? $role : 'admin', $motoristaId);
             redirect(href('agenda'));
         }
         login_falhou();
@@ -1403,7 +1722,7 @@ function handle_post(): void
         exit;
     }
 
-    $acoesExcluir = ['delete_veiculo', 'delete_motorista', 'delete_cliente', 'delete_lancamento', 'delete_grupo', 'delete_nota', 'delete_automacao', 'delete_inbox', 'delete_transfer', 'apagar_lixo', 'reset_demo', 'remove_logo'];
+    $acoesExcluir = ['delete_veiculo', 'delete_motorista', 'delete_cliente', 'delete_lancamento', 'delete_grupo', 'delete_nota', 'delete_automacao', 'delete_inbox', 'delete_transfer', 'apagar_lixo', 'reset_demo', 'remove_logo', 'drive_desconectar'];
     if (in_array($action, $acoesExcluir, true) && post('confirmar') !== 'sim') {
         flash('A exclusão só é concluída depois do Sim na tela de confirmação.', 'err');
         redirect(safe_back(href('agenda')));
@@ -1411,6 +1730,10 @@ function handle_post(): void
 
     $falha = null;
     $msg = 'Alteração salva.';
+    $precisaRascunho = in_array($action, ['add_transfer', 'update_transfer'], true);
+    $postSnap = $precisaRascunho ? $_POST : null;
+    // Libera o lock da sessão durante a gravação longa no banco (evita travar outras abas).
+    session_write_close();
     try {
         com_db($action, static function (array &$db) use ($action, &$falha, &$msg): bool {
             $antes = $db;
@@ -1428,13 +1751,14 @@ function handle_post(): void
     } catch (BancoIndisponivel $e) {
         $falha = 'Nada foi salvo: ' . $e->getMessage();
     }
+    session_start();
     if ($falha !== null) {
         flash($falha, 'err');
-        if (in_array($action, ['add_transfer', 'update_transfer'], true)) {
-            $_SESSION['reserva_draft'] = $_POST;
+        if ($precisaRascunho && is_array($postSnap)) {
+            $_SESSION['reserva_draft'] = $postSnap;
             $_SESSION['reserva_draft_erro'] = $falha;
             $params = ['rascunho' => '1'];
-            $idRascunho = (int) post('id');
+            $idRascunho = (int) ($postSnap['id'] ?? 0);
             if ($idRascunho > 0) {
                 $params['edit'] = $idRascunho;
             }
@@ -1442,7 +1766,7 @@ function handle_post(): void
         }
         redirect(safe_back(href('agenda')));
     }
-    if (in_array($action, ['add_transfer', 'update_transfer'], true)) {
+    if ($precisaRascunho) {
         unset($_SESSION['reserva_draft'], $_SESSION['reserva_draft_erro']);
     }
     flash($msg);
@@ -1501,20 +1825,28 @@ function acao_legada(array &$db, string $action): array
             if ($adminSenha !== '') {
                 $db['settings']['senha'] = $adminSenha;
             }
-            $apiUrl = rtrim(clip(post('uazapi_url'), 160), '/');
-            if ($apiUrl !== '' && !preg_match('#^https://#i', $apiUrl)) {
-                $err = 'A URL da UAZAPI precisa começar com https://';
-                break;
+            $adminTok = clip(post('uazapi_admin_token'), 512);
+            if ($adminTok !== '') {
+                $db['settings']['uazapi_admin_token'] = $adminTok;
             }
-            $db['settings']['uazapi_admin_token'] = clip(post('uazapi_admin_token'), 512);
             $createUrl = rtrim(clip(post('uazapi_create_url'), 220), '/');
             if ($createUrl !== '' && !preg_match('#^https://#i', $createUrl)) {
                 $err = 'A URL de criação de instância precisa começar com https://';
                 break;
             }
             $db['settings']['uazapi_create_url'] = $createUrl;
-            $db['settings']['uazapi_url'] = $apiUrl;
-            $db['settings']['uazapi_token'] = clip(post('uazapi_token'), 4096);
+            $apiUrl = rtrim(clip(post('uazapi_url'), 160), '/');
+            if ($apiUrl !== '') {
+                if (!preg_match('#^https://#i', $apiUrl)) {
+                    $err = 'A URL da UAZAPI precisa começar com https://';
+                    break;
+                }
+                $db['settings']['uazapi_url'] = $apiUrl;
+            }
+            $instTok = clip(post('uazapi_token'), 4096);
+            if ($instTok !== '') {
+                $db['settings']['uazapi_token'] = $instTok;
+            }
             $db['settings']['whatsapp_ativo'] = post('whatsapp_ativo') === '1';
             $msg = 'Configurações salvas.';
             break;
@@ -1920,24 +2252,50 @@ function acao_legada(array &$db, string $action): array
             break;
 
         case 'add_mot_solic':
+        case 'candidatura_motorista':
             $nome = clip(post('nome'), 80);
             $telefone = clip(post('telefone'), 30);
             if ($nome === '' || $telefone === '') {
                 $err = 'Informe nome e telefone.';
                 break;
             }
+            $email = clip(post('email'), 80);
+            if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $err = 'Informe um e-mail válido.';
+                break;
+            }
+            $veiculoModelo = clip(post('veiculo_modelo'), 60);
+            $veiculoPlaca = mb_strtoupper(clip(post('veiculo_placa'), 12));
+            $veiculoAno = clip(post('veiculo_ano'), 4);
+            $veiculoCor = clip(post('veiculo_cor'), 30);
+            $veiculoLugares = (int) post('veiculo_lugares');
+            if ($veiculoLugares < 0 || $veiculoLugares > 20) {
+                $veiculoLugares = 0;
+            }
             $db['mot_solic'][] = [
                 'id' => $db['seq']['mot_solic']++,
                 'nome' => $nome,
                 'telefone' => $telefone,
+                'email' => $email,
                 'cidade' => clip(post('cidade'), 60),
+                'cpf' => clip(post('cpf'), 20),
                 'cnh' => clip(post('cnh'), 20),
                 'categoria' => one_of(post('categoria'), ['B', 'C', 'D', 'E'], 'B'),
-                'mensagem' => clip(post('mensagem'), 300),
+                'parceria' => one_of(post('parceria'), ['proprio', 'terceirizado', 'ambos'], 'proprio'),
+                'veiculo_modelo' => $veiculoModelo,
+                'veiculo_placa' => $veiculoPlaca,
+                'veiculo_ano' => $veiculoAno,
+                'veiculo_cor' => $veiculoCor,
+                'veiculo_lugares' => $veiculoLugares,
+                'reuniao_pref' => clip(post('reuniao_pref'), 120),
+                'mensagem' => clip(post('mensagem'), 500),
+                'origem' => $action === 'candidatura_motorista' ? 'site' : 'manual',
                 'status' => 'nova',
                 'criado_em' => today()->format('Y-m-d'),
             ];
-            $msg = 'Solicitação de motorista registrada.';
+            $msg = $action === 'candidatura_motorista'
+                ? 'Inscrição recebida pelo site.'
+                : 'Solicitação de motorista registrada.';
             break;
 
         case 'set_mot_solic':
@@ -1954,6 +2312,7 @@ function acao_legada(array &$db, string $action): array
                     'id' => $db['seq']['motorista']++,
                     'nome' => $s['nome'],
                     'telefone' => $s['telefone'],
+                    'email' => (string) ($s['email'] ?? ''),
                     'cnh' => (string) ($s['cnh'] ?? ''),
                     'categoria' => (string) ($s['categoria'] ?? 'B'),
                     'cidade' => (string) ($s['cidade'] ?? ''),
@@ -1963,6 +2322,30 @@ function acao_legada(array &$db, string $action): array
                     'status' => 'ativo',
                 ]);
                 $db['motoristas'][] = $mot;
+                $placa = preg_replace('/\s+/', '', (string) ($s['veiculo_placa'] ?? '')) ?? '';
+                $modelo = (string) ($s['veiculo_modelo'] ?? '');
+                if (strlen($placa) >= 7 && $modelo !== '') {
+                    $ano = (int) ($s['veiculo_ano'] ?? 0);
+                    $lugares = (int) ($s['veiculo_lugares'] ?? 4);
+                    if ($ano < 1990) {
+                        $ano = (int) today()->format('Y');
+                    }
+                    if ($lugares < 1) {
+                        $lugares = 4;
+                    }
+                    $db['veiculos'][] = [
+                        'id' => $db['seq']['veiculo']++,
+                        'apelido' => $modelo,
+                        'placa' => mb_strtoupper($placa),
+                        'modelo' => $modelo,
+                        'ano' => $ano,
+                        'cor' => (string) ($s['veiculo_cor'] ?? ''),
+                        'lugares' => $lugares,
+                        'motorista_id' => (int) $mot['id'],
+                        'status' => 'ativo',
+                        'criado_em' => today()->format('Y-m-d'),
+                    ];
+                }
                 $msg = 'Motorista aprovado. Login: ' . $mot['usuario'] . ' · Senha-token (só esta vez): ' . $mot['senha'] . ' · Link: ' . link_motorista($mot);
             } else {
                 $msg = 'Solicitação recusada.';

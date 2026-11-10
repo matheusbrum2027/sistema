@@ -1077,7 +1077,7 @@ function ops_dispatch(array &$db, string $action): ?array
                 return [$err, ''];
             }
             if ($current !== null && (string) ($current['status'] ?? '') !== (string) ($trips[0]['status'] ?? '') && post('confirmar') !== 'sim') {
-                return ['Clique outra vez para confirmar a mudança de status.', ''];
+                return ['Confirme a mudança de status para continuar.', ''];
             }
             $ids = [];
             $novas = [];
@@ -1122,7 +1122,7 @@ function ops_dispatch(array &$db, string $action): ?array
                 return ['Não foi possível atualizar a viagem.', ''];
             }
             if (post('confirmar') !== 'sim') {
-                return ['Clique outra vez para confirmar a mudança de status.', ''];
+                return ['Confirme a mudança de status para continuar.', ''];
             }
             if (($_SESSION['role'] ?? 'admin') === 'motorista') {
                 $meu = (int) ($_SESSION['motorista_id'] ?? 0);
@@ -1205,7 +1205,7 @@ function ops_dispatch(array &$db, string $action): ?array
                 return ['Viagem não encontrada.', ''];
             }
             if (post('confirmar') !== 'sim') {
-                return ['Clique outra vez para confirmar o faturamento.', ''];
+                return ['Confirme o faturamento para continuar.', ''];
             }
             $on = empty($db['transfers'][$i]['faturado']);
             $db['transfers'][$i]['faturado'] = $on;
@@ -1424,7 +1424,7 @@ function ops_dispatch(array &$db, string $action): ?array
                 return ['Lançamento não encontrado.', ''];
             }
             if (post('confirmar') !== 'sim') {
-                return ['Clique outra vez para confirmar a baixa.', ''];
+                return ['Confirme a baixa para continuar.', ''];
             }
             $db['lancamentos'][$i]['status'] = 'pago';
             $db['lancamentos'][$i]['baixa'] = today()->format('Y-m-d');
@@ -1583,9 +1583,13 @@ function ops_dispatch(array &$db, string $action): ?array
             if ($img !== null) {
                 return [$img, ''];
             }
+            // Favicon do sistema usa a logo; se só o favicon for enviado e não houver logo, vira a logo.
             $img = save_image_setting($db, 'favicon', 'favicon');
             if ($img !== null) {
                 return [$img, ''];
+            }
+            if (empty($db['settings']['logo']) && !empty($db['settings']['favicon'])) {
+                $db['settings']['logo'] = (string) $db['settings']['favicon'];
             }
             return [null, 'Dados da conta salvos.'];
 
@@ -1622,9 +1626,36 @@ function ops_dispatch(array &$db, string $action): ?array
             }
             $db['settings']['pix'] = clip(post('pix'), 80);
             $db['settings']['pix_cidade'] = clip(post('pix_cidade'), 60);
-            $db['settings']['pagbank_token'] = clip(post('pagbank_token'), 200);
+            $pagTok = clip(post('pagbank_token'), 200);
+            if ($pagTok !== '') {
+                $db['settings']['pagbank_token'] = $pagTok;
+            }
             $db['settings']['pagbank_ativo'] = post('pagbank_ativo') === '1';
             return [null, 'Pagamentos salvos.'];
+
+        case '2fa_iniciar':
+            $db['settings']['totp_secret'] = totp_secret_novo();
+            $db['settings']['totp_confirmado'] = false;
+            $db['settings']['verificacao_2fa'] = false;
+            return [null, 'Chave 2FA criada. Escaneie o QR e confirme com o código de 6 dígitos.'];
+
+        case '2fa_confirmar':
+            $secret = totp_secret_limpo((string) ($db['settings']['totp_secret'] ?? ''));
+            if (!totp_secret_valido($secret)) {
+                return ['Gere a chave 2FA antes de confirmar.', ''];
+            }
+            if (!totp_confere($secret, post('codigo_2fa'))) {
+                return ['Código inválido. Abra o autenticador e digite o código atual de 6 dígitos.', ''];
+            }
+            $db['settings']['totp_confirmado'] = true;
+            $db['settings']['verificacao_2fa'] = true;
+            return [null, '2FA ativa. No próximo login do admin será pedido o código do autenticador.'];
+
+        case '2fa_desligar':
+            $db['settings']['totp_secret'] = '';
+            $db['settings']['totp_confirmado'] = false;
+            $db['settings']['verificacao_2fa'] = false;
+            return [null, '2FA desligada. O login volta a ser usuário, senha e código visual.'];
 
         case 'save_operacao':
             if (post('editando') !== '1') {
@@ -1635,28 +1666,39 @@ function ops_dispatch(array &$db, string $action): ?array
                 $db['settings']['intervalo_motorista'] = (string) max(15, min(720, (int) post('intervalo_motorista')));
             }
             $db['settings']['modo_simples'] = post('modo_simples') === '1';
-            $db['settings']['verificacao_2fa'] = post('verificacao_2fa') === '1';
-            $adminUser = slug_usuario(clip(post('usuario'), 40));
+            $adminRaw = clip(post('usuario'), 80);
+            $adminUser = str_contains($adminRaw, '@')
+                ? mb_strtolower($adminRaw)
+                : slug_usuario($adminRaw);
             if ($adminUser === '' || $adminUser === 'motorista') {
                 return ['Informe o usuário do administrador.', ''];
             }
             $db['settings']['usuario'] = $adminUser;
-            $senha = clip(post('senha'), 40);
+            $senha = clip(post('senha'), 80);
             if ($senha !== '') {
                 $db['settings']['senha'] = $senha;
             }
-            $apiUrl = rtrim(clip(post('uazapi_url'), 160), '/');
-            if ($apiUrl !== '' && !preg_match('#^https://#i', $apiUrl)) {
-                return ['A URL da UAZAPI precisa começar com https://', ''];
+            $adminTok = clip(post('uazapi_admin_token'), 512);
+            if ($adminTok !== '') {
+                $db['settings']['uazapi_admin_token'] = $adminTok;
             }
-            $db['settings']['uazapi_admin_token'] = clip(post('uazapi_admin_token'), 512);
             $createUrl = rtrim(clip(post('uazapi_create_url'), 220), '/');
             if ($createUrl !== '' && !preg_match('#^https://#i', $createUrl)) {
                 return ['A URL de criação de instância precisa começar com https://', ''];
             }
             $db['settings']['uazapi_create_url'] = $createUrl;
-            $db['settings']['uazapi_url'] = $apiUrl;
-            $db['settings']['uazapi_token'] = clip(post('uazapi_token'), 4096);
+            // URL/token da instância são gerados pelo Comunicador — não sobrescrever com vazio.
+            $apiUrl = rtrim(clip(post('uazapi_url'), 160), '/');
+            if ($apiUrl !== '') {
+                if (!preg_match('#^https://#i', $apiUrl)) {
+                    return ['A URL da UAZAPI precisa começar com https://', ''];
+                }
+                $db['settings']['uazapi_url'] = $apiUrl;
+            }
+            $instTok = clip(post('uazapi_token'), 4096);
+            if ($instTok !== '') {
+                $db['settings']['uazapi_token'] = $instTok;
+            }
             $db['settings']['whatsapp_ativo'] = post('whatsapp_ativo') === '1';
             return [null, 'Operação salva.'];
 
@@ -1795,6 +1837,26 @@ function ops_dispatch(array &$db, string $action): ?array
             }
             return [null, 'Planilhas Google atualizadas.'];
 
+        case 'drive_backup_now':
+            if (!drive_conectado($db)) {
+                return ['Conecte o Google Drive antes de enviar o backup.', ''];
+            }
+            $out = drive_backup_executar($db, 'manual');
+            if (empty($out['ok'])) {
+                return [(string) ($out['erro'] ?? 'Falha no backup.'), ''];
+            }
+            return [null, 'Backup enviado para a pasta "' . (string) ($out['pasta'] ?? '') . '" no Google Drive.'];
+
+        case 'drive_desconectar':
+            if (!drive_conectado($db)) {
+                return ['O Google Drive já está desconectado.', ''];
+            }
+            if (strtoupper(trim(post('confirmar_texto'))) !== 'DESCONECTAR') {
+                return ['Digite DESCONECTAR para confirmar a remoção da integração.', ''];
+            }
+            drive_desconectar($db);
+            return [null, 'Google Drive desconectado. Os backups diários pararam.'];
+
         default:
             return null;
     }
@@ -1857,11 +1919,20 @@ function handle_public_hook(string $secret): never
         $registro = [
             'nome' => $nome,
             'telefone' => $telefone,
+            'email' => $pick($data, ['email', 'e-mail']),
             'cidade' => $pick($data, ['cidade', 'city']),
             'cnh' => $pick($data, ['cnh']),
             'cpf' => $pick($data, ['cpf', 'documento']),
             'categoria' => 'B',
+            'parceria' => $pick($data, ['parceria', 'tipo']) ?: 'proprio',
+            'veiculo_modelo' => $pick($data, ['veiculo_modelo', 'modelo', 'veiculo']),
+            'veiculo_placa' => mb_strtoupper($pick($data, ['veiculo_placa', 'placa'])),
+            'veiculo_ano' => $pick($data, ['veiculo_ano', 'ano']),
+            'veiculo_cor' => $pick($data, ['veiculo_cor', 'cor']),
+            'veiculo_lugares' => (int) $pick($data, ['veiculo_lugares', 'lugares']),
+            'reuniao_pref' => $pick($data, ['reuniao_pref', 'reuniao', 'horario']),
             'mensagem' => $pick($data, ['mensagem', 'message', 'obs']),
+            'origem' => 'webhook',
             'status' => 'nova',
             'criado_em' => today()->format('Y-m-d'),
         ];
@@ -1936,6 +2007,7 @@ function operation_seed(): array
             'contrato' => 1,
             'automacao' => 3,
             'inbox' => 1,
+            'campanha' => 1,
         ],
         'settings' => [
             'nome' => 'Transfer FLN',
@@ -1961,6 +2033,8 @@ function operation_seed(): array
             'usuario' => 'admin',
             'senha' => 'admin123',
             'verificacao_2fa' => false,
+            'totp_secret' => '',
+            'totp_confirmado' => false,
             'notif_reserva' => true,
             'notif_solicitacao' => true,
             'notif_cancelamento' => true,
@@ -1992,7 +2066,12 @@ function operation_seed(): array
             'wa_profile_name' => '',
             'wa_erro' => '',
             'chat_ignorar_grupos' => true,
-            'chat_ia_ativa' => false,
+            'chat_ia_ativa' => true,
+            'wa_mostrar_digitando' => true,
+            'wa_online_ativo' => true,
+            'wa_online_inicio' => '06:00',
+            'wa_online_fim' => '22:00',
+            'wa_avaliacao_auto' => true,
             'chat_ia_parar' => 'parar',
             'chat_ia_parar_min' => 30,
             'chat_ia_pausar_manual' => 5,
@@ -2029,6 +2108,7 @@ function operation_seed(): array
         'mensagens' => [],
         'zonas' => [],
         'whatsapp_envios' => [],
+        'campanhas' => [],
         'automacoes' => [
             ['id' => 1, 'nome' => 'Site da frota', 'tipo_hook' => 'Transfer Executivo', 'secret' => 'flnsitehook0001', 'ativo' => false],
             ['id' => 2, 'nome' => 'Operação', 'tipo_hook' => 'Transfer Executivo', 'secret' => 'flnoperacao0002', 'ativo' => true],

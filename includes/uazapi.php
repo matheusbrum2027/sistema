@@ -446,6 +446,59 @@ function uazapi_connect_qr(array $settings): array
     return [true, 'Solicitação enviada à UAZAPI. Use Atualizar status.', $state];
 }
 
+function uazapi_hora_ok(string $hora): bool
+{
+    return (bool) preg_match('/^\d{2}:\d{2}$/', $hora);
+}
+
+/** Dentro do horário marcado no painel a conta fica online; fora, fica indisponível. */
+function uazapi_dentro_horario_online(array $settings): bool
+{
+    if (array_key_exists('wa_online_ativo', $settings) && empty($settings['wa_online_ativo'])) {
+        return false;
+    }
+    $ini = (string) ($settings['wa_online_inicio'] ?? '06:00');
+    $fim = (string) ($settings['wa_online_fim'] ?? '22:00');
+    if (!uazapi_hora_ok($ini)) {
+        $ini = '06:00';
+    }
+    if (!uazapi_hora_ok($fim)) {
+        $fim = '22:00';
+    }
+    $agora = (new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo')))->format('H:i');
+    if ($ini === $fim) {
+        return true;
+    }
+    if ($ini < $fim) {
+        return $agora >= $ini && $agora < $fim;
+    }
+    return $agora >= $ini || $agora < $fim;
+}
+
+function uazapi_aplicar_presenca(array $settings): void
+{
+    if (!uazapi_settings_ready($settings) || (($settings['wa_status'] ?? '') !== 'conectado')) {
+        return;
+    }
+    $presence = uazapi_dentro_horario_online($settings) ? 'available' : 'unavailable';
+    uazapi_request('POST', '/instance/presence', $settings, ['presence' => $presence], 8);
+}
+
+function uazapi_digitando(array $settings, string $numero): void
+{
+    if (array_key_exists('wa_mostrar_digitando', $settings) && empty($settings['wa_mostrar_digitando'])) {
+        return;
+    }
+    if (!uazapi_settings_ready($settings) || $numero === '') {
+        return;
+    }
+    uazapi_request('POST', '/message/presence', $settings, [
+        'number' => $numero,
+        'presence' => 'composing',
+        'delay' => 2500,
+    ], 6);
+}
+
 /** @deprecated use uazapi_request */
 function uazapi_json(string $method, string $path, array $settings, ?array $body = null): array
 {

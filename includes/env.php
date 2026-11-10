@@ -42,3 +42,25 @@ function env_valor(string $nome, string $padrao = ''): string
     }
     return trim($valor);
 }
+
+/** Chave de API Google (só servidor). Nunca enviar ao browser. */
+function google_api_key(): string
+{
+    return trim(env_valor('GOOGLE_API_KEY'));
+}
+
+function google_api_configurada(): bool
+{
+    return google_api_key() !== '';
+}
+
+/** Acrescenta key=API_KEY na URL das APIs Google no servidor. */
+function google_url_com_key(string $url): string
+{
+    $key = google_api_key();
+    if ($key === '' || str_contains($url, 'key=')) {
+        return $url;
+    }
+    $sep = str_contains($url, '?') ? '&' : '?';
+    return $url . $sep . 'key=' . rawurlencode($key);
+}

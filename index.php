@@ -30,9 +30,34 @@ header('X-Content-Type-Options: nosniff');
 header('Referrer-Policy: same-origin');
 header('Permissions-Policy: camera=(), microphone=(), geolocation=()');
 header('Cache-Control: private, no-store');
-header("Content-Security-Policy: default-src 'self'; img-src 'self' data: https://pps.whatsapp.net https://*.whatsapp.net; media-src 'self'; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com data:; script-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
+header("Content-Security-Policy: default-src 'self'; img-src 'self' data: blob: https://pps.whatsapp.net https://*.whatsapp.net https://api.qrserver.com https://tile.openstreetmap.org https://*.tile.openstreetmap.org https://unpkg.com; media-src 'self'; style-src 'self' https://fonts.googleapis.com https://unpkg.com 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com data:; script-src 'self' https://unpkg.com 'unsafe-inline'; connect-src 'self' https://*.tile.openstreetmap.org; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
+if ((string) ($_GET['p'] ?? '') === 'marca') {
+    $chave = (string) ($_GET['k'] ?? '');
+    if (!in_array($chave, ['logo', 'logo_lateral', 'favicon', 'assinatura'], true)) {
+        http_response_code(404);
+        exit;
+    }
+    $uri = store_midia($chave);
+    if (!preg_match('#^data:(image/[a-z0-9.+-]+);base64,([a-z0-9+/=\r\n]+)$#i', $uri, $m)) {
+        http_response_code(404);
+        exit;
+    }
+    $bin = base64_decode($m[2], true);
+    if ($bin === false || $bin === '') {
+        http_response_code(404);
+        exit;
+    }
+    header('Content-Type: ' . strtolower($m[1]));
+    header('Cache-Control: public, max-age=86400');
+    header('X-Content-Type-Options: nosniff');
+    echo $bin;
+    exit;
+}
 if (isset($_GET['hook'])) {
     handle_public_hook((string) $_GET['hook']);
+}
+if ((string) ($_GET['drive'] ?? '') === 'oauth') {
+    drive_oauth_callback_public();
 }
 if (isset($_GET['cron'])) {
     header('Content-Type: application/json; charset=utf-8');
@@ -46,14 +71,42 @@ if (isset($_GET['cron'])) {
     try {
         $enviados = disparar_pendentes(40.0);
         $sheetsOk = null;
+        $drive = null;
+        $presenca = null;
+        $dbc = load_db();
+        try {
+            $presenca = com_db('wa_presenca_cron', static function (array &$db): array {
+                if (!function_exists('uazapi_aplicar_presenca')) {
+                    return ['ok' => false, 'pulado' => true];
+                }
+                if ((($db['settings']['wa_status'] ?? '') !== 'conectado') || !uazapi_settings_ready($db['settings'] ?? [])) {
+                    return ['ok' => false, 'pulado' => true];
+                }
+                uazapi_aplicar_presenca($db['settings']);
+                $db['settings']['wa_presenca_em'] = time();
+                return [
+                    'ok' => true,
+                    'online' => function_exists('uazapi_dentro_horario_online')
+                        ? uazapi_dentro_horario_online($db['settings'])
+                        : true,
+                ];
+            });
+        } catch (Throwable) {
+            $presenca = ['ok' => false];
+        }
         if (sheets_ativo()) {
-            $dbc = load_db();
             if (!empty($dbc['settings']['sheets_sync_pendente'])) {
                 sheets_sync($dbc, 'cron');
                 $sheetsOk = (string) ($dbc['settings']['sheets_sync_erro'] ?? '') === '';
             }
         }
-        echo json_encode(['ok' => true, 'enviados' => $enviados, 'sheets' => $sheetsOk, 'em' => date('Y-m-d H:i')]);
+        if (drive_conectado($dbc)) {
+            $drive = com_db('drive_cron', static function (array &$db): array {
+                $out = drive_cron($db);
+                return is_array($out) ? $out : ['ok' => true, 'pulado' => true];
+            });
+        }
+        echo json_encode(['ok' => true, 'enviados' => $enviados, 'sheets' => $sheetsOk, 'drive' => $drive, 'presenca' => $presenca, 'em' => date('Y-m-d H:i')]);
     } catch (Throwable $e) {
         error_log('fln cron: ' . $e->getMessage());
         http_response_code(503);
@@ -70,23 +123,20 @@ if ((string) ($_GET['p'] ?? '') === 'aviso') {
         exit;
     }
     session_write_close();
-    $dbAviso = load_db();
     $desde = (int) ($_GET['desde'] ?? 0);
-    $itens = [];
-    $ultimo = $desde;
-    foreach ($dbAviso['avisos'] ?? [] as $aviso) {
-        if (!is_array($aviso)) {
-            continue;
-        }
-        $idAviso = (int) ($aviso['id'] ?? 0);
-        if ($idAviso > $ultimo) {
-            $ultimo = $idAviso;
-        }
-        if ($idAviso > $desde) {
-            $itens[] = $aviso;
-        }
+    try {
+        $r = store_avisos($desde);
+    } catch (Throwable) {
+        http_response_code(503);
+        echo '{"ok":false}';
+        exit;
     }
-    echo json_encode(['ok' => true, 'itens' => $itens, 'ultimo' => $ultimo], JSON_UNESCAPED_UNICODE);
+    $itens = is_array($r['itens'] ?? null) ? $r['itens'] : [];
+    echo json_encode([
+        'ok' => true,
+        'itens' => $itens,
+        'ultimo' => (int) ($r['ultimo'] ?? $desde),
+    ], JSON_UNESCAPED_UNICODE);
     exit;
 }
 
@@ -97,16 +147,122 @@ if ((string) ($_GET['p'] ?? '') === 'aviso_apk') {
     $token = (string) ($_GET['token'] ?? '');
     $desde = (int) ($_GET['desde'] ?? 0);
     try {
-        $out = com_db('aviso_apk', static function (array &$db) use ($token, $desde): array {
-            return push_avisos_apk($db, $token, $desde);
-        });
-        if (empty($out['ok'])) {
+        $out = store_rpc('fln_aviso_apk', [
+            'p_token' => $token,
+            'p_desde' => $desde,
+            'p_base' => store_base(),
+        ], 12);
+        if (!is_array($out) || empty($out['ok'])) {
             http_response_code(401);
+            echo json_encode(['ok' => false], JSON_UNESCAPED_UNICODE);
+            exit;
         }
         echo json_encode($out, JSON_UNESCAPED_UNICODE);
-    } catch (Throwable $e) {
+    } catch (Throwable) {
         http_response_code(503);
         echo json_encode(['ok' => false, 'erro' => 'indisponivel']);
+    }
+    exit;
+}
+
+if ((string) ($_GET['p'] ?? '') === 'analise') {
+    header('Content-Type: application/json; charset=utf-8');
+    header('Cache-Control: private, no-store');
+    if (!analise_admin()) {
+        http_response_code(401);
+        echo '{"ok":false,"erro":"Entre como administrador."}';
+        exit;
+    }
+    $acao = (string) ($_GET['acao'] ?? 'resumo');
+    $periodo = (string) ($_GET['periodo'] ?? ($_POST['periodo'] ?? '90d'));
+    if (!in_array($periodo, ['30d', '90d', '12m'], true)) {
+        $periodo = '90d';
+    }
+    if ($acao === 'gerar') {
+        if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST' || !csrf_ok()) {
+            http_response_code(403);
+            echo '{"ok":false,"erro":"Atualize a página e tente de novo."}';
+            exit;
+        }
+        session_write_close();
+        $out = analise_gerar(load_db(), $periodo);
+        echo json_encode($out, JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    session_write_close();
+    echo json_encode(['ok' => true, 'dados' => analise_coleta(load_db(), $periodo)], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+if ((string) ($_GET['p'] ?? '') === 'mapa') {
+    header('Content-Type: application/json; charset=utf-8');
+    header('Cache-Control: private, no-store');
+    if (!mapa_admin()) {
+        http_response_code(401);
+        echo '{"ok":false,"erro":"Entre como administrador."}';
+        exit;
+    }
+    session_write_close();
+    $filtro = (string) ($_GET['filtro'] ?? 'proximas');
+    $status = (string) ($_GET['status'] ?? 'todas');
+    try {
+        $viagens = store_mapa();
+    } catch (Throwable) {
+        http_response_code(503);
+        echo '{"ok":false}';
+        exit;
+    }
+    echo json_encode(mapa_viagens(['transfers' => $viagens], $filtro, $status), JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+if ((string) ($_GET['p'] ?? '') === 'campanha') {
+    header('Content-Type: application/json; charset=utf-8');
+    header('Cache-Control: private, no-store');
+    if (!campanha_admin()) {
+        http_response_code(401);
+        echo '{"ok":false,"erro":"Entre como administrador."}';
+        exit;
+    }
+    $acao = (string) ($_GET['acao'] ?? 'lista');
+    $precisaPost = in_array($acao, ['salvar', 'status', 'apagar', 'disparar'], true);
+    if ($precisaPost && (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST' || !csrf_ok())) {
+        http_response_code(403);
+        echo '{"ok":false,"erro":"Atualize a página e tente de novo."}';
+        exit;
+    }
+    try {
+        if ($acao === 'lista') {
+            session_write_close();
+            echo json_encode(campanha_lista(load_db()), JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+        $resp = com_db('campanha_' . $acao, static function (array &$db) use ($acao): array {
+            campanha_store_garantir($db);
+            if ($acao === 'salvar') {
+                return campanha_salvar($db, [
+                    'nome' => (string) ($_POST['nome'] ?? ''),
+                    'mensagem' => (string) ($_POST['mensagem'] ?? ''),
+                    'publico' => (string) ($_POST['publico'] ?? 'clientes'),
+                    'lista_manual' => (string) ($_POST['lista_manual'] ?? ''),
+                ], (int) ($_POST['id'] ?? 0));
+            }
+            if ($acao === 'status') {
+                return campanha_status($db, (int) ($_POST['id'] ?? 0), (string) ($_POST['status'] ?? ''));
+            }
+            if ($acao === 'apagar') {
+                return campanha_apagar($db, (int) ($_POST['id'] ?? 0));
+            }
+            if ($acao === 'disparar') {
+                return campanha_disparar($db, (int) ($_POST['id'] ?? 0), (int) ($_POST['lote'] ?? 15));
+            }
+            return ['ok' => false, 'erro' => 'Ação inválida.'];
+        });
+        echo json_encode(is_array($resp) ? $resp : ['ok' => false, 'erro' => 'Falha ao salvar.'], JSON_UNESCAPED_UNICODE);
+    } catch (Throwable $e) {
+        error_log('fln campanha: ' . $e->getMessage());
+        http_response_code(503);
+        echo json_encode(['ok' => false, 'erro' => 'Não foi possível concluir a ação.'], JSON_UNESCAPED_UNICODE);
     }
     exit;
 }
@@ -120,22 +276,50 @@ if ((string) ($_GET['p'] ?? '') === 'chat') {
         exit;
     }
     $acao = (string) ($_GET['acao'] ?? 'lista');
-    $precisaPost = in_array($acao, ['enviar', 'salvar_config'], true);
+    $precisaPost = in_array($acao, ['enviar', 'salvar_config', 'pausar_ia', 'retomar_ia'], true);
     if ($precisaPost && (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST' || !csrf_ok())) {
         http_response_code(403);
         echo '{"ok":false,"erro":"Atualize a página e tente de novo."}';
         exit;
     }
-    if ($acao !== 'salvar_config' && $acao !== 'enviar' && $acao !== 'msgs') {
+    if ($acao !== 'salvar_config' && $acao !== 'enviar' && $acao !== 'msgs' && $acao !== 'pausar_ia' && $acao !== 'retomar_ia') {
         session_write_close();
     }
-    $dbChat = load_db();
+    if (in_array($acao, ['lista', 'poll', 'estado'], true)) {
+        try {
+            $dbChat = store_chat_banco();
+        } catch (Throwable) {
+            http_response_code(503);
+            echo '{"ok":false,"erro":"Sem conexão com o chat."}';
+            exit;
+        }
+    } else {
+        $dbChat = load_db(false, true);
+    }
     chat_store_garantir($dbChat);
     $settings = $dbChat['settings'] ?? [];
     if ($acao === 'enviar') {
         $resp = chat_enviar($dbChat, (string) ($_POST['id'] ?? ''), (string) ($_POST['texto'] ?? ''));
         session_write_close();
         echo json_encode($resp, JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    if ($acao === 'pausar_ia' || $acao === 'retomar_ia') {
+        $idChat = (string) ($_POST['id'] ?? '');
+        try {
+            $resp = com_db('chat_' . $acao, static function (array &$db) use ($acao, $idChat): array {
+                return chat_pausar_ia($db, $idChat, $acao === 'pausar_ia');
+            });
+            echo json_encode(is_array($resp) ? $resp : ['ok' => false, 'erro' => 'Falha.'], JSON_UNESCAPED_UNICODE);
+        } catch (Throwable $e) {
+            http_response_code(503);
+            echo json_encode(['ok' => false, 'erro' => 'Não foi possível alterar a IA.'], JSON_UNESCAPED_UNICODE);
+        }
+        exit;
+    }
+    if ($acao === 'estado_ia') {
+        session_write_close();
+        echo json_encode(chat_estado_ia_conversa($dbChat, (string) ($_GET['id'] ?? '')), JSON_UNESCAPED_UNICODE);
         exit;
     }
     if ($acao === 'salvar_config') {
@@ -145,8 +329,13 @@ if ((string) ($_GET['p'] ?? '') === 'chat') {
             'ia_parar' => (string) ($_POST['ia_parar'] ?? 'parar'),
             'ia_parar_min' => (int) ($_POST['ia_parar_min'] ?? 30),
             'ia_pausar_manual' => (int) ($_POST['ia_pausar_manual'] ?? 5),
+            'mostrar_digitando' => ($_POST['mostrar_digitando'] ?? '') === '1',
+            'online_ativo' => ($_POST['online_ativo'] ?? '') === '1',
+            'online_inicio' => (string) ($_POST['online_inicio'] ?? '06:00'),
+            'online_fim' => (string) ($_POST['online_fim'] ?? '22:00'),
+            'avaliacao_auto' => ($_POST['avaliacao_auto'] ?? '') === '1',
             'openai_key' => (string) ($_POST['openai_key'] ?? ''),
-        ]);
+        ] + (array_key_exists('ia_perm', $_POST) ? ['ia_perm' => (string) $_POST['ia_perm']] : []));
         session_write_close();
         echo json_encode($resp, JSON_UNESCAPED_UNICODE);
         exit;
@@ -184,25 +373,26 @@ if (!isset($routes[$current]) || $current === 'abrangencia') {
     $current = 'agenda';
 }
 $role = (string) ($_SESSION['role'] ?? 'admin');
-if ($current !== 'entrar' && empty($_SESSION['auth'])) {
+$paginasPublicas = ['entrar', 'seja-motorista'];
+if (!in_array($current, $paginasPublicas, true) && empty($_SESSION['auth'])) {
     redirect(href('entrar'));
 }
 if ($current === 'entrar' && !empty($_SESSION['auth'])) {
     redirect(href('agenda'));
 }
-if ($role === 'motorista' && $current !== 'entrar' && $current !== 'agenda') {
+if ($role === 'motorista' && !in_array($current, ['entrar', 'agenda', 'seja-motorista'], true)) {
     redirect(href('agenda'));
 }
 
 $route = $routes[$current];
 $bare = !empty($route['bare']);
+$site = !empty($route['site']);
 $db = load_db();
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET') {
     // CSRF/captcha/flash precisam gravar antes de soltar o lock da sessão.
     sessao_preparar_get($current, $db);
-    // Na tela de login a sessão precisa permanecer aberta: o form ainda
-    // pode gravar token/captcha, e fechar cedo quebrava o CSRF do Entrar.
-    if ($current !== 'entrar') {
+    // Login e landing pública mantêm a sessão aberta para o CSRF do formulário.
+    if (!in_array($current, $paginasPublicas, true)) {
         session_write_close();
     }
 }
@@ -252,9 +442,13 @@ if ($current === 'solicitacoes' && isset($_GET['csv']) && $role === 'admin') {
     exit;
 }
 
-require __DIR__ . '/includes/layout-top.php';
-require __DIR__ . '/' . $route['view'];
-require __DIR__ . '/includes/layout-bottom.php';
+if (!empty($site)) {
+    require __DIR__ . '/' . $route['view'];
+} else {
+    require __DIR__ . '/includes/layout-top.php';
+    require __DIR__ . '/' . $route['view'];
+    require __DIR__ . '/includes/layout-bottom.php';
+}
 } catch (Throwable $falha) {
     error_log('fln: ' . $falha->getMessage());
     if (!headers_sent()) {

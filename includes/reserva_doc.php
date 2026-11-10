@@ -177,8 +177,14 @@ function reserva_detalhes(array $db, array $trip): void
 function reserva_logo(array $s): string
 {
     $logo = trim((string) ($s['logo'] ?? ''));
+    if ($logo === '' && !empty($s['tem_logo'])) {
+        $logo = 'index.php?p=marca&k=logo&v=' . (int) ($s['marca_v'] ?? 1);
+    }
     if ($logo === '') {
         $logo = trim((string) ($s['logo_lateral'] ?? ''));
+    }
+    if ($logo === '' && !empty($s['tem_logo_lateral'])) {
+        $logo = 'index.php?p=marca&k=logo_lateral&v=' . (int) ($s['marca_v'] ?? 1);
     }
     if ($logo === '') {
         return '';
@@ -302,8 +308,12 @@ function reserva_assinatura(array $s, array $trip): void
     }
     echo '</div>';
     echo '<div class="doc-sign-box"><p>Contratada</p>';
-    if (trim((string) ($s['assinatura'] ?? '')) !== '') {
-        echo '<img class="doc-sign-img" src="' . e((string) $s['assinatura']) . '" alt="Assinatura cadastrada">';
+    $assinatura = trim((string) ($s['assinatura'] ?? ''));
+    if ($assinatura === '' && !empty($s['tem_assinatura'])) {
+        $assinatura = 'index.php?p=marca&k=assinatura&v=' . (int) ($s['marca_v'] ?? 1);
+    }
+    if ($assinatura !== '') {
+        echo '<img class="doc-sign-img" src="' . e($assinatura) . '" alt="Assinatura cadastrada">';
     } else {
         echo '<div class="doc-sign-space"></div>';
     }
@@ -571,20 +581,14 @@ function reserva_dialogos(array $db, array $trip, bool $admin, string $contexto 
               <button class="btn btn-sm btn-danger" type="submit">Excluir</button>
             </form>
           <?php else: ?>
-          <form method="post" action="index.php" data-confirm-vezes="2" data-confirm="<?= !empty($trip['faturado']) ? 'Tirar o faturamento da reserva #' . $id . '?' : 'Marcar a reserva #' . $id . ' como faturada?' ?>" data-confirm-2="<?= !empty($trip['faturado']) ? 'Confirme novamente para tirar o faturamento da reserva #' . $id . '.' : 'Confirme novamente: a reserva #' . $id . ' ficará faturada.' ?>">
+          <form method="post" action="index.php" data-confirm="<?= !empty($trip['faturado']) ? 'Tirar o faturamento da reserva #' . $id . '?' : 'Marcar a reserva #' . $id . ' como faturada?' ?>">
             <?= csrf_fields('faturar_transfer') ?>
             <input type="hidden" name="id" value="<?= $id ?>">
             <button class="btn btn-sm" type="submit"><?= !empty($trip['faturado']) ? 'Tirar faturamento' : 'Faturar' ?></button>
           </form>
-          <form method="post" action="index.php" data-confirm-vezes="2" data-confirm="Marcar a reserva #<?= $id ?> como concluída?" data-confirm-2="Confirme novamente: a reserva #<?= $id ?> ficará concluída.">
-            <?= csrf_fields('set_transfer_status') ?>
-            <input type="hidden" name="id" value="<?= $id ?>">
-            <input type="hidden" name="status" value="concluida">
-            <button class="btn btn-sm btn-primary" type="submit">Concluir</button>
-          </form>
           <?php endif; ?>
         <?php else: ?>
-          <form method="post" action="index.php" data-confirm-vezes="2" data-confirm="Alterar o status da reserva #<?= $id ?>?" data-confirm-2="Confirme novamente a mudança de status da reserva #<?= $id ?>.">
+          <form method="post" action="index.php" data-confirm="Alterar o status da reserva #<?= $id ?>?">
             <?= csrf_fields('set_transfer_status') ?>
             <input type="hidden" name="id" value="<?= $id ?>">
             <label class="field">Status
@@ -628,18 +632,40 @@ function reserva_dialogos(array $db, array $trip, bool $admin, string $contexto 
           <?php if ($painelCom['perna'] !== ''): ?>
             <input type="hidden" name="perna" value="<?= e((string) $painelCom['perna']) ?>">
           <?php endif; ?>
-          <p class="help">Toque nos cards para escolher quem recebe. Cada destinatário ganha um card no WhatsApp com botões (confirmar, ver PDF sem valores, falar com atendente). Depois a IA responde só sobre esta reserva.</p>
+          <?php
+            $nMotOk = 0;
+            $nMotAtrib = 0;
+            foreach ($destinos as $dMeta) {
+                if (($dMeta['papel'] ?? '') !== 'motorista') {
+                    continue;
+                }
+                if (strlen((string) ($dMeta['numero'] ?? '')) >= 12) {
+                    $nMotOk++;
+                }
+                if (empty($dMeta['opcional'])) {
+                    $nMotAtrib++;
+                }
+            }
+          ?>
+          <p class="help"><?php if ($nMotAtrib > 0): ?>
+            Motorista da reserva já vem marcado. Marque o cliente só se quiser avisar também.
+          <?php elseif ($nMotOk > 0): ?>
+            Esta reserva ainda não tem motorista vinculado — escolha quem deve receber o card. Cliente é opcional.
+          <?php else: ?>
+            Nenhum motorista com telefone válido. Cadastre o WhatsApp do motorista ou vincule um na reserva.
+          <?php endif; ?> Cada um recebe o card no WhatsApp (confirmar, ver PDF, falar com atendente).</p>
           <div class="com-cards" role="group" aria-label="Destinatários">
             <?php foreach ($destinos as $dest): ?>
               <?php
                 $okFone = strlen((string) ($dest['numero'] ?? '')) >= 12;
                 $papel = (string) ($dest['papel'] ?? 'motorista');
+                $marcado = $okFone && empty($dest['opcional']);
                 $rotulo = $papel === 'cliente'
                     ? 'Cliente'
-                    : 'Motorista' . ((string) ($dest['trecho'] ?? '') !== '' ? ' · ' . $dest['trecho'] : '');
+                    : 'Motorista' . ((string) ($dest['trecho'] ?? '') !== '' && ($dest['trecho'] ?? '') !== 'Reserva' ? ' · ' . $dest['trecho'] : '');
               ?>
-              <label class="com-card com-card-<?= e($papel) ?><?= $okFone ? ' is-on' : ' is-off' ?>"<?= $okFone ? '' : ' title="Telefone incompleto"' ?>>
-                <input type="checkbox" name="destino[]" value="<?= e((string) $dest['key']) ?>"<?= $okFone ? ' checked' : ' disabled' ?>>
+              <label class="com-card com-card-<?= e($papel) ?><?= $marcado ? ' is-on' : '' ?><?= $okFone ? '' : ' is-off' ?>"<?= $okFone ? '' : ' title="Telefone incompleto"' ?>>
+                <input type="checkbox" name="destino[]" value="<?= e((string) $dest['key']) ?>"<?= $marcado ? ' checked' : '' ?><?= $okFone ? '' : ' disabled' ?>>
                 <span class="com-card-mark" aria-hidden="true"></span>
                 <span class="com-card-papel"><?= e($rotulo) ?></span>
                 <strong><?= e((string) ($dest['nome'] ?? '')) ?></strong>
@@ -647,8 +673,8 @@ function reserva_dialogos(array $db, array $trip, bool $admin, string $contexto 
               </label>
             <?php endforeach; ?>
           </div>
-          <?php if ($destinos === []): ?>
-            <p class="help">Nenhum destinatário nesta reserva. Cadastre motorista e telefone do cliente.</p>
+          <?php if ($nMotOk === 0): ?>
+            <p class="help com-aviso">Sem motorista com WhatsApp nesta lista. Edite a reserva e arraste um motorista no engate, ou complete o telefone no cadastro.</p>
           <?php endif; ?>
           <footer class="dlg-foot com-foot">
             <button class="btn" type="button" data-close-dialog>Cancelar</button>
@@ -662,13 +688,13 @@ function reserva_dialogos(array $db, array $trip, bool $admin, string $contexto 
         <header class="dialog-h no-print">
           <h2>Pré-visualização da reserva #<?= $id ?></h2>
           <div class="dialog-tools">
-            <button class="btn btn-sm btn-primary" type="button" data-print data-confirm-vezes="2" data-confirm="Baixar o PDF da reserva #<?= $id ?>?" data-confirm-2="Confirme novamente para gerar o PDF da reserva #<?= $id ?>.">Baixar PDF</button>
+            <button class="btn btn-sm btn-primary" type="button" data-print data-confirm="Baixar o PDF da reserva #<?= $id ?>?">Baixar PDF</button>
             <button class="dlg-x" type="button" data-close-dialog aria-label="Fechar">×</button>
           </div>
         </header>
         <div class="dialog-b"><?php reserva_folha($db, $trip); ?></div>
         <footer class="dlg-foot no-print">
-          <button class="btn btn-primary" type="button" data-print data-confirm-vezes="2" data-confirm="Baixar o PDF da reserva #<?= $id ?>?" data-confirm-2="Confirme novamente para gerar o PDF da reserva #<?= $id ?>.">Baixar PDF</button>
+          <button class="btn btn-primary" type="button" data-print data-confirm="Baixar o PDF da reserva #<?= $id ?>?">Baixar PDF</button>
           <button class="btn" type="button" data-close-dialog>Fechar</button>
         </footer>
       </dialog>

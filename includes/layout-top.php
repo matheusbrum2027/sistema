@@ -25,20 +25,24 @@ foreach ($db['automacoes'] as $autoRow) {
   <meta name="theme-color" content="#f26b1a">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="<?= e($brand) ?>">
   <meta name="robots" content="noindex">
   <title><?= e($route['title']) ?> · <?= e($brand) ?></title>
   <?php if (!$partial): ?>
   <link rel="manifest" href="manifest.json">
-  <link rel="apple-touch-icon" href="assets/icon-192.png">
+  <?php
+    [$faviconHref, $faviconMime] = brand_favicon($db);
+  ?>
+  <link rel="apple-touch-icon" href="<?= e($faviconHref) ?>">
   <?php if (($_SESSION['role'] ?? '') === 'admin' && !empty($_SESSION['auth'])): ?>
   <meta name="csrf" content="<?= e(csrf_token()) ?>">
   <?php endif; ?>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23f26b1a'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-family='Segoe UI,sans-serif' font-size='16' font-weight='700' fill='white'%3EET%3C/text%3E%3C/svg%3E">
+  <link rel="icon" href="<?= e($faviconHref) ?>" type="<?= e($faviconMime) ?>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="assets/css/app.css?v=54">
+  <link rel="stylesheet" href="assets/css/app.css?v=73">
   <?php endif; ?>
 </head>
 <?php

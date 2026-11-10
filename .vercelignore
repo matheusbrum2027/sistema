@@ -1,4 +1,8 @@
 .env
 .env.local
 android
-*.apk
+mobile/android/**/build
+mobile/android/.gradle
+mobile/android/*.jks
+mobile/android/keystore.properties
+mobile/android/local.properties

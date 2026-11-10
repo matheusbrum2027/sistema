@@ -56,7 +56,7 @@ view_head('<a class="btn btn-sm" href="' . e(href('fin-dashboard')) . '">Dashboa
             <td><?= e(($row['baixa'] ?? '') !== '' ? br_date((string) $row['baixa']) : '—') ?></td>
             <td class="actions">
               <?php if (($row['status'] ?? '') !== 'pago'): ?>
-                <form method="post" action="index.php" data-confirm-vezes="2" data-confirm="Marcar o lançamento <?= e($row['descricao']) ?> como pago?" data-confirm-2="Confirme novamente: este lançamento ficará pago."><?= csrf_fields('baixar_lancamento') ?><input type="hidden" name="id" value="<?= (int) $row['id'] ?>"><button class="btn btn-sm btn-primary" type="submit">Pago</button></form>
+                <form method="post" action="index.php" data-confirm="Marcar o lançamento <?= e($row['descricao']) ?> como pago?"><?= csrf_fields('baixar_lancamento') ?><input type="hidden" name="id" value="<?= (int) $row['id'] ?>"><button class="btn btn-sm btn-primary" type="submit">Pago</button></form>
               <?php endif; ?>
               <a class="btn btn-sm" href="<?= e(href('lancamentos', ['edit' => $row['id']] + $keep)) ?>">Editar</a>
               <form method="post" action="index.php" data-confirm="Excluir o lançamento <?= e($row['descricao']) ?>? Esta ação não pode ser desfeita."><?= csrf_fields('delete_lancamento') ?><input type="hidden" name="id" value="<?= (int) $row['id'] ?>"><button class="btn btn-sm btn-danger" type="submit">Excluir</button></form>
