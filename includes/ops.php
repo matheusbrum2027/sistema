@@ -665,6 +665,34 @@ function meios_pagamento(): array
     ];
 }
 
+function rotulo_forma_pgto(array $trip): string
+{
+    $meio = strtolower(trim((string) ($trip['meio'] ?? '')));
+    $curtos = [
+        'pix' => 'PIX',
+        'ted' => 'TED',
+        'transferencia' => 'TED',
+        'credito' => 'CRÉD.',
+        'debito' => 'DÉB.',
+        'dinheiro' => 'DIN.',
+        'boleto' => 'BOL.',
+        'sinal' => 'SINAL',
+        'cortesia' => 'CORT.',
+        'permuta' => 'PERM.',
+        'outros' => 'OUTROS',
+        'misto' => 'MISTO',
+        'faturado' => 'FAT.',
+        'faturado_empresa' => 'FAT.',
+    ];
+    if (isset($curtos[$meio]) && $meio !== 'faturado' && $meio !== 'faturado_empresa') {
+        return $curtos[$meio];
+    }
+    if (!empty($trip['faturado']) || $meio === 'faturado' || $meio === 'faturado_empresa') {
+        return 'FAT.';
+    }
+    return $curtos[$meio] ?? ($meio !== '' ? mb_strtoupper($meio) : '');
+}
+
 function perna_do_motorista(array $trip, string $kind, int $motoristaId): bool
 {
     return $motoristaId > 0 && in_array($motoristaId, motoristas_do_trecho($trip, $kind), true);

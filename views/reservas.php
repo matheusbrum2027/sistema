@@ -111,7 +111,7 @@ view_head('<button class="btn btn-primary" type="button" data-open-dialog="dlg-r
 <section class="card">
   <div class="table-wrap">
     <table class="table-reservas">
-      <thead><tr><th>Nº</th><th>Cliente</th><th>Contato</th><th>Tipo</th><th>Categoria</th><th>Trajeto</th><th>Data</th><th>Motorista</th><th>Valor</th><th>Status</th><th>Ações</th></tr></thead>
+      <thead><tr><th>Nº</th><th>Cliente</th><th>Contato</th><th>Tipo</th><th>Categoria</th><th>Trajeto</th><th>Data</th><th>Motorista</th><th>Valor</th><th class="col-pgto" title="Forma de pagamento">Forma pgto</th><th>Status</th><th>Ações</th></tr></thead>
       <tbody>
         <?php foreach ($pg['rows'] as $trip): ?>
           <tr>
@@ -124,6 +124,7 @@ view_head('<button class="btn btn-primary" type="button" data-open-dialog="dlg-r
             <td class="col-fixo" data-label="Data"><?= e(br_date((string) $trip['data'])) ?> <span class="hint"><?= e($trip['hora']) ?></span></td>
             <td class="col-mot" data-label="Motorista"><span class="clip" title="<?= e(nome_motorista($db, $trip['motorista_id'])) ?>"><?= e(nome_motorista($db, $trip['motorista_id'])) ?></span></td>
             <td class="col-fixo" data-label="Valor"><?= e(brl((float) $trip['valor'])) ?></td>
+            <td class="col-fixo col-pgto" data-label="Pgto"><?php $pgto = rotulo_forma_pgto($trip); ?><?= $pgto !== '' ? e($pgto) : '—' ?></td>
             <td class="col-fixo" data-label="Status"><?= status_badge((string) $trip['status']) ?></td>
             <td class="actions">
               <a class="btn btn-sm" href="<?= e(href('reservas', ['edit' => $trip['id']] + $keep)) ?>">Editar</a>

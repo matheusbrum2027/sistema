@@ -353,7 +353,7 @@ th {
   padding: 12px 10px; border-bottom: 1px solid var(--line); background: #f7f8fa; white-space: nowrap;
 }
 td { padding: 12px 10px; border-bottom: 1px solid #eef0f3; vertical-align: middle; }
-.table-reservas { table-layout: fixed; width: 100%; min-width: 1040px; font-size: 12.5px; }
+.table-reservas { table-layout: fixed; width: 100%; min-width: 1120px; font-size: 12.5px; }
 .table-reservas th,
 .table-reservas td { padding: 4px 8px; line-height: 1.2; vertical-align: middle; overflow: hidden; }
 .table-reservas .col-fixo,
@@ -368,7 +368,8 @@ td { padding: 12px 10px; border-bottom: 1px solid #eef0f3; vertical-align: middl
 .table-reservas .col-cli { width: 16%; }
 .table-reservas .col-contato { width: 11%; }
 .table-reservas .col-rota { width: 20%; }
-.table-reservas .col-mot { width: 13%; }
+.table-reservas .col-mot { width: 12%; }
+.table-reservas .col-pgto { width: 92px; }
 .table-reservas td.actions {
   display: flex; overflow: visible; width: 196px; flex-wrap: nowrap; gap: 3px;
   align-items: center; justify-content: flex-end; text-align: right;
