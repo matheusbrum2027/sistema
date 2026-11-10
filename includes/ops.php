@@ -1874,11 +1874,11 @@ function ops_dispatch(array &$db, string $action): ?array
             }
             $erro = uazapi_delete_instance($db['settings']);
             uazapi_clear_instance_local($db['settings']);
+            chat_apagar_local($db);
             if ($erro !== null) {
-                $db['settings']['wa_erro'] = $erro;
-                return [$erro, ''];
+                return [null, 'Instância e conversas antigas saíram deste painel. O token já não valia na API, então remova o aparelho em WhatsApp → Aparelhos conectados se ele ainda aparecer no celular.'];
             }
-            return [null, 'Instância removida da UAZAPI e deste painel. As conversas locais do chat foram mantidas.'];
+            return [null, 'Instância removida e conversas antigas apagadas.'];
 
         case 'status_whatsapp':
             if (!uazapi_settings_ready($db['settings'])) {

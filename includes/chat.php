@@ -354,6 +354,16 @@ function chat_marcar_desconectado(string $motivo = ''): void
     }
 }
 
+/** Apaga as conversas deste comunicador. A instância nova começa vazia. */
+function chat_apagar_local(array &$db): void
+{
+    chat_store_garantir($db);
+    $db['chat']['conversas'] = [];
+    $db['chat']['mensagens'] = [];
+    $db['chat']['digitando'] = [];
+    $db['chat']['desde'] = time();
+}
+
 /** Garante o armazenamento local do chat. Nunca importa histórico do WhatsApp. */
 function chat_store_garantir(array &$db): void
 {
@@ -656,6 +666,9 @@ function chat_webhook_recebido(array $payload): void
         if ($estado !== '') {
             try {
                 com_db('chat_conn', static function (array &$db) use ($estado): bool {
+                    if (!uazapi_settings_ready($db['settings'] ?? [])) {
+                        return false;
+                    }
                     if (in_array($estado, ['connected', 'open', 'conectado'], true)) {
                         $db['settings']['wa_status'] = 'conectado';
                         $db['settings']['wa_instance_status'] = 'connected';

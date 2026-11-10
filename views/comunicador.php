@@ -50,7 +50,7 @@ view_head();
       <?= csrf_fields('status_whatsapp') ?>
       <button class="btn" type="submit"<?= $instOk ? '' : ' disabled' ?>>Atualizar status</button>
     </form>
-    <form method="post" action="index.php" data-confirm="Excluir a instância WhatsApp deste painel e na UAZAPI? O número será desconectado.">
+    <form method="post" action="index.php" data-confirm="Excluir a instância e apagar as conversas deste comunicador?">
       <?= csrf_fields('excluir_instancia_whatsapp') ?>
       <button class="btn btn-danger" type="submit"<?= ($adminOk || $instOk) ? '' : ' disabled' ?>>Excluir instância</button>
     </form>
