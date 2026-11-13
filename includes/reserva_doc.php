@@ -31,8 +31,6 @@ function reserva_rota_motorista(array $db, array $trip, string $trecho = ''): ar
     $linhas = [
         'Reserva' => '#' . (int) ($trip['id'] ?? 0),
         'Trecho' => $rotuloTipo,
-        'Cliente' => (string) ($trip['cliente'] ?? ''),
-        'Telefone do cliente' => (string) ($trip['telefone'] ?? ''),
         'Data e hora' => $quando,
         'Embarque' => (string) ($trip['origem'] ?? ''),
         'Desembarque' => (string) ($trip['destino'] ?? ''),
@@ -130,7 +128,7 @@ function reserva_linhas(array $db, array $trip): array
     $ehMotorista = (($_SESSION['role'] ?? 'admin') === 'motorista');
     $esconde = !empty($trip['esconder_valores']);
     if ($ehMotorista) {
-        unset($linhas['CPF/CNPJ'], $linhas['E-mail'], $linhas['Faturado']);
+        unset($linhas['Cliente'], $linhas['Telefone'], $linhas['CPF/CNPJ'], $linhas['E-mail'], $linhas['Faturado']);
         if (!$esconde) {
             $linhas['Seu repasse'] = brl((float) ($trip['repasse'] ?? 0));
         }
@@ -301,25 +299,33 @@ function reserva_assinatura(array $s, array $trip): void
     if ($nome === '') {
         $nome = trim((string) ($s['rep_legal'] ?? ''));
     }
-    echo '<footer class="doc-sign">';
-    echo '<div class="doc-sign-box"><p>Contratante</p><div class="doc-sign-space"></div><strong>' . e((string) ($trip['cliente'] ?? '')) . '</strong>';
-    $documento = trim((string) ($trip['documento'] ?? ''));
-    if ($documento !== '') {
-        echo '<span>' . e($documento) . '</span>';
-    }
-    echo '</div>';
-    echo '<div class="doc-sign-box"><p>Contratada</p>';
     $assinatura = trim((string) ($s['assinatura'] ?? ''));
     if ($assinatura === '' && !empty($s['tem_assinatura'])) {
         $assinatura = 'index.php?p=marca&k=assinatura&v=' . (int) ($s['marca_v'] ?? 1);
     }
+    $arquivo = reserva_nome_pdf($trip);
+    echo '<footer class="doc-sign">';
+    echo '<div class="doc-sign-box"><p>Contratante</p><div class="doc-sign-line"></div><strong>' . e((string) ($trip['cliente'] ?? '')) . '</strong>';
+    $documento = trim((string) ($trip['documento'] ?? ''));
+    echo '<span>' . e($documento !== '' ? $documento : ' ') . '</span></div>';
+    echo '<div class="doc-sign-box"><p>Contratada</p><div class="doc-sign-line">';
     if ($assinatura !== '') {
         echo '<img class="doc-sign-img" src="' . e($assinatura) . '" alt="Assinatura cadastrada">';
-    } else {
-        echo '<div class="doc-sign-space"></div>';
     }
-    echo '<strong>' . e($nome) . '</strong><span>' . e((string) ($s['razao'] ?? '')) . '</span></div>';
+    echo '</div><strong>' . e($nome) . '</strong><span>' . e((string) ($s['razao'] ?? '')) . '</span></div>';
     echo '</footer>';
+    echo '<span hidden class="doc-pdf-nome">' . e($arquivo) . '</span>';
+}
+
+function reserva_nome_pdf(array $trip): string
+{
+    $cliente = trim((string) ($trip['cliente'] ?? ''));
+    $cliente = preg_replace('/[^\p{L}\p{N} ._()-]+/u', '', $cliente) ?? '';
+    $cliente = trim(preg_replace('/\s+/u', ' ', $cliente) ?? '');
+    if ($cliente === '') {
+        $cliente = 'Cliente';
+    }
+    return $cliente . ' - Reserva ' . (int) ($trip['id'] ?? 0);
 }
 
 function reserva_folha_rodape(array $s, int $reservaId, int $pagina, int $total): void
@@ -510,7 +516,7 @@ function reserva_folha(array $db, array $trip): void
     $totalPaginas = 1 + count($blocos);
     $pagina = 1;
 
-    echo '<article class="reserva-folha">';
+    echo '<article class="reserva-folha" data-pdf-nome="' . e(reserva_nome_pdf($trip)) . '">';
     echo '<section class="folha-dados doc-page">';
     reserva_cabecalho_empresa($s, 'Reserva #' . $id, 'Documento');
     reserva_destaques($db, $trip);
@@ -691,13 +697,13 @@ function reserva_dialogos(array $db, array $trip, bool $admin, string $contexto 
         <header class="dialog-h no-print">
           <h2>Pré-visualização da reserva #<?= $id ?></h2>
           <div class="dialog-tools">
-            <button class="btn btn-sm btn-primary" type="button" data-print data-confirm="Baixar o PDF da reserva #<?= $id ?>?">Baixar PDF</button>
+            <button class="btn btn-sm btn-primary" type="button" data-print>Baixar PDF</button>
             <button class="dlg-x" type="button" data-close-dialog aria-label="Fechar">×</button>
           </div>
         </header>
         <div class="dialog-b"><?php reserva_folha($db, $trip); ?></div>
         <footer class="dlg-foot no-print">
-          <button class="btn btn-primary" type="button" data-print data-confirm="Baixar o PDF da reserva #<?= $id ?>?">Baixar PDF</button>
+          <button class="btn btn-primary" type="button" data-print>Baixar PDF</button>
           <button class="btn" type="button" data-close-dialog>Fechar</button>
         </footer>
       </dialog>

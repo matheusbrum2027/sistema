@@ -148,7 +148,7 @@ if (!$admin) {
         <span class="viagem-info">
           <span class="viagem-topo"><span class="chip-meta"><span class="<?= $p['passou'] ? 'chip-late' : 'chip-ok' ?>">#<?= (int) $p['id'] ?></span> <?= e($p['label']) ?></span> <?= status_badge($p['status']) ?></span>
           <span class="viagem-rota"><?= e($p['de']) ?> → <?= e($p['para']) ?></span>
-          <span class="viagem-cli"><?= e($p['cliente']) ?></span>
+          <?php if ($admin): ?><span class="viagem-cli"><?= e($p['cliente']) ?></span><?php endif; ?>
         </span>
       </button>
     <?php endforeach; ?>

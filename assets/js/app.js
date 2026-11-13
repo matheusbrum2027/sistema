@@ -358,6 +358,29 @@
   function gerarPdf(botao) {
     const folha = botao.closest('dialog')?.querySelector('.reserva-folha');
     if (!folha) return;
+    const nome = (folha.getAttribute('data-pdf-nome') || 'Reserva').trim();
+    const celular = window.matchMedia && window.matchMedia('(max-width: 900px), (pointer: coarse)').matches;
+    if (celular && abrirPdfNoCelular(folha, nome)) return;
+    imprimirFolha(folha, nome);
+  }
+  function abrirPdfNoCelular(folha, nome) {
+    const win = window.open('', '_blank');
+    if (!win) return false;
+    const clone = folha.cloneNode(true);
+    clone.querySelectorAll('img').forEach((img) => {
+      if (img.src) img.setAttribute('src', img.src);
+    });
+    const estilos = [...document.querySelectorAll('link[rel="stylesheet"]')]
+      .map((link) => link.href)
+      .filter(Boolean);
+    const seguro = nome.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const links = estilos.map((href) => '<link rel="stylesheet" href="' + href.replace(/"/g, '%22') + '">').join('');
+    win.document.open();
+    win.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + seguro + '</title>' + links + '</head><body class="printing"><div id="print-root">' + clone.outerHTML + '</div><script>window.addEventListener("load",function(){setTimeout(function(){window.focus();window.print()},600)})<\/script></body></html>');
+    win.document.close();
+    return true;
+  }
+  function imprimirFolha(folha, nome) {
     let root = document.getElementById('print-root');
     if (!root) {
       root = document.createElement('div');
@@ -365,6 +388,8 @@
       document.body.appendChild(root);
     }
     root.innerHTML = folha.outerHTML;
+    const tituloAntes = document.title;
+    document.title = nome;
     let limparTimer = 0;
     const mql = window.matchMedia ? window.matchMedia('print') : null;
     const noPrintChange = (ev) => {
@@ -375,6 +400,7 @@
       if (limparTimer) clearTimeout(limparTimer);
       limparTimer = 0;
       document.body.classList.remove('printing');
+      document.title = tituloAntes;
       window.removeEventListener('afterprint', limpar);
       if (mql) {
         if (mql.removeEventListener) mql.removeEventListener('change', noPrintChange);
@@ -387,11 +413,8 @@
       if (mql.addEventListener) mql.addEventListener('change', noPrintChange);
       else if (mql.addListener) mql.addListener(noPrintChange);
     }
-    // Rede de segurança se afterprint não disparar.
     limparTimer = setTimeout(limpar, 120000);
-    requestAnimationFrame(function () {
-      requestAnimationFrame(function () { window.print(); });
-    });
+    window.print();
   }
   function aplicarTema(tema, gravar) {
     if (tema === 'dark') document.documentElement.dataset.theme = 'dark';

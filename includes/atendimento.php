@@ -371,10 +371,7 @@ function atendimento_montar_ficha(array $db, array $trip, string $papel, bool $c
         'Passageiros' => (string) ($trip['pax'] ?? ''),
         'Tipo' => (string) ($trip['tipo'] ?? ''),
     ];
-    if ($papel === 'motorista') {
-        $linhas['Passageiro'] = (string) ($trip['cliente'] ?? '');
-        $linhas['Contato do passageiro'] = (string) ($trip['telefone'] ?? '');
-    } else {
+    if ($papel !== 'motorista') {
         $linhas['Cliente'] = (string) ($trip['cliente'] ?? '');
         if ((string) ($trip['quem'] ?? '') !== 'parceiro') {
             $linhas['Motorista'] = nome_motorista($db, $trip['motorista_id'] ?? 0);
@@ -583,8 +580,6 @@ function atendimento_card_texto_motorista(array $db, array $trip, string $nomeMo
             . ($trecho !== '' ? ' (' . $trecho . ')' : '') . '.',
         '',
         '📅 *Quando:* ' . br_date((string) ($trip['data'] ?? '')) . ' · ' . (string) ($trip['hora'] ?? '--:--'),
-        '👤 *Passageiro:* ' . (string) ($trip['cliente'] ?? ''),
-        '📞 *Contato:* ' . (string) ($trip['telefone'] ?? ''),
         '📍 *Embarque:* ' . (string) ($trip['origem'] ?? ''),
         '🏁 *Desembarque:* ' . (string) ($trip['destino'] ?? ''),
         '👥 *Pax:* ' . (string) ($trip['pax'] ?? ''),

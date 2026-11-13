@@ -1186,19 +1186,25 @@ html[data-theme="dark"] .com-card-mark { background: #1b2028; border-color: #3d4
 .doc-stops strong, .doc-stops span { display: block; }
 .doc-stops span { margin-top: 2px; color: #5c6570; font-size: 12px; }
 .doc-sign {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 22px;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 28px; align-items: start;
   margin: 22px 16px 8px; break-inside: avoid; page-break-inside: avoid;
 }
-.doc-sign-box { min-width: 0; }
+.doc-sign-box { min-width: 0; display: flex; flex-direction: column; }
 .doc-sign-box p {
   margin: 0 0 6px; font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
   text-transform: uppercase; color: var(--doc-muted);
 }
-.doc-sign-space { height: 52px; border-bottom: 1px solid #1c1c1c; }
-.doc-sign-img { display: block; max-width: 200px; max-height: 72px; width: auto; height: auto; object-fit: contain; margin: 0 0 4px; }
+.doc-sign-line {
+  height: 68px; border-bottom: 1.5px solid #1c1c1c;
+  display: flex; align-items: flex-end; justify-content: center;
+}
+.doc-sign-img {
+  display: block; max-width: 100%; max-height: 62px; width: auto; height: auto;
+  object-fit: contain; object-position: center bottom; margin: 0;
+}
 .doc-sign-box strong, .doc-sign-box span { display: block; }
-.doc-sign-box strong { margin-top: 6px; font-size: 13px; }
-.doc-sign-box span { color: var(--doc-muted); font-size: 12px; }
+.doc-sign-box strong { margin-top: 8px; font-size: 13px; min-height: 1.25em; }
+.doc-sign-box span { color: var(--doc-muted); font-size: 12px; min-height: 1.25em; }
 .doc-page-foot {
   display: flex; justify-content: space-between; gap: 16px; align-items: flex-end;
   margin: 18px 16px 8px; padding-top: 10px; border-top: 1px solid #e1e5ec;
@@ -1548,7 +1554,8 @@ html[data-theme="dark"] .nav-scroll::-webkit-scrollbar-thumb { background: #4650
 
 @media screen and (max-width: 720px) {
   .reserva-folha .doc-page { padding-bottom: 8px; }
-  .doc-banner-inner, .doc-title-row, .doc-facts, .doc-sign, .doc-fact-route, .doc-company-meta, .doc-page-foot { grid-template-columns: 1fr; display: grid; }
+  .doc-banner-inner, .doc-title-row, .doc-facts, .doc-fact-route, .doc-company-meta, .doc-page-foot { grid-template-columns: 1fr; display: grid; }
+  .doc-sign { grid-template-columns: 1fr 1fr; }
   .doc-banner-inner { display: flex; flex-direction: column; align-items: flex-start; }
   .doc-fact-route { display: grid; }
   .doc-route-line { width: 2px; height: 28px; margin: 4px 0 4px 4px; background-image: linear-gradient(180deg, var(--doc-orange) 40%, transparent 40%); background-size: 2px 8px; }
@@ -1690,6 +1697,19 @@ html[data-theme="dark"] .cfg-switch,
 html[data-theme="dark"] .cfg-passos li { background: #232833; border-color: #323a48; }
 html[data-theme="dark"] .cfg-danger { border-color: #6a3030; }
 
+body.printing .app,
+body.printing dialog,
+body.printing .flash,
+body.printing .flutuantes-direita { display: none !important; }
+body.printing #print-root {
+  display: block !important;
+  width: 100%;
+  max-width: 190mm;
+  margin: 0 auto;
+  background: #fff;
+  color: #1c2430;
+}
+
 @media print {
   @page { size: A4; margin: 10mm; }
   html, body { background: #fff !important; }
@@ -1777,7 +1797,9 @@ html[data-theme="dark"] .cfg-danger { border-color: #6a3030; }
   body.printing .doc-table tr:nth-child(odd) th,
   body.printing .doc-table tr:nth-child(odd) td { background: #fff4ec !important; }
   body.printing .sheet-logo { max-width: 74px; max-height: 74px; }
-  body.printing .doc-sign-img { max-width: 52mm; max-height: 22mm; }
+  body.printing .doc-sign { align-items: start !important; }
+  body.printing .doc-sign-line { height: 24mm; }
+  body.printing .doc-sign-img { max-width: 70mm; max-height: 22mm; margin: 0 auto; }
   body.printing .detalhe-lista { grid-template-columns: 48mm 1fr; }
   body.printing .tone-ok .doc-cancel-badge { background: #1f9d55 !important; color: #fff !important; }
   body.printing .tone-warn .doc-cancel-badge { background: #d4a017 !important; color: #fff !important; }

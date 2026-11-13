@@ -218,6 +218,15 @@ function aviso_resumo_reserva(array $trip): string
     return trim((string) ($trip['cliente'] ?? 'Cliente') . ' · ' . $trecho . ' · ' . trim($quando . ' ' . $hora), " ·");
 }
 
+function aviso_resumo_motorista(array $trip): string
+{
+    $data = trim((string) ($trip['data'] ?? ''));
+    $quando = ($data !== '' && function_exists('br_date') ? br_date($data) : $data);
+    $hora = trim((string) ($trip['hora'] ?? ''));
+    $trecho = trim((string) ($trip['origem'] ?? '') . ' → ' . (string) ($trip['destino'] ?? ''));
+    return trim($trecho . ' · ' . trim($quando . ' ' . $hora), " ·");
+}
+
 function aviso_publicar(array &$db, string $tipo, string $titulo, string $corpo, string $url, string $audiencia = 'admin', array $motoristas = []): void
 {
     $motoristas = array_values(array_unique(array_filter(array_map('intval', $motoristas), static fn(int $id): bool => $id > 0)));
@@ -289,7 +298,7 @@ function aviso_viagem_motoristas(array &$db, array $trip, string $titulo): void
         $db,
         'reserva',
         $titulo,
-        aviso_resumo_reserva($trip),
+        aviso_resumo_motorista($trip),
         'index.php?p=agenda&ver=' . (int) ($trip['id'] ?? 0),
         'motorista',
         $ids
@@ -324,7 +333,7 @@ function aviso_motoristas_atribuidos(array &$db, array $antes, array $depois): v
         $db,
         'reserva',
         'Nova viagem #' . (int) ($depois['id'] ?? 0),
-        aviso_resumo_reserva($depois),
+        aviso_resumo_motorista($depois),
         'index.php?p=agenda&ver=' . (int) ($depois['id'] ?? 0),
         'motorista',
         $novos
