@@ -418,7 +418,7 @@ $catEdit = in_array($catAtual, $catsOk, true) ? $catAtual : 'SED';
       </div>
 
       <h3 class="sec-title">Veículo e Motorista</h3>
-      <?php if ($solForm > 0): ?><p class="hint">Obrigatório: arraste um motorista da frota e solte no trecho. A conversão não conclui sem motorista.</p><?php endif; ?>
+      <?php if ($solForm > 0): ?><p class="hint">Obrigatório: escolha um motorista da frota e toque no trecho. A conversão não conclui sem motorista.</p><?php endif; ?>
       <label class="field">Quem fará a viagem? *
         <select name="quem" id="quem-viagem">
           <option value="motorista"<?= ($edit['quem'] ?? 'motorista') !== 'parceiro' ? ' selected' : '' ?>>Motorista</option>
@@ -429,13 +429,19 @@ $catEdit = in_array($catAtual, $catsOk, true) ? $catAtual : 'SED';
       <div id="bloco-motorista">
         <input type="hidden" name="equipe_modo" value="1">
         <input type="hidden" name="repasse" id="repasse-hidden" value="<?= e($edit ? number_format((float) ($edit['repasse'] ?? 0), 2, ',', '') : '0,00') ?>">
-        <p class="hint">À esquerda, arraste o motorista e solte no trecho da direita. Só funciona arrastando. Em cada nome, informe o repasse daquele motorista.</p>
+        <p class="hint">Busque o motorista na caixa. No celular, toque no nome e depois no trecho. No computador, também dá para arrastar. Em cada nome, informe o repasse daquele motorista.</p>
         <div class="engate">
           <div class="engate-pool" id="engate-pool">
             <strong>Motoristas</strong>
+            <div class="engate-busca">
+              <input id="engate-busca" type="search" placeholder="Buscar motorista" autocomplete="off" enterkeyhint="search" aria-autocomplete="list" aria-controls="engate-sugestoes">
+              <div class="engate-sugestoes" id="engate-sugestoes" hidden></div>
+            </div>
+            <div class="engate-chips" id="engate-chips">
             <?php foreach ($frotaEngate as $m): ?>
               <button type="button" class="engate-chip" draggable="true" data-id="<?= (int) $m['id'] ?>" data-nome="<?= e($m['nome']) ?>"><?= e($m['nome']) ?></button>
             <?php endforeach; ?>
+            </div>
           </div>
           <div class="engate-alvos" id="engate-alvos"></div>
         </div>
@@ -593,6 +599,10 @@ foreach ($db['motoristas'] as $m) {
   const alvos = document.getElementById('engate-alvos');
   const oculto = document.getElementById('engate-hidden');
   const repasseHidden = document.getElementById('repasse-hidden');
+  const buscaMot = document.getElementById('engate-busca');
+  const sugestoesMot = document.getElementById('engate-sugestoes');
+  let escolhido = 0;
+  let ignorarClique = false;
   const times = {};
   const repasses = {};
   if (dadosOcup.time && dadosOcup.time.length && dadosOcup.perna) {
@@ -705,7 +715,7 @@ foreach ($db['motoristas'] as $m) {
       if (!(times[chave] || []).length) {
         const vazio = document.createElement('span');
         vazio.className = 'engate-vazio';
-        vazio.textContent = 'Arraste e solte o motorista aqui';
+        vazio.textContent = escolhido > 0 ? 'Toque aqui para colocar o motorista' : 'Toque no motorista e depois aqui';
         lista.appendChild(vazio);
       }
       zona.appendChild(lista);
@@ -713,6 +723,25 @@ foreach ($db['motoristas'] as $m) {
     });
     sincronizarEquipe();
     syncConflito();
+    marcarEscolha();
+  }
+  function marcarEscolha() {
+    document.querySelectorAll('.engate-chip').forEach((chip) => {
+      chip.classList.toggle('is-escolhido', Number(chip.dataset.id) === escolhido);
+    });
+    document.querySelectorAll('.engate-slot').forEach((zona) => {
+      zona.classList.toggle('is-espera', escolhido > 0);
+    });
+  }
+  function escolherMotorista(id) {
+    escolhido = Number(id) || 0;
+    marcarEscolha();
+    const chaves = chavesAtuais();
+    if (escolhido && chaves.length === 1) {
+      porNoTrecho(chaves[0], escolhido);
+      escolhido = 0;
+      marcarEscolha();
+    }
   }
   function porNoTrecho(chave, id) {
     if (!chave || !id) return;
@@ -752,18 +781,38 @@ foreach ($db['motoristas'] as $m) {
     });
     alvos.addEventListener('click', (event) => {
       const tirar = event.target.closest('.engate-tirar');
-      if (!tirar) return;
-      const zona = tirar.closest('.engate-slot');
-      const id = Number(tirar.dataset.id || 0);
-      const chave = zona?.dataset.chave;
-      times[chave] = (times[chave] || []).filter((n) => n !== id);
-      if (repasses[chave]) delete repasses[chave][id];
-      desenharAlvos();
+      if (tirar) {
+        const zona = tirar.closest('.engate-slot');
+        const id = Number(tirar.dataset.id || 0);
+        const chave = zona?.dataset.chave;
+        times[chave] = (times[chave] || []).filter((n) => n !== id);
+        if (repasses[chave]) delete repasses[chave][id];
+        desenharAlvos();
+        return;
+      }
+      if (event.target.closest('.engate-repasse-input, .engate-tirar')) return;
+      const zona = event.target.closest('.engate-slot');
+      if (!zona || !escolhido) return;
+      porNoTrecho(zona.dataset.chave, escolhido);
+      escolhido = 0;
+      if (buscaMot) buscaMot.value = '';
+      filtrarMotoristas('');
+      marcarEscolha();
+    });
+    const pool = document.getElementById('engate-pool');
+    pool?.addEventListener('click', (event) => {
+      const chip = event.target.closest('.engate-chip');
+      if (!chip) return;
+      if (ignorarClique) {
+        ignorarClique = false;
+        return;
+      }
+      escolherMotorista(chip.dataset.id);
     });
     let arraste = null;
-    document.getElementById('engate-pool')?.addEventListener('pointerdown', (event) => {
+    pool?.addEventListener('pointerdown', (event) => {
       const chip = event.target.closest('.engate-chip');
-      if (!chip || (event.pointerType === 'mouse' && event.button !== 0)) return;
+      if (!chip || event.pointerType !== 'mouse' || event.button !== 0) return;
       arraste = { id: Number(chip.dataset.id || 0), x: event.clientX, y: event.clientY, foi: false };
     });
     window.addEventListener('pointermove', (event) => {
@@ -778,7 +827,62 @@ foreach ($db['motoristas'] as $m) {
       const id = arraste.id;
       const foi = arraste.foi;
       arraste = null;
-      if (foi) soltarEm(event, id);
+      if (foi) {
+        ignorarClique = true;
+        soltarEm(event, id);
+        escolhido = 0;
+        marcarEscolha();
+      }
+    });
+    function chipsMotorista() {
+      return [...(document.querySelectorAll('#engate-chips .engate-chip') || [])];
+    }
+    function filtrarMotoristas(texto, abrir) {
+      const q = String(texto || '').trim().toLocaleLowerCase('pt-BR');
+      const visiveis = [];
+      chipsMotorista().forEach((chip) => {
+        const ok = q === '' || (chip.dataset.nome || chip.textContent || '').toLocaleLowerCase('pt-BR').includes(q);
+        chip.hidden = q !== '' && !ok;
+        if (ok) visiveis.push(chip);
+      });
+      if (!sugestoesMot || !buscaMot) return;
+      sugestoesMot.replaceChildren();
+      if (!abrir || document.activeElement !== buscaMot) {
+        sugestoesMot.hidden = true;
+        return;
+      }
+      visiveis.slice(0, 8).forEach((chip) => {
+        const item = document.createElement('button');
+        item.type = 'button';
+        item.className = 'engate-sugestao';
+        item.dataset.id = chip.dataset.id || '';
+        item.textContent = chip.dataset.nome || chip.textContent || '';
+        sugestoesMot.appendChild(item);
+      });
+      sugestoesMot.hidden = sugestoesMot.childElementCount === 0;
+    }
+    buscaMot?.addEventListener('input', () => filtrarMotoristas(buscaMot.value, true));
+    buscaMot?.addEventListener('focus', () => filtrarMotoristas(buscaMot.value, true));
+    buscaMot?.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter') return;
+      const primeiro = sugestoesMot?.querySelector('.engate-sugestao');
+      if (!primeiro) return;
+      event.preventDefault();
+      escolherMotorista(primeiro.dataset.id);
+      buscaMot.value = '';
+      filtrarMotoristas('');
+    });
+    sugestoesMot?.addEventListener('pointerdown', (event) => {
+      const item = event.target.closest('.engate-sugestao');
+      if (!item) return;
+      event.preventDefault();
+      escolherMotorista(item.dataset.id);
+      if (buscaMot) buscaMot.value = '';
+      filtrarMotoristas('');
+    });
+    document.addEventListener('pointerdown', (event) => {
+      if (!sugestoesMot || event.target.closest('.engate-busca')) return;
+      sugestoesMot.hidden = true;
     });
   }
 
