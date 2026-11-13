@@ -422,6 +422,8 @@
     document.querySelectorAll('[data-theme-label]').forEach((el) => {
       el.textContent = tema === 'dark' ? 'Modo claro' : 'Modo escuro';
     });
+    const barra = document.querySelector('meta[name="theme-color"]');
+    if (barra) barra.setAttribute('content', tema === 'dark' ? '#12141a' : '#eef0f3');
     if (gravar !== false) localStorage.setItem('fln-tema', tema === 'dark' ? 'dark' : 'light');
   }
   function marcarConfirmado(form) {

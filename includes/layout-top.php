@@ -18,14 +18,14 @@ foreach ($db['automacoes'] as $autoRow) {
 <!doctype html>
 <html lang="pt-BR">
 <head>
-  <script>try{if(localStorage.getItem('fln-tema')==='dark')document.documentElement.dataset.theme='dark';}catch(e){}</script>
+  <script>try{var escuro=localStorage.getItem('fln-tema')==='dark';if(escuro)document.documentElement.dataset.theme='dark';var barra=document.querySelector('meta[name="theme-color"]');if(barra)barra.setAttribute('content',escuro?'#12141a':'#eef0f3');}catch(e){}</script>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="color-scheme" content="light dark">
   <meta name="theme-color" content="#f26b1a">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="<?= e($brand) ?>">
   <meta name="robots" content="noindex">
   <title><?= e($route['title']) ?> · <?= e($brand) ?></title>
@@ -42,7 +42,7 @@ foreach ($db['automacoes'] as $autoRow) {
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="assets/css/app.css?v=79">
+  <link rel="stylesheet" href="assets/css/app.css?v=80">
   <?php endif; ?>
 </head>
 <?php

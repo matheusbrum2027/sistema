@@ -1565,6 +1565,44 @@ html[data-theme="dark"] .nav-scroll::-webkit-scrollbar-thumb { background: #4650
   .doc-table td { padding-top: 2px; }
 }
 @media (max-width: 900px) {
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    overscroll-behavior: none;
+  }
+  body:has(.app) { overflow: hidden; }
+  .app {
+    height: 100svh;
+    max-height: 100svh;
+    min-height: 0;
+    overflow: hidden;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-left: env(safe-area-inset-left, 0px);
+  }
+  .main { min-height: 0; overflow: hidden; }
+  .topbar { position: relative; top: auto; flex: 0 0 auto; }
+  .content {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: calc(104px + env(safe-area-inset-bottom, 0px));
+  }
+  .sidebar {
+    height: auto;
+    top: env(safe-area-inset-top, 0px);
+    bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .flutuantes-direita { bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
+  .aviso-ao-vivo { bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
+  dialog[open], dialog:modal {
+    inset: calc(12px + env(safe-area-inset-top, 0px)) 12px calc(12px + env(safe-area-inset-bottom, 0px)) 12px !important;
+    max-height: none !important;
+  }
   .topbar { height: auto; flex-wrap: wrap; align-items: center; padding: 8px 10px; row-gap: 8px; }
   .topbar-brand { min-width: 0; flex: 1 1 auto; }
   .topbar-brand > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 58vw; }
@@ -1712,7 +1750,8 @@ body.printing #print-root {
 
 @media print {
   @page { size: A4; margin: 10mm; }
-  html, body { background: #fff !important; }
+  html, body { height: auto !important; overflow: visible !important; background: #fff !important; }
+  .app, .main, .content { height: auto !important; max-height: none !important; overflow: visible !important; }
   .sidebar, .topbar, .no-print, .scrim { display: none !important; }
   .app { display: block; }
   body, .content { background: #fff; }
@@ -1894,7 +1933,7 @@ html[data-theme="dark"] .dock-aba:focus-visible .dock-ico .ico { color: #fff; st
   background: #fff; color: var(--orange-dark); box-shadow: 0 0 0 2px var(--orange);
 }
 @media (max-width: 720px) {
-  .flutuantes-direita { top: auto; bottom: 88px; gap: 8px; }
+  .flutuantes-direita { top: auto; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); gap: 8px; }
   .dock-aba { height: 46px; width: 46px; }
   .dock-ico, .dock-ico .ico { width: 18px; height: 18px; }
   .dock-aba:hover,
