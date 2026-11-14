@@ -72,7 +72,6 @@ $campo = static function (string $chave) use ($edit, $pre): string {
 };
 $solForm = (int) ($convertendo['id'] ?? 0);
 $pg = slice_page($rows);
-$obsPagina = store_anotacoes(array_map(static fn(array $t): int => (int) ($t['id'] ?? 0), $pg['rows']));
 $keep = array_filter(['de' => $de, 'ate' => $ate, 'estado' => $estado, 'motorista' => $mot ?: null, 'faturado' => $fat, 'q' => $q]);
 view_head('<button class="btn btn-primary" type="button" data-open-dialog="dlg-reserva">+ Criar Reserva</button>', 'Transfer (' . count($db['transfers']) . ')');
 ?>
@@ -112,10 +111,9 @@ view_head('<button class="btn btn-primary" type="button" data-open-dialog="dlg-r
 <section class="card">
   <div class="table-wrap">
     <table class="table-reservas">
-      <thead><tr><th>Nº</th><th>Cliente</th><th>Contato</th><th>Tipo</th><th>Categoria</th><th>Trajeto</th><th>Observações</th><th class="col-quando">Data</th><th>Motorista</th><th>Valor</th><th class="col-pgto" title="Forma de pagamento">Forma pgto</th><th>Status</th><th>Ações</th></tr></thead>
+      <thead><tr><th>Nº</th><th>Cliente</th><th>Contato</th><th>Tipo</th><th>Categoria</th><th>Trajeto</th><th class="col-quando">Data</th><th>Motorista</th><th>Valor</th><th class="col-pgto" title="Forma de pagamento">Forma pgto</th><th>Status</th><th>Ações</th></tr></thead>
       <tbody>
         <?php foreach ($pg['rows'] as $trip): ?>
-          <?php $obsLinha = trim((string) ($obsPagina[(int) $trip['id']] ?? '')); ?>
           <tr>
             <td class="col-fixo" data-label="Nº"><a href="<?= e(href('agenda', ['ver' => $trip['id'], 'mes' => substr((string) $trip['data'], 0, 7)])) ?>">#<?= (int) $trip['id'] ?></a></td>
             <td class="col-cli" data-label="Cliente"><span class="clip" title="<?= e($trip['cliente']) ?>"><?= e($trip['cliente']) ?></span></td>
@@ -123,7 +121,6 @@ view_head('<button class="btn btn-primary" type="button" data-open-dialog="dlg-r
             <td class="col-fixo" data-label="Tipo"><?= tipo_badges($trip) ?></td>
             <td class="col-fixo" data-label="Categoria"><span class="tag"><?= e($trip['categoria'] ?? 'SED') ?></span></td>
             <td class="col-rota" data-label="Trajeto"><span class="clip" title="<?= e($trip['origem'] . ' → ' . $trip['destino']) ?>"><?= e($trip['origem']) ?> → <?= e($trip['destino']) ?></span></td>
-            <td class="col-obs" data-label="Observações"><span class="clip" title="<?= e($obsLinha) ?>"><?= $obsLinha !== '' ? e($obsLinha) : '—' ?></span></td>
             <td class="col-fixo col-quando" data-label="Data"><?= e(br_date((string) $trip['data'])) ?> <span class="hint"><?= e(substr((string) $trip['hora'], 0, 5)) ?></span></td>
             <td class="col-mot" data-label="Motorista"><span class="clip" title="<?= e(nome_motorista($db, $trip['motorista_id'])) ?>"><?= e(nome_motorista($db, $trip['motorista_id'])) ?></span></td>
             <td class="col-fixo" data-label="Valor"><?= e(brl((float) $trip['valor'])) ?></td>

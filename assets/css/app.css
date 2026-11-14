@@ -356,7 +356,7 @@ th {
   padding: 12px 10px; border-bottom: 1px solid var(--line); background: #f7f8fa; white-space: nowrap;
 }
 td { padding: 12px 10px; border-bottom: 1px solid #eef0f3; vertical-align: middle; }
-.table-reservas { table-layout: fixed; width: 100%; min-width: 1360px; font-size: 12.5px; }
+.table-reservas { table-layout: fixed; width: 100%; min-width: 1180px; font-size: 12.5px; }
 .table-reservas th,
 .table-reservas td { padding: 4px 8px; line-height: 1.2; vertical-align: middle; overflow: hidden; }
 .table-reservas .col-fixo,
@@ -370,12 +370,7 @@ td { padding: 12px 10px; border-bottom: 1px solid #eef0f3; vertical-align: middl
 }
 .table-reservas .col-cli { width: 13%; }
 .table-reservas .col-contato { width: 10%; }
-.table-reservas .col-rota { width: 16%; }
-.table-reservas .col-obs { width: 16%; }
-.table-reservas td.col-obs { vertical-align: top; overflow: visible; }
-.table-reservas td.col-obs .clip {
-  white-space: pre-wrap; overflow: auto; text-overflow: unset; max-height: 8.5em;
-}
+.table-reservas .col-rota { width: 22%; }
 .table-reservas .col-quando {
   width: 168px; min-width: 168px; overflow: visible; white-space: nowrap;
   font-variant-numeric: tabular-nums;
@@ -1743,7 +1738,7 @@ html[data-theme="dark"] .nav-scroll::-webkit-scrollbar-thumb { background: #4650
   html[data-theme="dark"] .cal-day.is-escolhido { background: #3a2618; }
   .table-wrap:has(.table-reservas) { overflow: visible; }
   .table-reservas, .table-reservas tbody { display: block; width: 100%; min-width: 0; table-layout: auto; }
-  .table-reservas .col-cli, .table-reservas .col-contato, .table-reservas .col-rota, .table-reservas .col-obs, .table-reservas .col-mot,
+  .table-reservas .col-cli, .table-reservas .col-contato, .table-reservas .col-rota, .table-reservas .col-mot,
   .table-reservas td.actions { width: auto; max-width: none; }
   .table-reservas thead { display: none; }
   .table-reservas tr {
@@ -1759,9 +1754,6 @@ html[data-theme="dark"] .nav-scroll::-webkit-scrollbar-thumb { background: #4650
     content: attr(data-label); color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase;
   }
   .table-reservas .clip { display: block; overflow: visible; text-overflow: unset; white-space: normal; }
-  .table-reservas td.col-obs .clip {
-    display: block; overflow: auto; white-space: pre-wrap; max-height: 8.5em;
-  }
   .table-reservas td.actions { display: flex; flex-wrap: wrap; }
   .table-reservas td.actions::before { content: none; }
   .table-reservas td.actions .btn { min-height: 36px; }
