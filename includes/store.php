@@ -205,10 +205,33 @@ function store_anotacao(int $id): string
     return is_string($r) ? $r : '';
 }
 
-/** A observação fica fora do documento grande. Busca só a reserva aberta. */
+/** Observações ficam fora do documento grande. Uma chamada devolve as da página ou do mês. */
+function store_anotacoes(array $ids): array
+{
+    $ids = array_values(array_unique(array_filter(array_map('intval', $ids), static fn(int $id): bool => $id > 0)));
+    if ($ids === [] || !store_remoto()) {
+        return [];
+    }
+    try {
+        $r = store_rpc('fln_anotacoes', ['p_ids' => $ids, 'p_base' => store_base()], 20);
+    } catch (Throwable) {
+        return [];
+    }
+    if (!is_array($r)) {
+        return [];
+    }
+    $saida = [];
+    foreach ($r as $id => $texto) {
+        if (is_string($texto) && trim($texto) !== '') {
+            $saida[(int) $id] = $texto;
+        }
+    }
+    return $saida;
+}
+
 function trip_com_obs(array $trip): array
 {
-    if (array_key_exists('obs', $trip)) {
+    if (trim((string) ($trip['obs'] ?? '')) !== '') {
         return $trip;
     }
     $trip['obs'] = store_anotacao((int) ($trip['id'] ?? 0));

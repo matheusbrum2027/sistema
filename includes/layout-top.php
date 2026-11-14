@@ -9,6 +9,9 @@ $partial = !$bare && strtolower((string) ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '
 $brand = (string) ($db['settings']['nome'] ?? 'Transfer FLN');
 $ranges = ['hoje' => 'Hoje', '7d' => '7 dias', '30d' => '30 dias', '90d' => '90 dias', '12m' => '12 meses'];
 $auto = $current === 'metricas';
+$btnCorridas = in_array($current, ['agenda', 'reservas'], true)
+    ? '<button class="btn topbar-atualizar" type="button" data-atualizar-corridas>' . icon('refresh') . ' Atualizar corridas</button>'
+    : '';
 foreach ($db['automacoes'] as $autoRow) {
     if ($autoRow['id'] === 'resumo' && empty($autoRow['ativo'])) {
         $auto = false;
@@ -23,14 +26,26 @@ foreach ($db['automacoes'] as $autoRow) {
   <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="color-scheme" content="light dark">
   <meta name="theme-color" content="#f26b1a">
+  <?php if (!preg_match('/Android/i', (string) ($_SERVER['HTTP_USER_AGENT'] ?? ''))): ?>
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="<?= e($brand) ?>">
+  <meta name="apple-mobile-web-app-title" content="FLN Transfer">
+  <?php endif; ?>
   <meta name="robots" content="noindex">
   <title><?= e($route['title']) ?> · <?= e($brand) ?></title>
   <?php if (!$partial): ?>
-  <link rel="manifest" href="manifest.json">
+  <script>
+  (function () {
+    var ua = navigator.userAgent || '';
+    var ipad = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
+    if (/Android|iPhone|iPad|iPod/i.test(ua) || ipad) return;
+    var link = document.createElement('link');
+    link.rel = 'manifest';
+    link.href = 'manifest.json';
+    document.head.appendChild(link);
+  })();
+  </script>
   <?php
     [$faviconHref, $faviconMime] = brand_favicon($db);
   ?>
@@ -42,7 +57,7 @@ foreach ($db['automacoes'] as $autoRow) {
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="assets/css/app.css?v=81">
+  <link rel="stylesheet" href="assets/css/app.css?v=91">
   <?php endif; ?>
 </head>
 <?php
@@ -71,6 +86,7 @@ if ($notifLigado) {
       </div>
     <?php else: ?>
       <div class="crumb"><?= e($route['group']) ?> / <?= e($route['title']) ?></div>
+      <?= $btnCorridas ?>
     <?php endif; ?>
   </header>
   <div class="content">
@@ -96,6 +112,7 @@ if ($notifLigado) {
           </div>
         <?php else: ?>
           <div class="crumb"><?= e($route['group']) ?> / <?= e($route['title']) ?></div>
+          <?= $btnCorridas ?>
         <?php endif; ?>
       </header>
       <div class="content">

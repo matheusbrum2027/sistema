@@ -10,14 +10,22 @@ if (realpath((string) ($_SERVER['SCRIPT_FILENAME'] ?? '')) === realpath(__FILE__
  * PDF texto mínimo (Helvetica / WinAnsi) — sem libs externas.
  * Uso: rota do motorista (sem valores financeiros).
  */
-function pdf_simples_bytes(string $titulo, array $linhas): string
+function pdf_simples_bytes(string $titulo, array $linhas, ?string $rodape = null, ?array $imagem = null): string
 {
+    $imagemJpeg = is_array($imagem) ? (string) ($imagem['jpeg'] ?? '') : '';
+    $imagemW = is_array($imagem) ? (int) ($imagem['w'] ?? 0) : 0;
+    $imagemH = is_array($imagem) ? (int) ($imagem['h'] ?? 0) : 0;
+    $temImagem = $imagemJpeg !== '' && $imagemW > 0 && $imagemH > 0;
     $blocos = [];
     $blocos[] = pdf_simples_latin1($titulo);
     $blocos[] = str_repeat('-', 48);
     foreach ($linhas as $rotulo => $valor) {
         $valor = trim((string) $valor);
         if ($valor === '') {
+            continue;
+        }
+        if ($valor === '__pdf_assinatura__') {
+            $blocos[] = ['imagem' => true];
             continue;
         }
         if (is_int($rotulo)) {
@@ -27,7 +35,10 @@ function pdf_simples_bytes(string $titulo, array $linhas): string
         }
     }
     $blocos[] = '';
-    $blocos[] = pdf_simples_latin1('Documento do motorista — apenas rotas, sem dados financeiros.');
+    $fecho = $rodape ?? 'Documento do motorista — apenas rotas, sem dados financeiros.';
+    if (trim($fecho) !== '') {
+        $blocos[] = pdf_simples_latin1($fecho);
+    }
 
     $pageW = 595.28;
     $pageH = 841.89;
@@ -49,14 +60,42 @@ function pdf_simples_bytes(string $titulo, array $linhas): string
         $y = $pageH - $margin - $fontSize;
     };
 
+    $desenharImagem = static function () use (&$buffer, &$y, $flush, $margin, $x, $temImagem, $imagemW, $imagemH): void {
+        if (!$temImagem) {
+            return;
+        }
+        $escala = min(210.0 / $imagemW, 62.0 / $imagemH);
+        if ($escala <= 0) {
+            return;
+        }
+        $iw = $imagemW * $escala;
+        $ih = $imagemH * $escala;
+        if ($y - $ih < $margin) {
+            $flush();
+        }
+        $base = $y - $ih;
+        $buffer .= sprintf("q %.2F 0 0 %.2F %.2F %.2F cm /Im1 Do Q\n", $iw, $ih, $x, $base);
+        $y = $base - 14;
+    };
+
     foreach ($blocos as $linha) {
-        foreach (pdf_simples_quebrar($linha, $maxChars) as $pedaco) {
-            if ($y < $margin) {
-                $flush();
+        if (is_array($linha)) {
+            $desenharImagem();
+            continue;
+        }
+        $partes = preg_split("/\n/", $linha);
+        if ($partes === false || $partes === []) {
+            $partes = [''];
+        }
+        foreach ($partes as $parte) {
+            foreach (pdf_simples_quebrar($parte, $maxChars) as $pedaco) {
+                if ($y < $margin) {
+                    $flush();
+                }
+                $esc = pdf_simples_esc($pedaco);
+                $buffer .= sprintf("BT /F1 %d Tf 1 0 0 1 %.2F %.2F Tm (%s) Tj ET\n", $fontSize, $x, $y, $esc);
+                $y -= $leading;
             }
-            $esc = pdf_simples_esc($pedaco);
-            $buffer .= sprintf("BT /F1 %d Tf 1 0 0 1 %.2F %.2F Tm (%s) Tj ET\n", $fontSize, $x, $y, $esc);
-            $y -= $leading;
         }
     }
     $flush();
@@ -73,6 +112,15 @@ function pdf_simples_bytes(string $titulo, array $linhas): string
     $objs[1] = '<< /Type /Catalog /Pages 2 0 R >>';
     $fontId = 3;
     $nextId = 4;
+    $imgId = 0;
+    if ($temImagem) {
+        $imgId = $nextId++;
+        $fluxo = $imagemJpeg . "\n";
+        $objs[$imgId] = '<< /Type /XObject /Subtype /Image /Width ' . $imagemW
+            . ' /Height ' . $imagemH
+            . ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ' . strlen($fluxo)
+            . " >>\nstream\n" . $fluxo . 'endstream';
+    }
     $pageRefs = [];
     $contentIds = [];
 
@@ -82,12 +130,16 @@ function pdf_simples_bytes(string $titulo, array $linhas): string
         $objs[$contentId] = '<< /Length ' . strlen($stream) . " >>\nstream\n" . $stream . 'endstream';
         $pageId = $nextId++;
         $pageRefs[] = $pageId . ' 0 R';
+        $recursos = '/Font << /F1 ' . $fontId . ' 0 R >>';
+        if ($imgId > 0) {
+            $recursos .= ' /XObject << /Im1 ' . $imgId . ' 0 R >>';
+        }
         $objs[$pageId] = sprintf(
-            '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 %.2F %.2F] /Contents %d 0 R /Resources << /Font << /F1 %d 0 R >> >> >>',
+            '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 %.2F %.2F] /Contents %d 0 R /Resources << %s >> >>',
             $pageW,
             $pageH,
             $contentId,
-            $fontId
+            $recursos
         );
     }
     $objs[2] = '<< /Type /Pages /Kids [' . implode(' ', $pageRefs) . '] /Count ' . count($pageRefs) . ' >>';

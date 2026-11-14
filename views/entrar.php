@@ -57,6 +57,7 @@ $segRestantes = 30 - (time() % 30);
         <h1><?= e($titulo) ?></h1>
         <?php if (!$etapa2fa): ?>
         <p class="lead"><?= $recuperar ? 'Informe o e-mail da conta. A resposta não indica se o cadastro existe.' : e($leadLogin) ?></p>
+        <?php if (!$recuperar): ?><p class="auth-entrada"><a href="<?= e(href('seja-motorista')) ?>">Quero ser motorista da FLN</a></p><?php endif; ?>
         <?php endif; ?>
       </div>
       <button class="btn theme-btn" type="button" data-theme-toggle><span data-theme-label>Modo escuro</span></button>

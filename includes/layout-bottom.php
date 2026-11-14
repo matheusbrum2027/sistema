@@ -21,7 +21,7 @@ declare(strict_types=1);
     <button class="btn btn-danger" type="button" id="confirma-sim">Sim</button>
   </footer>
 </dialog>
-<script src="assets/js/app.js?v=25"></script>
+<script src="assets/js/app.js?v=29"></script>
 <?php if (($_SESSION['role'] ?? '') === 'admin' && !empty($_SESSION['auth']) && empty($bare)): ?>
 <div class="flutuantes-direita" id="flutuantes-direita">
   <div class="chat-borda" id="chat-borda">
@@ -234,7 +234,7 @@ declare(strict_types=1);
 <script src="assets/vendor/leaflet/leaflet.js?v=1"></script>
 <script src="assets/js/chat.js?v=17"></script>
 <script src="assets/js/mapa.js?v=4"></script>
-<script src="assets/js/push.js?v=7"></script>
+<script src="assets/js/push.js?v=8"></script>
 <?php endif; ?>
 <?php endif; ?>
 </body>

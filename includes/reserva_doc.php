@@ -3,7 +3,28 @@ declare(strict_types=1);
 
 function reserva_pode_pdf(array $trip): bool
 {
-    return (($_SESSION['role'] ?? 'admin') !== 'motorista');
+    return !usuario_e_motorista();
+}
+
+function usuario_e_motorista(): bool
+{
+    return (($_SESSION['role'] ?? '') === 'motorista');
+}
+
+/** Nome, contato, documento, cupom, observações e valor cobrado ficam só com o administrador. */
+function trip_sem_dados_cliente(array $trip): array
+{
+    $trip['cliente'] = '';
+    $trip['telefone'] = '';
+    $trip['email'] = '';
+    $trip['documento'] = '';
+    $trip['cupom'] = '';
+    $trip['obs'] = '';
+    $trip['valor'] = 0;
+    $trip['pagamentos'] = [];
+    $trip['faturado'] = false;
+    $trip['cliente_id'] = null;
+    return $trip;
 }
 
 /**
@@ -44,10 +65,6 @@ function reserva_rota_motorista(array $db, array $trip, string $trecho = ''): ar
     if ((string) ($trip['tipo'] ?? '') === 'hora') {
         $linhas['Horas'] = (string) ($trip['qtd_horas'] ?? '');
     }
-    $obs = trim((string) ($trip['obs'] ?? ''));
-    if ($obs !== '') {
-        $linhas['Observações'] = $obs;
-    }
     if ((string) ($trip['tipo'] ?? '') === 'trajetos' && is_array($trip['trajetos'] ?? null)) {
         foreach ($trip['trajetos'] as $i => $t) {
             $linhas['Trajeto ' . (int) ($i + 1)] = trim(
@@ -57,8 +74,8 @@ function reserva_rota_motorista(array $db, array $trip, string $trecho = ''): ar
             );
         }
     }
-    // Segurança: nunca vazar campos financeiros neste documento.
-    foreach (['Valor', 'Repasse', 'Repasse do motorista', 'Seu repasse', 'Pagamento', 'Faturado', 'Cupom'] as $proibido) {
+    // Roteiro do motorista: sem dados do cliente e sem valores.
+    foreach (['Valor', 'Repasse', 'Repasse do motorista', 'Seu repasse', 'Pagamento', 'Faturado', 'Cupom', 'Cliente', 'Telefone', 'E-mail', 'CPF/CNPJ', 'Documento', 'Observações'] as $proibido) {
         unset($linhas[$proibido]);
     }
     return array_filter($linhas, static fn(string $v): bool => trim($v) !== '');
@@ -125,10 +142,17 @@ function reserva_linhas(array $db, array $trip): array
     if ($extras !== []) {
         $linhas['Outros motoristas'] = implode(', ', $extras);
     }
-    $ehMotorista = (($_SESSION['role'] ?? 'admin') === 'motorista');
+    $ehMotorista = usuario_e_motorista();
     $esconde = !empty($trip['esconder_valores']);
     if ($ehMotorista) {
-        unset($linhas['Cliente'], $linhas['Telefone'], $linhas['CPF/CNPJ'], $linhas['E-mail'], $linhas['Faturado']);
+        unset(
+            $linhas['Cliente'],
+            $linhas['Telefone'],
+            $linhas['CPF/CNPJ'],
+            $linhas['E-mail'],
+            $linhas['Cupom'],
+            $linhas['Faturado']
+        );
         if (!$esconde) {
             $linhas['Seu repasse'] = brl((float) ($trip['repasse'] ?? 0));
         }
@@ -145,21 +169,28 @@ function reserva_linhas(array $db, array $trip): array
             $linhas['Pagamento'] = implode(' · ', $pagos);
         }
     }
-    $linhas['Observações'] = (string) ($trip['obs'] ?? '');
+    if (!$ehMotorista) {
+        $linhas['Observações'] = (string) ($trip['obs'] ?? '');
+    }
     return array_filter($linhas, static fn(string $v): bool => trim($v) !== '');
 }
 
 function detalhe_linha(string $rotulo, string $valor): void
 {
+    $obs = $rotulo === 'Observações';
     echo '<dt>' . e($rotulo) . '</dt>';
-    echo '<dd><button type="button" class="copiar-dado no-print" data-copy="' . e($valor) . '" data-copy-keep="1" aria-label="Copiar ' . e($rotulo) . '">' . icon('copy') . '</button>';
+    echo '<dd' . ($obs ? ' class="obs-linha"' : '') . '><button type="button" class="copiar-dado no-print" data-copy="' . e($valor) . '" data-copy-keep="1" aria-label="Copiar ' . e($rotulo) . '">' . icon('copy') . '</button>';
     echo '<span>' . e($valor) . '</span>';
     echo '</dd>';
 }
 
 function reserva_detalhes(array $db, array $trip): void
 {
-    $trip = trip_com_obs($trip);
+    if (usuario_e_motorista()) {
+        $trip = trip_sem_dados_cliente($trip);
+    } else {
+        $trip = trip_com_obs($trip);
+    }
     echo '<dl class="detalhe-lista">';
     foreach (reserva_linhas($db, $trip) as $rotulo => $valor) {
         detalhe_linha((string) $rotulo, (string) $valor);
@@ -288,9 +319,99 @@ function reserva_tabela(array $linhas): void
 {
     echo '<table class="doc-table"><tbody>';
     foreach ($linhas as $rotulo => $valor) {
-        echo '<tr><th scope="row">' . e((string) $rotulo) . '</th><td>' . e($valor) . '</td></tr>';
+        $quebra = str_contains($valor, "\n") ? ' class="doc-pre"' : '';
+        echo '<tr><th scope="row">' . e((string) $rotulo) . '</th><td' . $quebra . '>' . e($valor) . '</td></tr>';
     }
     echo '</tbody></table>';
+}
+
+function assinatura_bin_aparada(string $bin): string
+{
+    if ($bin === '' || !function_exists('imagecreatefromstring')) {
+        return $bin;
+    }
+    $im = @imagecreatefromstring($bin);
+    if (!$im) {
+        return $bin;
+    }
+    $w = imagesx($im);
+    $h = imagesy($im);
+    if ($w < 2 || $h < 2 || $w * $h > 4000000) {
+        imagedestroy($im);
+        return $bin;
+    }
+    $minx = $w;
+    $miny = $h;
+    $maxx = 0;
+    $maxy = 0;
+    $achou = false;
+    for ($y = 0; $y < $h; $y++) {
+        for ($x = 0; $x < $w; $x++) {
+            $cor = imagecolorat($im, $x, $y);
+            $alfa = ($cor >> 24) & 127;
+            if ($alfa > 100) {
+                continue;
+            }
+            $r = ($cor >> 16) & 255;
+            $g = ($cor >> 8) & 255;
+            $b = $cor & 255;
+            if ($r > 236 && $g > 236 && $b > 236) {
+                continue;
+            }
+            $achou = true;
+            if ($x < $minx) {
+                $minx = $x;
+            }
+            if ($y < $miny) {
+                $miny = $y;
+            }
+            if ($x > $maxx) {
+                $maxx = $x;
+            }
+            if ($y > $maxy) {
+                $maxy = $y;
+            }
+        }
+    }
+    if (!$achou || $maxx <= $minx || $maxy <= $miny) {
+        imagedestroy($im);
+        return $bin;
+    }
+    $minx = max(0, $minx - 8);
+    $miny = max(0, $miny - 6);
+    $maxx = min($w - 1, $maxx + 8);
+    $maxy = min($h - 1, $maxy);
+    $cw = $maxx - $minx + 1;
+    $ch = $maxy - $miny + 1;
+    $out = imagecreatetruecolor($cw, $ch);
+    imagealphablending($out, false);
+    imagesavealpha($out, true);
+    $fundo = imagecolorallocatealpha($out, 0, 0, 0, 127);
+    imagefilledrectangle($out, 0, 0, $cw, $ch, $fundo);
+    imagealphablending($out, true);
+    imagecopy($out, $im, 0, 0, $minx, $miny, $cw, $ch);
+    ob_start();
+    imagepng($out);
+    $png = ob_get_clean();
+    imagedestroy($im);
+    imagedestroy($out);
+    return is_string($png) && $png !== '' ? $png : $bin;
+}
+
+function assinatura_src_aparada(string $src): string
+{
+    if (!preg_match('#^data:(image/[a-z0-9.+-]+);base64,([a-z0-9+/=\r\n]+)$#i', $src, $m)) {
+        return $src;
+    }
+    $bin = base64_decode($m[2], true);
+    if (!is_string($bin) || $bin === '') {
+        return $src;
+    }
+    $png = assinatura_bin_aparada($bin);
+    if ($png === $bin) {
+        return $src;
+    }
+    return 'data:image/png;base64,' . base64_encode($png);
 }
 
 function reserva_assinatura(array $s, array $trip): void
@@ -304,15 +425,16 @@ function reserva_assinatura(array $s, array $trip): void
         $assinatura = 'index.php?p=marca&k=assinatura&v=' . (int) ($s['marca_v'] ?? 1);
     }
     $arquivo = reserva_nome_pdf($trip);
-    echo '<footer class="doc-sign">';
-    echo '<div class="doc-sign-box"><p>Contratante</p><div class="doc-sign-line"></div><strong>' . e((string) ($trip['cliente'] ?? '')) . '</strong>';
     $documento = trim((string) ($trip['documento'] ?? ''));
-    echo '<span>' . e($documento !== '' ? $documento : ' ') . '</span></div>';
-    echo '<div class="doc-sign-box"><p>Contratada</p><div class="doc-sign-line">';
+    echo '<footer class="doc-sign">';
+    echo '<p>Contratante</p><p>Contratada</p>';
+    echo '<div class="doc-sign-line"></div><div class="doc-sign-line">';
     if ($assinatura !== '') {
-        echo '<img class="doc-sign-img" src="' . e($assinatura) . '" alt="Assinatura cadastrada">';
+        echo '<img class="doc-sign-img" src="' . e(assinatura_src_aparada($assinatura)) . '" alt="Assinatura cadastrada">';
     }
-    echo '</div><strong>' . e($nome) . '</strong><span>' . e((string) ($s['razao'] ?? '')) . '</span></div>';
+    echo '</div>';
+    echo '<strong>' . e((string) ($trip['cliente'] ?? '')) . '</strong><strong>' . e($nome) . '</strong>';
+    echo '<span>' . e($documento !== '' ? $documento : ' ') . '</span><span>' . e((string) ($s['razao'] ?? '')) . '</span>';
     echo '</footer>';
     echo '<span hidden class="doc-pdf-nome">' . e($arquivo) . '</span>';
 }
@@ -326,6 +448,156 @@ function reserva_nome_pdf(array $trip): string
         $cliente = 'Cliente';
     }
     return $cliente . ' - Reserva ' . (int) ($trip['id'] ?? 0);
+}
+
+function reserva_arquivo_pdf(array $trip): string
+{
+    $nome = str_replace(['\\', '/', ':', '*', '?', '"', '<', '>', '|'], ' ', reserva_nome_pdf($trip));
+    $nome = trim(preg_replace('/\s+/u', ' ', $nome) ?? '');
+    if ($nome === '') {
+        $nome = 'Reserva ' . (int) ($trip['id'] ?? 0);
+    }
+    return $nome . '.pdf';
+}
+
+function reserva_pdf_disposition(string $arquivo): string
+{
+    $arquivo = str_replace(["\r", "\n", '"'], '', $arquivo);
+    if (!str_ends_with(strtolower($arquivo), '.pdf')) {
+        $arquivo .= '.pdf';
+    }
+    $ascii = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $arquivo);
+    if (!is_string($ascii) || trim($ascii) === '') {
+        $ascii = 'reserva.pdf';
+    }
+    $ascii = preg_replace('/[^A-Za-z0-9 ._()\\-]+/', '', $ascii) ?? 'reserva.pdf';
+    $ascii = trim(preg_replace('/\s+/', ' ', $ascii) ?? '');
+    if ($ascii === '' || !str_ends_with(strtolower($ascii), '.pdf')) {
+        $ascii = 'reserva.pdf';
+    }
+    return 'attachment; filename="' . $ascii . '"; filename*=UTF-8\'\'' . rawurlencode($arquivo);
+}
+
+function reserva_assinatura_jpeg(array $s): ?array
+{
+    $src = trim((string) ($s['assinatura'] ?? ''));
+    if ($src === '' && !empty($s['tem_assinatura']) && function_exists('store_midia')) {
+        try {
+            $src = store_midia('assinatura');
+        } catch (Throwable) {
+            $src = '';
+        }
+    }
+    if (!preg_match('#^data:image/[a-z0-9.+-]+;base64,([a-z0-9+/=\r\n]+)$#i', $src, $m)) {
+        return null;
+    }
+    $bin = base64_decode($m[1], true);
+    if (!is_string($bin) || $bin === '' || !function_exists('imagecreatefromstring')) {
+        return null;
+    }
+    $bin = assinatura_bin_aparada($bin);
+    $im = @imagecreatefromstring($bin);
+    if (!$im) {
+        return null;
+    }
+    $w = imagesx($im);
+    $h = imagesy($im);
+    if ($w < 2 || $h < 2) {
+        imagedestroy($im);
+        return null;
+    }
+    $flat = imagecreatetruecolor($w, $h);
+    if (!$flat) {
+        imagedestroy($im);
+        return null;
+    }
+    $branco = imagecolorallocate($flat, 255, 255, 255);
+    imagefill($flat, 0, 0, $branco);
+    imagealphablending($flat, true);
+    imagecopy($flat, $im, 0, 0, 0, 0, $w, $h);
+    ob_start();
+    imagejpeg($flat, null, 90);
+    $jpeg = ob_get_clean();
+    imagedestroy($im);
+    imagedestroy($flat);
+    if (!is_string($jpeg) || strlen($jpeg) < 32) {
+        return null;
+    }
+    return ['jpeg' => $jpeg, 'w' => $w, 'h' => $h];
+}
+
+function reserva_pdf_confirmacao(array $db, array $trip): string
+{
+    $trip = trip_com_obs($trip);
+    $s = is_array($db['settings'] ?? null) ? $db['settings'] : [];
+    $linhas = reserva_linhas($db, $trip);
+    unset(
+        $linhas['Repasse do motorista'],
+        $linhas['Seu repasse'],
+        $linhas['Faturado'],
+        $linhas['Valor'],
+        $linhas['Pagamento']
+    );
+    $blocos = [];
+    foreach ($linhas as $rotulo => $valor) {
+        $blocos[$rotulo] = $valor;
+    }
+    if ((string) ($trip['tipo'] ?? '') === 'trajetos' && is_array($trip['trajetos'] ?? null)) {
+        foreach ($trip['trajetos'] as $i => $trecho) {
+            $blocos['Trajeto ' . (int) ($i + 1)] = trim(
+                (string) ($trecho['embarque'] ?? '') . ' → ' . (string) ($trecho['desembarque'] ?? '')
+                . ' · ' . br_date((string) ($trecho['data'] ?? '')) . ' ' . (string) ($trecho['hora'] ?? '')
+                . ' · ' . (int) ($trecho['pax'] ?? 1) . ' passageiros'
+            );
+        }
+    }
+    if (!empty($s['contrato_pdf'])) {
+        foreach ([
+            'contrato_modelo' => 'Contrato',
+            'contrato_cancelamento' => 'Cancelamento',
+            'contrato_clausulas' => 'Cláusulas',
+        ] as $chave => $titulo) {
+            $texto = trim((string) ($s[$chave] ?? ''));
+            if ($texto === '') {
+                continue;
+            }
+            $texto = apply_template($texto, $trip, $db);
+            $blocos[] = '—';
+            $blocos[] = mb_strtoupper($titulo);
+            foreach (preg_split("/\n+/", $texto) ?: [] as $linha) {
+                $linha = trim($linha);
+                if ($linha !== '') {
+                    $blocos[] = $linha;
+                }
+            }
+        }
+    }
+    $blocos[] = '—';
+    $blocos[] = 'Contratante: ' . trim((string) ($trip['cliente'] ?? ''));
+    $documento = trim((string) ($trip['documento'] ?? ''));
+    if ($documento !== '') {
+        $blocos[] = 'Documento: ' . $documento;
+    }
+    $nomeAssinatura = trim((string) ($s['assinatura_nome'] ?? ''));
+    if ($nomeAssinatura === '') {
+        $nomeAssinatura = trim((string) ($s['rep_legal'] ?? ''));
+    }
+    $blocos[] = '—';
+    $blocos[] = 'Contratada';
+    $jpeg = reserva_assinatura_jpeg($s);
+    if ($jpeg !== null) {
+        $blocos[] = '__pdf_assinatura__';
+    }
+    if ($nomeAssinatura !== '') {
+        $blocos[] = $nomeAssinatura;
+    }
+    $razao = trim((string) ($s['razao'] ?? ''));
+    if ($razao !== '') {
+        $blocos[] = $razao;
+    }
+    $rodape = trim(str_replace("\n", ' · ', reserva_rodape_texto($s)));
+    $titulo = 'Reserva #' . (int) ($trip['id'] ?? 0) . ' · ' . trim((string) ($trip['cliente'] ?? 'Cliente'));
+    return pdf_simples_bytes($titulo, $blocos, $rodape, $jpeg);
 }
 
 function reserva_folha_rodape(array $s, int $reservaId, int $pagina, int $total): void
@@ -397,6 +669,7 @@ function reserva_parse_cancelamento(string $texto): array
         ['48–72h', 'warn', '/entre 48|48\s*[àa\-–]\s*72|48–72/iu'],
         ['< 48h', 'bad', '/menos de 48|abaixo de 48|<\s*48/iu'],
         ['NO-SHOW', 'crit', '/no-?show|não comparecimento|nao comparecimento/iu'],
+        ['FORÇA', 'warn', '/for[cç]a maior/iu'],
     ];
     foreach ($linhas as $linha) {
         $linha = trim($linha);
@@ -563,7 +836,12 @@ function reserva_folha(array $db, array $trip): void
 
 function reserva_dialogos(array $db, array $trip, bool $admin, string $contexto = 'agenda'): void
 {
-    $trip = trip_com_obs($trip);
+    if ($admin && !usuario_e_motorista()) {
+        $trip = trip_com_obs($trip);
+    } else {
+        $admin = false;
+        $trip = trip_sem_dados_cliente($trip);
+    }
     $id = (int) $trip['id'];
     $legsCom = agenda_legs($trip);
     ?>
@@ -697,13 +975,13 @@ function reserva_dialogos(array $db, array $trip, bool $admin, string $contexto 
         <header class="dialog-h no-print">
           <h2>Pré-visualização da reserva #<?= $id ?></h2>
           <div class="dialog-tools">
-            <button class="btn btn-sm btn-primary" type="button" data-print>Baixar PDF</button>
+            <button class="btn btn-sm btn-primary" type="button" data-print data-pdf-arquivo="<?= e(reserva_arquivo_pdf($trip)) ?>" data-confirm="Baixar o PDF da reserva #<?= $id ?> de <?= e((string) ($trip['cliente'] ?? '')) ?>?" data-confirm-2="Segunda confirmação: o arquivo <?= e(reserva_arquivo_pdf($trip)) ?> será baixado agora.">Baixar PDF</button>
             <button class="dlg-x" type="button" data-close-dialog aria-label="Fechar">×</button>
           </div>
         </header>
         <div class="dialog-b"><?php reserva_folha($db, $trip); ?></div>
         <footer class="dlg-foot no-print">
-          <button class="btn btn-primary" type="button" data-print>Baixar PDF</button>
+          <button class="btn btn-primary" type="button" data-print data-pdf-arquivo="<?= e(reserva_arquivo_pdf($trip)) ?>" data-confirm="Baixar o PDF da reserva #<?= $id ?> de <?= e((string) ($trip['cliente'] ?? '')) ?>?" data-confirm-2="Segunda confirmação: o arquivo <?= e(reserva_arquivo_pdf($trip)) ?> será baixado agora.">Baixar PDF</button>
           <button class="btn" type="button" data-close-dialog>Fechar</button>
         </footer>
       </dialog>

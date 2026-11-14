@@ -29,17 +29,18 @@ view_head('', 'O contrato abaixo entra no PDF de confirmação da reserva. Toque
         <?php reserva_bloco_contrato('Cláusulas', (string) $s['contrato_clausulas']); ?>
       <?php endif; ?>
       <footer class="doc-sign">
-        <div class="doc-sign-box"><p>Contratante</p><div class="doc-sign-space"></div></div>
-        <div class="doc-sign-box">
-          <p>Contratada</p>
+        <p>Contratante</p>
+        <p>Contratada</p>
+        <div class="doc-sign-line"></div>
+        <div class="doc-sign-line">
           <?php if (!empty($s['assinatura'])): ?>
-            <img src="<?= e((string) $s['assinatura']) ?>" alt="Assinatura digital" class="doc-sign-img">
-          <?php else: ?>
-            <div class="doc-sign-space"></div>
+            <img src="<?= e(assinatura_src_aparada((string) $s['assinatura'])) ?>" alt="Assinatura digital" class="doc-sign-img">
           <?php endif; ?>
-          <strong><?= e($assNome) ?></strong>
-          <span><?= e((string) ($s['razao'] ?? '')) ?></span>
         </div>
+        <strong></strong>
+        <strong><?= e($assNome) ?></strong>
+        <span></span>
+        <span><?= e((string) ($s['razao'] ?? '')) ?></span>
       </footer>
     </div>
   </section>

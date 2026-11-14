@@ -72,6 +72,7 @@ $campo = static function (string $chave) use ($edit, $pre): string {
 };
 $solForm = (int) ($convertendo['id'] ?? 0);
 $pg = slice_page($rows);
+$obsPagina = store_anotacoes(array_map(static fn(array $t): int => (int) ($t['id'] ?? 0), $pg['rows']));
 $keep = array_filter(['de' => $de, 'ate' => $ate, 'estado' => $estado, 'motorista' => $mot ?: null, 'faturado' => $fat, 'q' => $q]);
 view_head('<button class="btn btn-primary" type="button" data-open-dialog="dlg-reserva">+ Criar Reserva</button>', 'Transfer (' . count($db['transfers']) . ')');
 ?>
@@ -111,9 +112,10 @@ view_head('<button class="btn btn-primary" type="button" data-open-dialog="dlg-r
 <section class="card">
   <div class="table-wrap">
     <table class="table-reservas">
-      <thead><tr><th>Nº</th><th>Cliente</th><th>Contato</th><th>Tipo</th><th>Categoria</th><th>Trajeto</th><th>Data</th><th>Motorista</th><th>Valor</th><th class="col-pgto" title="Forma de pagamento">Forma pgto</th><th>Status</th><th>Ações</th></tr></thead>
+      <thead><tr><th>Nº</th><th>Cliente</th><th>Contato</th><th>Tipo</th><th>Categoria</th><th>Trajeto</th><th>Observações</th><th class="col-quando">Data</th><th>Motorista</th><th>Valor</th><th class="col-pgto" title="Forma de pagamento">Forma pgto</th><th>Status</th><th>Ações</th></tr></thead>
       <tbody>
         <?php foreach ($pg['rows'] as $trip): ?>
+          <?php $obsLinha = trim((string) ($obsPagina[(int) $trip['id']] ?? '')); ?>
           <tr>
             <td class="col-fixo" data-label="Nº"><a href="<?= e(href('agenda', ['ver' => $trip['id'], 'mes' => substr((string) $trip['data'], 0, 7)])) ?>">#<?= (int) $trip['id'] ?></a></td>
             <td class="col-cli" data-label="Cliente"><span class="clip" title="<?= e($trip['cliente']) ?>"><?= e($trip['cliente']) ?></span></td>
@@ -121,7 +123,8 @@ view_head('<button class="btn btn-primary" type="button" data-open-dialog="dlg-r
             <td class="col-fixo" data-label="Tipo"><?= tipo_badges($trip) ?></td>
             <td class="col-fixo" data-label="Categoria"><span class="tag"><?= e($trip['categoria'] ?? 'SED') ?></span></td>
             <td class="col-rota" data-label="Trajeto"><span class="clip" title="<?= e($trip['origem'] . ' → ' . $trip['destino']) ?>"><?= e($trip['origem']) ?> → <?= e($trip['destino']) ?></span></td>
-            <td class="col-fixo" data-label="Data"><?= e(br_date((string) $trip['data'])) ?> <span class="hint"><?= e($trip['hora']) ?></span></td>
+            <td class="col-obs" data-label="Observações"><span class="clip" title="<?= e($obsLinha) ?>"><?= $obsLinha !== '' ? e($obsLinha) : '—' ?></span></td>
+            <td class="col-fixo col-quando" data-label="Data"><?= e(br_date((string) $trip['data'])) ?> <span class="hint"><?= e(substr((string) $trip['hora'], 0, 5)) ?></span></td>
             <td class="col-mot" data-label="Motorista"><span class="clip" title="<?= e(nome_motorista($db, $trip['motorista_id'])) ?>"><?= e(nome_motorista($db, $trip['motorista_id'])) ?></span></td>
             <td class="col-fixo" data-label="Valor"><?= e(brl((float) $trip['valor'])) ?></td>
             <td class="col-fixo col-pgto" data-label="Pgto"><?php $pgto = rotulo_forma_pgto($trip); ?><?= $pgto !== '' ? e($pgto) : '—' ?></td>
@@ -251,6 +254,14 @@ $catEdit = in_array($catAtual, $catsOk, true) ? $catAtual : 'SED';
       <?php if ($solForm > 0): ?><input type="hidden" name="solicitacao_id" value="<?= (int) $solForm ?>"><?php endif; ?>
       <input type="hidden" name="cliente_id" id="cliente-id" value="<?= (int) ($edit['cliente_id'] ?? 0) ?>">
 
+      <?php $obsVisivel = trim($campo('obs')); ?>
+      <?php if ($obsVisivel !== ''): ?>
+        <div class="box obs-reserva">
+          <span class="lbl">Observações da reserva</span>
+          <p><?= e($obsVisivel) ?></p>
+        </div>
+      <?php endif; ?>
+
       <h3 class="sec-title">Informações do Cliente</h3>
       <div class="box">
         <span class="lbl">Origem do cliente</span>
@@ -326,7 +337,7 @@ $catEdit = in_array($catAtual, $catsOk, true) ? $catAtual : 'SED';
             <input name="cupom" maxlength="40" value="<?= e($campo('cupom')) ?>" placeholder="FLN10">
           </label>
           <label class="field full">Mensagem / Observações
-            <textarea name="obs_ida" maxlength="800" placeholder="Duas malas grandes, voo G3 1234"><?= e(($tipoForm === 'ida' || $tipoForm === 'ida_volta') ? $campo('obs') : '') ?></textarea>
+            <textarea name="obs_ida" maxlength="2000" placeholder="Duas malas grandes, voo G3 1234"><?= e(($tipoForm === 'ida' || $tipoForm === 'ida_volta' || $tipoForm === 'trajetos') ? $campo('obs') : '') ?></textarea>
           </label>
         </div>
       </div>
@@ -353,7 +364,7 @@ $catEdit = in_array($catAtual, $catsOk, true) ? $catAtual : 'SED';
             <input name="cupom_volta" maxlength="40" placeholder="FLN10">
           </label>
           <label class="field full">Mensagem / Observações
-            <textarea name="obs_volta" maxlength="800" placeholder="Voo de retorno e horário"></textarea>
+            <textarea name="obs_volta" maxlength="2000" placeholder="Voo de retorno e horário"></textarea>
           </label>
         </div>
       </div>
@@ -412,7 +423,7 @@ $catEdit = in_array($catAtual, $catsOk, true) ? $catAtual : 'SED';
             <input name="cupom_hora" maxlength="40" value="<?= e($tipoForm === 'hora' ? $campo('cupom') : '') ?>" placeholder="FLN10">
           </label>
           <label class="field full">Itinerário / Observações
-            <textarea name="itinerario" maxlength="800" placeholder="Roteiro do dia, paradas e horários"><?= e($tipoForm === 'hora' ? $campo('obs') : '') ?></textarea>
+            <textarea name="itinerario" maxlength="2000" placeholder="Roteiro do dia, paradas e horários"><?= e($tipoForm === 'hora' ? $campo('obs') : '') ?></textarea>
           </label>
         </div>
       </div>
@@ -429,15 +440,16 @@ $catEdit = in_array($catAtual, $catsOk, true) ? $catAtual : 'SED';
       <div id="bloco-motorista">
         <input type="hidden" name="equipe_modo" value="1">
         <input type="hidden" name="repasse" id="repasse-hidden" value="<?= e($edit ? number_format((float) ($edit['repasse'] ?? 0), 2, ',', '') : '0,00') ?>">
-        <p class="hint">Busque o motorista na caixa. No celular, toque no nome e depois no trecho. No computador, também dá para arrastar. Em cada nome, informe o repasse daquele motorista.</p>
+        <p class="hint" id="engate-passo">Digite o nome e toque no motorista. Se houver mais de um trecho, toque em seguida no trecho. O repasse fica em cada nome colocado.</p>
         <div class="engate">
           <div class="engate-pool" id="engate-pool">
-            <strong>Motoristas</strong>
+            <label class="engate-busca-rotulo" for="engate-busca">Motorista</label>
             <div class="engate-busca">
-              <input id="engate-busca" type="search" placeholder="Buscar motorista" autocomplete="off" enterkeyhint="search" aria-autocomplete="list" aria-controls="engate-sugestoes">
+              <input id="engate-busca" type="search" placeholder="Digite o nome do motorista" autocomplete="off" enterkeyhint="search" inputmode="search" aria-autocomplete="list" aria-controls="engate-sugestoes" aria-expanded="false">
               <div class="engate-sugestoes" id="engate-sugestoes" hidden></div>
             </div>
-            <div class="engate-chips" id="engate-chips">
+            <p class="engate-escolha" id="engate-escolha" hidden></p>
+            <div class="engate-chips" id="engate-chips" hidden>
             <?php foreach ($frotaEngate as $m): ?>
               <button type="button" class="engate-chip" draggable="true" data-id="<?= (int) $m['id'] ?>" data-nome="<?= e($m['nome']) ?>"><?= e($m['nome']) ?></button>
             <?php endforeach; ?>
@@ -490,7 +502,7 @@ $catEdit = in_array($catAtual, $catsOk, true) ? $catAtual : 'SED';
         <span class="hint">Em Concluída, com repasse &gt; 0, gera automaticamente a despesa do motorista no Financeiro.</span>
       </label>
       <label class="field">Observações
-        <textarea name="obs" maxlength="800" placeholder="Uma informação por linha. Enter quebra a linha.&#10;Ex.: Nome do passageiro&#10;Voo e horário"><?= e($campo('obs')) ?></textarea>
+        <textarea name="obs" maxlength="2000" placeholder="Uma informação por linha. Enter quebra a linha.&#10;Ex.: Nome do passageiro&#10;Voo e horário"><?= e($campo('obs')) ?></textarea>
       </label>
     </div>
     <footer class="dlg-foot">
@@ -715,7 +727,7 @@ foreach ($db['motoristas'] as $m) {
       if (!(times[chave] || []).length) {
         const vazio = document.createElement('span');
         vazio.className = 'engate-vazio';
-        vazio.textContent = escolhido > 0 ? 'Toque aqui para colocar o motorista' : 'Toque no motorista e depois aqui';
+        vazio.textContent = escolhido > 0 ? 'Toque aqui para colocar o motorista' : 'O motorista escolhido aparece aqui';
         lista.appendChild(vazio);
       }
       zona.appendChild(lista);
@@ -726,11 +738,16 @@ foreach ($db['motoristas'] as $m) {
     marcarEscolha();
   }
   function marcarEscolha() {
-    document.querySelectorAll('.engate-chip').forEach((chip) => {
-      chip.classList.toggle('is-escolhido', Number(chip.dataset.id) === escolhido);
-    });
+    const chipEscolhido = Array.from(document.querySelectorAll('#engate-chips .engate-chip')).find((chip) => Number(chip.dataset.id) === escolhido);
+    const nomeEscolhido = chipEscolhido ? (chipEscolhido.dataset.nome || chipEscolhido.textContent || '') : '';
+    const avisoEscolha = document.getElementById('engate-escolha');
+    const varias = chavesAtuais().length > 1;
+    if (avisoEscolha) {
+      avisoEscolha.hidden = !(escolhido && varias);
+      avisoEscolha.textContent = escolhido && varias ? nomeEscolhido + ' selecionado. Toque no trecho.' : '';
+    }
     document.querySelectorAll('.engate-slot').forEach((zona) => {
-      zona.classList.toggle('is-espera', escolhido > 0);
+      zona.classList.toggle('is-espera', escolhido > 0 && varias);
     });
   }
   function escolherMotorista(id) {
@@ -838,28 +855,51 @@ foreach ($db['motoristas'] as $m) {
       return [...(document.querySelectorAll('#engate-chips .engate-chip') || [])];
     }
     function filtrarMotoristas(texto, abrir) {
-      const q = String(texto || '').trim().toLocaleLowerCase('pt-BR');
+      const q = semAcento(String(texto || '').trim());
       const visiveis = [];
       chipsMotorista().forEach((chip) => {
-        const ok = q === '' || (chip.dataset.nome || chip.textContent || '').toLocaleLowerCase('pt-BR').includes(q);
-        chip.hidden = q !== '' && !ok;
+        const nome = semAcento(chip.dataset.nome || chip.textContent || '');
+        const ok = q !== '' && nome.includes(q);
         if (ok) visiveis.push(chip);
+      });
+      visiveis.sort((a, b) => {
+        const na = semAcento(a.dataset.nome || a.textContent || '');
+        const nb = semAcento(b.dataset.nome || b.textContent || '');
+        const pa = na.startsWith(q) ? 0 : 1;
+        const pb = nb.startsWith(q) ? 0 : 1;
+        return pa - pb || na.localeCompare(nb, 'pt-BR');
       });
       if (!sugestoesMot || !buscaMot) return;
       sugestoesMot.replaceChildren();
-      if (!abrir || document.activeElement !== buscaMot) {
+      const mostrar = abrir && document.activeElement === buscaMot;
+      if (!mostrar || q === '') {
         sugestoesMot.hidden = true;
+        buscaMot.setAttribute('aria-expanded', 'false');
         return;
       }
-      visiveis.slice(0, 8).forEach((chip) => {
-        const item = document.createElement('button');
-        item.type = 'button';
-        item.className = 'engate-sugestao';
-        item.dataset.id = chip.dataset.id || '';
-        item.textContent = chip.dataset.nome || chip.textContent || '';
-        sugestoesMot.appendChild(item);
-      });
-      sugestoesMot.hidden = sugestoesMot.childElementCount === 0;
+      if (!visiveis.length) {
+        const vazioBusca = document.createElement('p');
+        vazioBusca.className = 'engate-busca-vazio';
+        vazioBusca.textContent = 'Nenhum motorista com esse nome.';
+        sugestoesMot.appendChild(vazioBusca);
+      } else {
+        visiveis.slice(0, 8).forEach((chip) => {
+          const item = document.createElement('button');
+          item.type = 'button';
+          item.className = 'engate-sugestao';
+          item.dataset.id = chip.dataset.id || '';
+          item.textContent = chip.dataset.nome || chip.textContent || '';
+          sugestoesMot.appendChild(item);
+        });
+        if (visiveis.length > 8) {
+          const mais = document.createElement('p');
+          mais.className = 'engate-busca-vazio';
+          mais.textContent = 'Há mais nomes. Digite mais letras.';
+          sugestoesMot.appendChild(mais);
+        }
+      }
+      sugestoesMot.hidden = false;
+      buscaMot.setAttribute('aria-expanded', 'true');
     }
     buscaMot?.addEventListener('input', () => filtrarMotoristas(buscaMot.value, true));
     buscaMot?.addEventListener('focus', () => filtrarMotoristas(buscaMot.value, true));

@@ -1,8 +1,5 @@
 (() => {
   const coarse = window.matchMedia('(pointer: coarse)').matches;
-  document.addEventListener('touchmove', (event) => {
-    if (event.touches && event.touches.length > 1) event.preventDefault();
-  }, { passive: false });
   ['gesturestart', 'gesturechange', 'gestureend'].forEach((name) => {
     document.addEventListener(name, (event) => event.preventDefault());
   });
@@ -123,6 +120,69 @@
         dlg.showModal();
       }).catch(() => {});
     }
+    calIniciar();
+  }
+  let calTipo = 'todas';
+  let calDia = '';
+  const calTela = window.matchMedia('(max-width: 900px)');
+  function calDiaValido(valor) {
+    return /^\d{4}-\d{2}-\d{2}$/.test(valor || '');
+  }
+  function calDevolver() {
+    document.querySelectorAll('#cal-foco-lista .chip').forEach((chip) => {
+      const dia = chip.getAttribute('data-dia') || '';
+      const dono = calDiaValido(dia) ? document.querySelector('.cal-day[data-dia="' + dia + '"] .cal-itens') : null;
+      chip.hidden = false;
+      if (dono) dono.appendChild(chip);
+    });
+  }
+  function calMostrar() {
+    const lista = document.getElementById('cal-foco-lista');
+    const titulo = document.getElementById('cal-foco-titulo');
+    const vazio = document.getElementById('cal-foco-vazio');
+    const qtd = document.getElementById('cal-foco-qtd');
+    if (!lista) return;
+    if (!calTela.matches) {
+      calDevolver();
+      document.querySelectorAll('.cal-day.is-escolhido').forEach((el) => el.classList.remove('is-escolhido'));
+      return;
+    }
+    calDevolver();
+    const busca = (document.getElementById('cal-busca')?.value || '').trim().toLowerCase();
+    const escolhido = calDiaValido(calDia) ? document.querySelector('.cal-day[data-dia="' + calDia + '"]') : null;
+    document.querySelectorAll('.cal-day.is-escolhido').forEach((el) => el.classList.remove('is-escolhido'));
+    if (escolhido) escolhido.classList.add('is-escolhido');
+    if (titulo) titulo.textContent = busca !== '' ? 'Busca no mês' : (escolhido?.getAttribute('data-rotulo') || 'Dia');
+    const origem = busca !== '' ? document.querySelectorAll('.cal-day .chip') : (escolhido ? escolhido.querySelectorAll('.chip') : []);
+    let visiveis = 0;
+    origem.forEach((chip) => {
+      const okTipo = calTipo === 'todas' || chip.classList.contains('chip-' + calTipo);
+      const okBusca = busca === '' || (chip.textContent || '').toLowerCase().includes(busca);
+      chip.hidden = !(okTipo && okBusca);
+      if (!chip.hidden) visiveis += 1;
+      lista.appendChild(chip);
+    });
+    if (qtd) qtd.textContent = visiveis === 1 ? '1 reserva' : visiveis + ' reservas';
+    if (vazio) {
+      vazio.hidden = visiveis !== 0;
+      vazio.textContent = busca !== '' || calTipo !== 'todas' ? 'Nenhuma reserva neste filtro.' : 'Nenhuma reserva neste dia.';
+    }
+  }
+  function calIniciar() {
+    if (!document.getElementById('cal-foco')) {
+      calDevolver();
+      return;
+    }
+    if (!calTela.matches) {
+      calMostrar();
+      return;
+    }
+    if (!calDiaValido(calDia) || !document.querySelector('.cal-day[data-dia="' + calDia + '"]')) {
+      const hoje = document.querySelector('.cal-day.today') || document.querySelector('.cal-day.tem:not(.out)') || document.querySelector('.cal-day:not(.out)');
+      calDia = hoje?.getAttribute('data-dia') || '';
+    }
+    document.querySelectorAll('[data-cal-tipo]').forEach((btn) => btn.classList.toggle('is-on', btn.getAttribute('data-cal-tipo') === calTipo));
+    calMostrar();
   }
   function marcarMenu(url) {
     const pagina = new URL(url, location.href).searchParams.get('p') || 'agenda';
@@ -205,6 +265,31 @@
     }
   }
   document.addEventListener('click', (event) => {
+    const atualizarCorridas = event.target.closest('[data-atualizar-corridas]');
+    if (atualizarCorridas) {
+      event.preventDefault();
+      if (!document.body.classList.contains('is-nav')) abrirSemRecarregar(location.href, false);
+      return;
+    }
+    const abrirDia = event.target.closest('.cal-abrir');
+    if (abrirDia && calTela.matches) {
+      const dia = abrirDia.getAttribute('data-cal-dia') || '';
+      if (calDiaValido(dia)) {
+        calDia = dia;
+        const busca = document.getElementById('cal-busca');
+        if (busca) busca.value = '';
+        calMostrar();
+        document.getElementById('cal-foco')?.scrollIntoView({ block: 'nearest' });
+      }
+      return;
+    }
+    const tipoBtn = event.target.closest('[data-cal-tipo]');
+    if (tipoBtn && document.getElementById('cal-foco')) {
+      calTipo = tipoBtn.getAttribute('data-cal-tipo') || 'todas';
+      document.querySelectorAll('[data-cal-tipo]').forEach((btn) => btn.classList.toggle('is-on', btn === tipoBtn));
+      calMostrar();
+      return;
+    }
     const olho = event.target.closest('[data-toggle-senha]');
     if (olho) {
       const campo = document.getElementById('senha');
@@ -356,65 +441,30 @@
     mostrarConfirmacao();
   }
   function gerarPdf(botao) {
-    const folha = botao.closest('dialog')?.querySelector('.reserva-folha');
-    if (!folha) return;
-    const nome = (folha.getAttribute('data-pdf-nome') || 'Reserva').trim();
-    const celular = window.matchMedia && window.matchMedia('(max-width: 900px), (pointer: coarse)').matches;
-    if (celular && abrirPdfNoCelular(folha, nome)) return;
-    imprimirFolha(folha, nome);
+    const dlg = botao.closest('dialog');
+    const folha = dlg?.querySelector('.reserva-folha');
+    const nome = (botao.getAttribute('data-pdf-arquivo') || '').trim()
+      || ((folha?.getAttribute('data-pdf-nome') || 'Reserva').trim() + '.pdf');
+    baixarPdfArquivo(dlg, nome);
   }
-  function abrirPdfNoCelular(folha, nome) {
-    const win = window.open('', '_blank');
-    if (!win) return false;
-    const clone = folha.cloneNode(true);
-    clone.querySelectorAll('img').forEach((img) => {
-      if (img.src) img.setAttribute('src', img.src);
-    });
-    const estilos = [...document.querySelectorAll('link[rel="stylesheet"]')]
-      .map((link) => link.href)
-      .filter(Boolean);
-    const seguro = nome.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-    const links = estilos.map((href) => '<link rel="stylesheet" href="' + href.replace(/"/g, '%22') + '">').join('');
-    win.document.open();
-    win.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + seguro + '</title>' + links + '</head><body class="printing"><div id="print-root">' + clone.outerHTML + '</div><script>window.addEventListener("load",function(){setTimeout(function(){window.focus();window.print()},600)})<\/script></body></html>');
-    win.document.close();
-    return true;
-  }
-  function imprimirFolha(folha, nome) {
-    let root = document.getElementById('print-root');
-    if (!root) {
-      root = document.createElement('div');
-      root.id = 'print-root';
-      document.body.appendChild(root);
+  function baixarPdfArquivo(dlg, nome) {
+    const id = (dlg?.id || '').replace(/^dlg-pdf-/, '');
+    if (!/^\d+$/.test(id)) return;
+    const arquivo = nome.replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim();
+    const url = 'index.php?p=agenda&baixar=pdf&id=' + encodeURIComponent(id);
+    const ios = /iPad|iPhone|iPod/.test(navigator.userAgent)
+      || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    if (ios) {
+      const aberto = window.open(url, '_blank');
+      if (aberto) return;
     }
-    root.innerHTML = folha.outerHTML;
-    const tituloAntes = document.title;
-    document.title = nome;
-    let limparTimer = 0;
-    const mql = window.matchMedia ? window.matchMedia('print') : null;
-    const noPrintChange = (ev) => {
-      if (!ev.matches) limpar();
-    };
-    const limpar = () => {
-      if (!document.body.classList.contains('printing')) return;
-      if (limparTimer) clearTimeout(limparTimer);
-      limparTimer = 0;
-      document.body.classList.remove('printing');
-      document.title = tituloAntes;
-      window.removeEventListener('afterprint', limpar);
-      if (mql) {
-        if (mql.removeEventListener) mql.removeEventListener('change', noPrintChange);
-        else if (mql.removeListener) mql.removeListener(noPrintChange);
-      }
-    };
-    document.body.classList.add('printing');
-    window.addEventListener('afterprint', limpar);
-    if (mql) {
-      if (mql.addEventListener) mql.addEventListener('change', noPrintChange);
-      else if (mql.addListener) mql.addListener(noPrintChange);
-    }
-    limparTimer = setTimeout(limpar, 120000);
-    window.print();
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = arquivo;
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
   }
   function aplicarTema(tema, gravar) {
     if (tema === 'dark') document.documentElement.dataset.theme = 'dark';
@@ -517,6 +567,10 @@
     document.getElementById('dlg-confirma')?.close();
     if (seguir) seguir();
   });
+  document.addEventListener('input', (event) => {
+    if (event.target?.id === 'cal-busca') calMostrar();
+  });
+  calTela.addEventListener('change', () => calIniciar());
   document.getElementById('dlg-confirma')?.addEventListener('close', () => {
     aoConfirmar = null;
     passoConfirmacao = 0;

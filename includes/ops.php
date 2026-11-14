@@ -838,8 +838,8 @@ function montar_reservas(array &$db, ?array $current): array
     $base['repasse'] = $repasse;
     $base['status'] = $status;
     $base['pax'] = $pax;
-    $obsGeral = clip(post('obs'), 800);
-    $obsIda = clip(post('obs_ida'), 800);
+    $obsGeral = clip(post('obs'), 2000);
+    $obsIda = clip(post('obs_ida'), 2000);
     $base['cupom'] = clip(post('cupom'), 40);
     $base['obs'] = $obsGeral !== '' ? $obsGeral : $obsIda;
     $base['obs_tocada'] = true;
@@ -876,7 +876,7 @@ function montar_reservas(array &$db, ?array $current): array
         $base['cupom'] = clip(post('cupom_hora'), 40) ?: $base['cupom'];
         $base['qtd_horas'] = clip(post('qtd_horas'), 10);
         $base['trajetos'] = [];
-        $base['obs'] = clip(post('itinerario'), 800) ?: $base['obs'];
+        $base['obs'] = clip(post('itinerario'), 2000) ?: $base['obs'];
         if ($usaEquipe) {
             aplicar_equipe($db, $base, ids_equipe('hora'));
         }
@@ -993,7 +993,7 @@ function montar_reservas(array &$db, ?array $current): array
     $volta['hora'] = $horaVolta;
     $volta['pax'] = $paxVolta > 0 ? max(1, min(40, $paxVolta)) : $pax;
     $volta['cupom'] = clip(post('cupom_volta'), 40);
-    $volta['obs'] = clip(post('obs_volta'), 800) ?: $base['obs'];
+    $volta['obs'] = clip(post('obs_volta'), 2000) ?: $base['obs'];
     $volta['motorista_id'] = $motoristaVolta;
     if ($usaEquipe) {
         aplicar_equipe($db, $ida, ids_equipe('ida'));
@@ -2326,11 +2326,21 @@ function hook_gravar(string $lista, array $registro): int
     }
 }
 
+function contrato_textos_padrao(): array
+{
+    return [
+        'contrato_modelo' => "1. DAS PARTES\n1.1. O presente contrato é celebrado entre as partes abaixo qualificadas.\n1.2. O CONTRATANTE declara ter conhecimento de todas as condições do serviço contratado.\n\n2. DO SERVIÇO\n2.1. O serviço de transfer será realizado conforme trajeto, data e horário especificados neste instrumento.\n2.2. O veículo será disponibilizado com motorista profissional habilitado.\n2.3. O serviço inclui busca e transporte do grupo até o destino indicado.\n\n3. DO VALOR\n3.1. O valor do serviço será aquele especificado neste contrato.\n3.2. O pagamento deverá ser efetuado na forma acordada entre as partes.",
+        'contrato_cancelamento' => "POLÍTICA DE CANCELAMENTO\n- Cancelamentos com mais de 72 horas de antecedência: reembolso integral.\n- Cancelamentos entre 48 e 72 horas: reembolso de 50%.\n- Cancelamentos com menos de 48 horas: sem reembolso.\n- No-show (não comparecimento): sem reembolso.\nA empresa reserva-se o direito de cancelar o serviço em casos de força maior, oferecendo reagendamento ou reembolso integral.",
+        'contrato_clausulas' => "CLÁUSULAS ADICIONAIS\n8.1. Este contrato é regido pelas leis da República Federativa do Brasil.\n8.2. Fica eleito o foro da comarca local para dirimir quaisquer dúvidas oriundas deste contrato.\n8.3. As partes declaram ter lido e concordado com todos os termos deste contrato.\n8.4. Alterações de trajeto durante o serviço poderão acarretar cobrança adicional.\n8.5. É proibido o consumo de bebidas alcoólicas e alimentos que possam danificar o veículo.",
+    ];
+}
+
 function operation_seed(): array
 {
-    $contratoModelo = "1. DAS PARTES\n1.1. O presente contrato é celebrado entre as partes abaixo qualificadas.\n1.2. O CONTRATANTE declara ter conhecimento de todas as condições do serviço contratado.\n\n2. DO SERVIÇO\n2.1. O serviço de transfer será realizado conforme trajeto, data e horário especificados neste instrumento.\n2.2. O veículo será disponibilizado com motorista profissional habilitado.\n2.3. O serviço inclui busca e transporte do grupo até o destino indicado.\n\n3. DO VALOR\n3.1. O valor do serviço será aquele especificado neste contrato.\n3.2. O pagamento deverá ser efetuado na forma acordada entre as partes.";
-    $contratoCancela = "POLÍTICA DE CANCELAMENTO\n- Cancelamentos com mais de 72 horas de antecedência: reembolso integral.\n- Cancelamentos entre 48 e 72 horas: reembolso de 50%.\n- Cancelamentos com menos de 48 horas: sem reembolso.\n- No-show (não comparecimento): sem reembolso.";
-    $contratoClausulas = "CLÁUSULAS ADICIONAIS\n8.1. Este contrato é regido pelas leis da República Federativa do Brasil.\n8.2. Fica eleito o foro da comarca local para dirimir quaisquer dúvidas oriundas deste contrato.\n8.3. As partes declaram ter lido e concordado com todos os termos deste contrato.\n8.4. Alterações de trajeto durante o serviço poderão acarretar cobrança adicional.\n8.5. É proibido o consumo de bebidas alcoólicas e alimentos que possam danificar o veículo.";
+    $contrato = contrato_textos_padrao();
+    $contratoModelo = $contrato['contrato_modelo'];
+    $contratoCancela = $contrato['contrato_cancelamento'];
+    $contratoClausulas = $contrato['contrato_clausulas'];
 
     $db = [
         'schema' => 2,

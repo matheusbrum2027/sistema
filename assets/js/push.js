@@ -139,7 +139,7 @@
 
   async function inscricaoAtual() {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) return null;
-    const reg = await navigator.serviceWorker.register('sw.js', { scope: './', updateViaCache: 'none' });
+    const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/', updateViaCache: 'none' });
     await navigator.serviceWorker.ready;
     return reg.pushManager.getSubscription();
   }
@@ -206,7 +206,7 @@
       dizer('Permissão negada. Sem ela o celular não vibra com o painel fechado.');
       return;
     }
-    const reg = await navigator.serviceWorker.register('sw.js', { scope: './', updateViaCache: 'none' });
+    const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/', updateViaCache: 'none' });
     await navigator.serviceWorker.ready;
     let sub = await reg.pushManager.getSubscription();
     if (!sub) {
@@ -248,6 +248,16 @@
   }
 
   document.addEventListener('click', (event) => {
+    const apk = event.target.closest('a[data-apk]');
+    if (apk) {
+      if (apk.getAttribute('data-baixando') === '1') {
+        event.preventDefault();
+        return;
+      }
+      apk.setAttribute('data-baixando', '1');
+      window.setTimeout(() => apk.removeAttribute('data-baixando'), 8000);
+      return;
+    }
     const alvo = event.target.closest('#push-ativar, #push-testar, #push-desligar, #push-instalar, [data-push-remover]');
     if (!alvo) return;
     event.preventDefault();
@@ -256,14 +266,14 @@
     else if (alvo.id === 'push-desligar') desligar().catch((err) => dizer(err.message || 'Não foi possível desligar.'));
     else if (alvo.id === 'push-instalar') {
       if (!instalarEvento) {
-        dizer('No Android, use o APK FLN Transfer nesta mesma tela. Neste computador, o Chrome oferece a instalação.');
+        dizer('No computador, o Chrome oferece a instalação. No celular, use só um caminho: APK no Android ou um único atalho no iPhone.');
         return;
       }
       instalarEvento.prompt().then(() => {
         instalarEvento = null;
         alvo.hidden = true;
       }).catch(() => {
-        dizer('A instalação não foi concluída. No Android, baixe o APK FLN Transfer nesta mesma tela.');
+        dizer('A instalação não foi concluída.');
       });
     } else if (alvo.hasAttribute('data-push-remover')) {
       enviar('push_remover', { id: alvo.getAttribute('data-push-remover') || '' })
@@ -273,6 +283,12 @@
   });
 
   window.addEventListener('beforeinstallprompt', (event) => {
+    var ua = navigator.userAgent || '';
+    var ipad = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
+    if (ehApk() || /Android|iPhone|iPad|iPod/i.test(ua) || ipad) {
+      event.preventDefault();
+      return;
+    }
     event.preventDefault();
     instalarEvento = event;
     const botao = document.getElementById('push-instalar');
@@ -333,7 +349,7 @@
 
   if (document.getElementById('push-estado')) atualizarEstado();
   else if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js', { scope: './', updateViaCache: 'none' }).catch(() => {});
+    navigator.serviceWorker.register('/sw.js', { scope: '/', updateViaCache: 'none' }).catch(() => {});
   }
   ligarApk();
 })();

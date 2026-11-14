@@ -376,10 +376,10 @@ function atendimento_montar_ficha(array $db, array $trip, string $papel, bool $c
         if ((string) ($trip['quem'] ?? '') !== 'parceiro') {
             $linhas['Motorista'] = nome_motorista($db, $trip['motorista_id'] ?? 0);
         }
-    }
-    $obs = trim((string) ($trip['obs'] ?? ''));
-    if ($obs !== '') {
-        $linhas['Observações'] = mb_substr($obs, 0, 400);
+        $obs = trim((string) ($trip['obs'] ?? ''));
+        if ($obs !== '') {
+            $linhas['Observações'] = mb_substr($obs, 0, 400);
+        }
     }
     $txt = [];
     foreach ($linhas as $k => $v) {
@@ -586,10 +586,6 @@ function atendimento_card_texto_motorista(array $db, array $trip, string $nomeMo
     ];
     if ($cat !== '') {
         $linhas[] = '🚐 *Categoria:* ' . $cat;
-    }
-    $obs = trim((string) ($trip['obs'] ?? ''));
-    if ($obs !== '') {
-        $linhas[] = '📝 *Obs.:* ' . mb_substr($obs, 0, 180);
     }
     $linhas[] = '';
     $linhas[] = 'Toque em *Confirmar ciência* ou *Ver roteiro PDF* (sem valores).';

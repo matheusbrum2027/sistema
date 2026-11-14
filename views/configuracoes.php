@@ -325,9 +325,9 @@ $classe2fa = $estado2fa === 'on' ? 'ok' : ($estado2fa === 'setup' ? 'warn' : 'of
     </ul>
   <?php endif; ?>
   <ol class="cfg-passos">
-    <li><strong>Android.</strong> Baixe o <a href="assets/app/fln-transfer.apk" download="fln-transfer.apk">APK FLN Transfer</a>, instale, entre no app e toque em Ativar neste aparelho.</li>
-    <li><strong>iPhone.</strong> No Safari, use Compartilhar → Adicionar à Tela de Início. Abra o ícone e ative as notificações.</li>
-    <li><strong>Computador.</strong> No Chrome, toque em Ativar neste aparelho (e Instalar aplicativo, se aparecer).</li>
+    <li><strong>Android.</strong> Instale só o <a href="assets/app/fln-transfer.apk" data-apk>APK FLN Transfer</a>. Se o Chrome pedir para instalar o site, cancele: isso cria um segundo aplicativo. Entre no APK e toque em Ativar neste aparelho.</li>
+    <li><strong>iPhone.</strong> No Safari, nesta página, use Compartilhar → Adicionar à Tela de Início uma única vez. Se já existirem dois ícones, apague um e fique com o FLN Transfer.</li>
+    <li><strong>Computador.</strong> No Chrome, toque em Ativar neste aparelho. Instalar aplicativo, quando aparecer, é só para o computador.</li>
     <li><strong>Teste.</strong> Feche o painel, bloqueie a tela e toque em Testar som e vibração.</li>
   </ol>
   <?php if (trim((string) ($s['vapid_public'] ?? '')) === ''): ?>

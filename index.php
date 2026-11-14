@@ -13,6 +13,12 @@ set_error_handler(static function (int $severity, string $message, string $file,
 define('APP', true);
 set_time_limit(180);
 
+$hospede = strtolower((string) preg_replace('/:\d+$/', '', (string) ($_SERVER['HTTP_HOST'] ?? '')));
+if ($hospede === 'driverflntransfer.app') {
+    header('Location: https://www.driverflntransfer.app' . (string) ($_SERVER['REQUEST_URI'] ?? '/'), true, 301);
+    exit;
+}
+
 require __DIR__ . '/includes/bootstrap.php';
 
 try {
@@ -48,7 +54,15 @@ if ((string) ($_GET['p'] ?? '') === 'marca') {
         http_response_code(404);
         exit;
     }
-    header('Content-Type: ' . strtolower($m[1]));
+    $tipo = strtolower($m[1]);
+    if ($chave === 'assinatura') {
+        $aparada = assinatura_bin_aparada($bin);
+        if ($aparada !== $bin) {
+            $bin = $aparada;
+            $tipo = 'image/png';
+        }
+    }
+    header('Content-Type: ' . $tipo);
     header('Cache-Control: public, max-age=86400');
     header('X-Content-Type-Options: nosniff');
     echo $bin;
@@ -417,7 +431,7 @@ if (in_array($current, $paginasPublicas, true) && !preg_match('/^[a-f0-9]{32}$/'
         $modo = 'financeiro';
     } elseif (in_array($current, $comCaixa, true)) {
         $modo = 'caixa';
-    } elseif ($current === 'agenda' && (string) ($_GET['fragment'] ?? '') === 'reserva') {
+    } elseif ($current === 'agenda' && ((string) ($_GET['fragment'] ?? '') === 'reserva' || (string) ($_GET['baixar'] ?? '') === 'pdf')) {
         $modo = 'uma';
         $idTrip = (int) ($_GET['id'] ?? 0);
     } elseif ($current === 'agenda') {
@@ -459,11 +473,48 @@ if ($current === 'agenda' && (string) ($_GET['fragment'] ?? '') === 'reserva') {
         echo 'Reserva não encontrada.';
         exit;
     }
-    $trip = trip_com_obs($trip);
+    if ($adminFragment) {
+        $trip = trip_com_obs($trip);
+    } else {
+        $trip = trip_sem_dados_cliente($trip);
+    }
     header('Content-Type: text/html; charset=utf-8');
     header('Cache-Control: private, no-store');
     $contexto = (string) ($_GET['contexto'] ?? 'agenda') === 'reservas' ? 'reservas' : 'agenda';
     reserva_dialogos($db, $trip, $adminFragment, $contexto);
+    exit;
+}
+if ($current === 'agenda' && (string) ($_GET['baixar'] ?? '') === 'pdf') {
+    $id = (int) ($_GET['id'] ?? 0);
+    if (!reserva_pode_pdf([])) {
+        http_response_code(403);
+        header('Content-Type: text/plain; charset=utf-8');
+        echo 'Sem permissão para baixar este PDF.';
+        exit;
+    }
+    $trip = null;
+    foreach ($db['transfers'] as $row) {
+        if ((int) ($row['id'] ?? 0) === $id) {
+            $trip = $row;
+            break;
+        }
+    }
+    if (!is_array($trip)) {
+        http_response_code(404);
+        header('Content-Type: text/plain; charset=utf-8');
+        echo 'Reserva não encontrada.';
+        exit;
+    }
+    $pdf = reserva_pdf_confirmacao($db, $trip);
+    $arquivo = reserva_arquivo_pdf($trip);
+    while (ob_get_level() > 0 && ob_end_clean()) {
+    }
+    header('Content-Type: application/pdf');
+    header('Content-Disposition: ' . reserva_pdf_disposition($arquivo));
+    header('Content-Length: ' . strlen($pdf));
+    header('Cache-Control: private, no-store');
+    header('X-Content-Type-Options: nosniff');
+    echo $pdf;
     exit;
 }
 $range = (string) ($_GET['range'] ?? '30d');
