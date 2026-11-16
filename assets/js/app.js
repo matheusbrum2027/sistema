@@ -25,14 +25,28 @@
 
   const side = document.querySelector('.sidebar');
   const scrim = document.querySelector('.scrim');
+  function fecharMenu() {
+    side?.classList.remove('is-open');
+    scrim?.classList.remove('show');
+  }
   document.querySelector('[data-nav-toggle]')?.addEventListener('click', () => {
     side?.classList.toggle('is-open');
     scrim?.classList.toggle('show');
   });
-  scrim?.addEventListener('click', () => {
-    side?.classList.remove('is-open');
-    scrim.classList.remove('show');
-  });
+  scrim?.addEventListener('click', fecharMenu);
+  function avisarFlash(root) {
+    (root || document).querySelectorAll('.flash').forEach((el) => {
+      if (el.dataset.armed === '1') return;
+      el.dataset.armed = '1';
+      const erro = el.classList.contains('flash-err');
+      const fechar = () => {
+        el.classList.add('is-saindo');
+        window.setTimeout(() => el.remove(), 280);
+      };
+      el.addEventListener('click', fechar);
+      window.setTimeout(fechar, erro ? 8000 : 4500);
+    });
+  }
 
   let searchTimer = 0;
   document.addEventListener('input', (event) => {
@@ -118,6 +132,7 @@
   }
   let pageTimer = 0;
   function iniciarPagina() {
+    avisarFlash(document);
     window.clearInterval(pageTimer);
     pageTimer = 0;
     const tick = document.getElementById('tick');
@@ -278,8 +293,7 @@
       const destino = resposta.url || url;
       if (gravar) history.pushState({ url: destino }, '', destino);
       marcarMenu(destino);
-      document.querySelector('.sidebar')?.classList.remove('is-open');
-      document.querySelector('.scrim')?.classList.remove('show');
+      fecharMenu();
       window.scrollTo(0, 0);
       document.documentElement.scrollTop = 0;
       document.body.scrollTop = 0;
@@ -291,7 +305,74 @@
       if (seq === navSeq) document.body.classList.remove('is-nav');
     }
   }
+  const pdfProntos = new WeakMap();
+  async function baixarPdfDoLink(link) {
+    if (link.getAttribute('aria-busy') === 'true') return;
+    const nome = (link.getAttribute('data-baixar-pdf') || link.getAttribute('download') || 'reserva.pdf').trim();
+    const titulo = nome.replace(/\.pdf$/i, '');
+    const guardado = pdfProntos.get(link);
+    const disparar = (href) => {
+      const a = document.createElement('a');
+      a.href = href;
+      a.download = nome;
+      a.rel = 'noopener';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    };
+    const compartilhar = async (file) => {
+      if (!navigator.canShare || !navigator.canShare({ files: [file] })) return false;
+      try {
+        await navigator.share({ files: [file], title: titulo });
+        return true;
+      } catch (erro) {
+        if (erro && erro.name === 'AbortError') return true;
+        return false;
+      }
+    };
+    if (guardado) {
+      if (await compartilhar(guardado.file)) return;
+      disparar(guardado.href);
+      return;
+    }
+    const rotulo = link.textContent;
+    link.setAttribute('aria-busy', 'true');
+    link.textContent = 'Preparando…';
+    try {
+      const resposta = await fetch(link.href, { credentials: 'same-origin', cache: 'no-store' });
+      const bruto = await resposta.arrayBuffer();
+      const bytes = new Uint8Array(bruto);
+      const ehPdf = resposta.ok && bytes.length > 5 && bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46;
+      if (!ehPdf) throw new Error('pdf');
+      const blob = new Blob([bruto], { type: 'application/pdf' });
+      const file = new File([blob], nome, { type: 'application/pdf' });
+      const href = URL.createObjectURL(blob);
+      pdfProntos.set(link, { file, href });
+      if (await compartilhar(file)) {
+        link.textContent = rotulo;
+        return;
+      }
+      disparar(href);
+      if (window.matchMedia('(pointer: coarse)').matches) {
+        link.textContent = 'Salvar PDF';
+        link.title = 'Toque de novo para salvar o arquivo no celular.';
+      } else {
+        link.textContent = rotulo;
+      }
+    } catch (erro) {
+      link.textContent = rotulo;
+      window.location.assign(link.href);
+    } finally {
+      link.removeAttribute('aria-busy');
+    }
+  }
   document.addEventListener('click', (event) => {
+    const pdfLink = event.target.closest('[data-baixar-pdf]');
+    if (pdfLink) {
+      event.preventDefault();
+      baixarPdfDoLink(pdfLink);
+      return;
+    }
     const atualizarCorridas = event.target.closest('[data-atualizar-corridas]');
     if (atualizarCorridas) {
       event.preventDefault();
@@ -423,6 +504,7 @@
     }
     const link = event.target.closest('a[href]');
     if (!link || !link.closest('[data-shell-nav]')) return;
+    if (link.closest('.sidebar')) fecharMenu();
     if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
     let destino;
     try { destino = new URL(link.href, location.href); } catch (err) { return; }

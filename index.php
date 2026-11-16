@@ -509,6 +509,13 @@ if ($current === 'agenda' && (string) ($_GET['baixar'] ?? '') === 'pdf') {
     $arquivo = reserva_arquivo_pdf($trip);
     while (ob_get_level() > 0 && ob_end_clean()) {
     }
+    if (!str_starts_with($pdf, '%PDF')) {
+        http_response_code(500);
+        header('Content-Type: text/plain; charset=utf-8');
+        echo 'Não foi possível gerar o PDF.';
+        exit;
+    }
+    @ini_set('zlib.output_compression', '0');
     header('Content-Type: application/pdf');
     header('Content-Disposition: ' . reserva_pdf_disposition($arquivo));
     header('Content-Length: ' . strlen($pdf));

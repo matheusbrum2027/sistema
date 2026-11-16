@@ -1041,7 +1041,8 @@ function reserva_dialogos(array $db, array $trip, bool $admin, string $contexto 
           </form>
         <?php endif; ?>
         <?php if (reserva_pode_pdf($trip)): ?>
-          <button class="btn btn-sm btn-primary" type="button" data-open-dialog="dlg-pdf-<?= $id ?>">Baixar PDF</button>
+          <a class="btn btn-sm btn-primary" href="index.php?p=agenda&amp;baixar=pdf&amp;id=<?= $id ?>" download="<?= e(reserva_arquivo_pdf($trip)) ?>" data-baixar-pdf="<?= e(reserva_arquivo_pdf($trip)) ?>">Baixar PDF</a>
+          <button class="btn btn-sm" type="button" data-open-dialog="dlg-pdf-<?= $id ?>">Prévia</button>
         <?php endif; ?>
       </footer>
     </dialog>
@@ -1127,13 +1128,13 @@ function reserva_dialogos(array $db, array $trip, bool $admin, string $contexto 
         <header class="dialog-h no-print">
           <h2>Pré-visualização da reserva #<?= $id ?></h2>
           <div class="dialog-tools">
-            <button class="btn btn-sm btn-primary" type="button" data-print data-pdf-arquivo="<?= e(reserva_arquivo_pdf($trip)) ?>" data-confirm="Baixar o PDF da reserva #<?= $id ?> de <?= e((string) ($trip['cliente'] ?? '')) ?>?" data-confirm-2="Segunda confirmação: o arquivo <?= e(reserva_arquivo_pdf($trip)) ?> será baixado agora.">Baixar PDF</button>
+            <a class="btn btn-sm btn-primary" href="index.php?p=agenda&amp;baixar=pdf&amp;id=<?= $id ?>" download="<?= e(reserva_arquivo_pdf($trip)) ?>" data-baixar-pdf="<?= e(reserva_arquivo_pdf($trip)) ?>">Baixar PDF</a>
             <button class="dlg-x" type="button" data-close-dialog aria-label="Fechar">×</button>
           </div>
         </header>
         <div class="dialog-b"><?php reserva_folha($db, $trip); ?></div>
         <footer class="dlg-foot no-print">
-          <button class="btn btn-primary" type="button" data-print data-pdf-arquivo="<?= e(reserva_arquivo_pdf($trip)) ?>" data-confirm="Baixar o PDF da reserva #<?= $id ?> de <?= e((string) ($trip['cliente'] ?? '')) ?>?" data-confirm-2="Segunda confirmação: o arquivo <?= e(reserva_arquivo_pdf($trip)) ?> será baixado agora.">Baixar PDF</button>
+          <a class="btn btn-primary" href="index.php?p=agenda&amp;baixar=pdf&amp;id=<?= $id ?>" download="<?= e(reserva_arquivo_pdf($trip)) ?>" data-baixar-pdf="<?= e(reserva_arquivo_pdf($trip)) ?>">Baixar PDF</a>
           <button class="btn" type="button" data-close-dialog>Fechar</button>
         </footer>
       </dialog>

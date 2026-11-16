@@ -254,6 +254,20 @@ function safe_back(string $fallback): string
     return $back;
 }
 
+/** Depois de gravar, volta para a lista sem reabrir o formulário. */
+function url_sem_dialogo(string $url): string
+{
+    if (!preg_match('/^index\.php(\?[A-Za-z0-9&=_.%\-]+)?$/', $url)) {
+        return href('agenda');
+    }
+    $q = [];
+    parse_str((string) (parse_url($url, PHP_URL_QUERY) ?? ''), $q);
+    unset($q['edit'], $q['ver'], $q['rascunho'], $q['fragment'], $q['solicitacao'], $q['baixar']);
+    $page = (string) ($q['p'] ?? 'agenda');
+    unset($q['p']);
+    return href($page, $q);
+}
+
 function redirect(string $url): never
 {
     header('Location: ' . $url);
@@ -1798,7 +1812,7 @@ function handle_post(): void
     }
 
     $falha = null;
-    $msg = 'Alteração salva.';
+    $msg = 'Ação concluída com sucesso.';
     $precisaRascunho = in_array($action, ['add_transfer', 'update_transfer'], true);
     $postSnap = $precisaRascunho ? $_POST : null;
     // Libera o lock da sessão durante a gravação longa no banco (evita travar outras abas).
@@ -1814,7 +1828,7 @@ function handle_post(): void
                 $falha = $err;
                 return false;
             }
-            $msg = $texto !== '' ? $texto : 'Alteração salva.';
+            $msg = $texto !== '' ? $texto : 'Ação concluída com sucesso.';
             return true;
         });
     } catch (BancoIndisponivel $e) {
@@ -1846,7 +1860,7 @@ function handle_post(): void
         }
     }
     flash($msg);
-    redirect(safe_back(href('agenda')));
+    redirect(url_sem_dialogo(safe_back(href('agenda'))));
 }
 
 function executar_acao(array &$db, string $action): array

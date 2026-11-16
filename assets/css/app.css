@@ -437,7 +437,23 @@ td.actions > a.btn:first-child { margin-left: 0; }
 .form-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 2px; }
 .inline-select { width: auto; padding: 3px 6px; border-radius: 4px; font-size: 12px; }
 
-.flash { padding: 8px 10px; border-radius: 4px; margin-bottom: 10px; font-size: 13px; border: 1px solid; }
+.flash {
+  position: fixed;
+  z-index: 80;
+  top: calc(12px + env(safe-area-inset-top, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(440px, calc(100% - 24px));
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.35;
+  border: 1px solid;
+  transition: opacity .25s ease;
+}
+.flash.is-saindo { opacity: 0; }
 .flash-ok { background: var(--green-soft); color: #146c43; border-color: #b7e4c7; }
 .flash-err { background: var(--red-soft); color: #912018; border-color: #f5c2c0; }
 
