@@ -202,6 +202,9 @@ if ($edit && ($edit['conjunto'] ?? '') === 'trajetos') {
 } elseif ($edit && ($edit['tipo'] ?? '') === 'trajetos' && is_array($edit['trajetos'] ?? null) && $edit['trajetos'] !== []) {
     $trechosForm = array_values($edit['trajetos']);
 }
+$voltaUnica = is_array($edit)
+    && (string) ($edit['tipo'] ?? '') === 'ida_volta'
+    && (string) ($edit['conjunto'] ?? '') !== 'ida_volta';
 $extrasEdit = array_map('intval', is_array($edit) ? ($edit['extras'] ?? []) : []);
 $pernaForm = 'ida';
 $ordemForm = 1;
@@ -224,8 +227,8 @@ foreach ($db['motoristas'] as $m) {
     }
 }
 $catsOk = array_keys(categorias_veiculo());
-$catAtual = is_array($edit) ? (string) ($edit['categoria'] ?? 'SED') : (string) ($pre['categoria'] ?? 'SED');
-$catEdit = in_array($catAtual, $catsOk, true) ? $catAtual : 'SED';
+$catAtual = trim((string) (is_array($edit) ? ($edit['categoria'] ?? '') : ($pre['categoria'] ?? '')));
+$catEdit = in_array($catAtual, $catsOk, true) ? $catAtual : '';
 ?>
 <dialog id="dlg-reserva" class="dlg-reserva" <?= ($edit || $draft || $convertendo) ? 'open' : '' ?>>
   <form method="post" action="index.php" id="form-reserva" data-mode="<?= $edit ? 'edit' : 'create' ?>" data-perna="<?= e($pernaForm) ?>" data-ordem="<?= (int) $ordemForm ?>">
@@ -263,8 +266,8 @@ $catEdit = in_array($catAtual, $catsOk, true) ? $catAtual : 'SED';
       <div class="box">
         <span class="lbl">Origem do cliente</span>
         <div class="origin-row">
-          <label><input type="radio" name="origem_cliente" value="cadastrado"<?= $pre === [] ? ' checked' : '' ?>> Cliente cadastrado</label>
-          <label><input type="radio" name="origem_cliente" value="novo"<?= $pre !== [] ? ' checked' : '' ?>> NOVO CLIENTE</label>
+          <label><input type="radio" name="origem_cliente" value="cadastrado"<?= $pre === [] && $db['clientes'] !== [] ? ' checked' : '' ?>> Cliente cadastrado</label>
+          <label><input type="radio" name="origem_cliente" value="novo"<?= $pre !== [] || $db['clientes'] === [] ? ' checked' : '' ?>> NOVO CLIENTE</label>
         </div>
         <div id="bloco-busca">
           <label class="field">Buscar e selecionar
@@ -317,13 +320,13 @@ $catEdit = in_array($catAtual, $catsOk, true) ? $catAtual : 'SED';
         <strong class="bloco-h">→ Ida</strong>
         <div class="form-grid">
           <label class="field">Local de Embarque (IDA) *
-            <input name="embarque" maxlength="180" value="<?= e($campo('origem')) ?>" placeholder="Endereço completo de embarque">
+            <input name="embarque" required maxlength="180" value="<?= e($campo('origem')) ?>" placeholder="Endereço completo de embarque">
           </label>
           <label class="field">Local de Desembarque (IDA) *
-            <input name="desembarque" maxlength="180" value="<?= e($campo('destino')) ?>" placeholder="Endereço completo de destino">
+            <input name="desembarque" required maxlength="180" value="<?= e($campo('destino')) ?>" placeholder="Endereço completo de destino">
           </label>
           <label class="field">Data do Embarque (IDA) *
-            <input type="date" name="data" value="<?= e($campo('data')) ?>" placeholder="dd/mm/aaaa">
+            <input type="date" name="data" required value="<?= e($campo('data')) ?>" placeholder="dd/mm/aaaa">
           </label>
           <label class="field">Hora
             <input type="time" name="hora" value="<?= e($campo('hora')) ?>" placeholder="--:--">
@@ -335,25 +338,25 @@ $catEdit = in_array($catAtual, $catsOk, true) ? $catAtual : 'SED';
             <input name="cupom" maxlength="40" value="<?= e($campo('cupom')) ?>" placeholder="FLN10">
           </label>
           <label class="field full">Mensagem / Observações
-            <textarea name="obs_ida" maxlength="2000" placeholder="Duas malas grandes, voo G3 1234"><?= e(($tipoForm === 'ida' || $tipoForm === 'ida_volta' || $tipoForm === 'trajetos') ? $campo('obs') : '') ?></textarea>
+            <textarea name="obs_ida" maxlength="8000" placeholder="Duas malas grandes, voo G3 1234"><?= e(($tipoForm === 'ida' || $tipoForm === 'ida_volta' || $tipoForm === 'trajetos') ? $campo('obs') : '') ?></textarea>
           </label>
         </div>
       </div>
 
-      <div class="box bloco" data-show="ida_volta" data-create-only>
+      <div class="box bloco" data-show="ida_volta"<?= $voltaUnica ? '' : ' data-create-only' ?>>
         <strong class="bloco-h">↺ Volta</strong>
         <div class="form-grid">
           <label class="field">Local de Embarque (Volta)
-            <input name="volta_embarque" maxlength="180" placeholder="Endereço completo">
+            <input name="volta_embarque" maxlength="180" value="<?= e($voltaUnica ? (string) ($edit['volta_origem'] ?? '') : '') ?>" placeholder="Endereço completo">
           </label>
           <label class="field">Local de Desembarque (Volta)
-            <input name="volta_desembarque" maxlength="180" placeholder="Endereço completo">
+            <input name="volta_desembarque" maxlength="180" value="<?= e($voltaUnica ? (string) ($edit['volta_destino'] ?? '') : '') ?>" placeholder="Endereço completo">
           </label>
           <label class="field">Data
-            <input type="date" name="data_volta" placeholder="dd/mm/aaaa">
+            <input type="date" name="data_volta" value="<?= e($voltaUnica ? (string) ($edit['data_volta'] ?? '') : '') ?>" placeholder="dd/mm/aaaa">
           </label>
           <label class="field">Hora
-            <input type="time" name="hora_volta" placeholder="--:--">
+            <input type="time" name="hora_volta" value="<?= e($voltaUnica ? (string) ($edit['hora_volta'] ?? '') : '') ?>" placeholder="--:--">
           </label>
           <label class="field">Passageiros
             <input type="number" name="pax_volta" min="1" max="40" placeholder="2">
@@ -362,7 +365,7 @@ $catEdit = in_array($catAtual, $catsOk, true) ? $catAtual : 'SED';
             <input name="cupom_volta" maxlength="40" placeholder="FLN10">
           </label>
           <label class="field full">Mensagem / Observações
-            <textarea name="obs_volta" maxlength="2000" placeholder="Voo de retorno e horário"></textarea>
+            <textarea name="obs_volta" maxlength="8000" placeholder="Voo de retorno e horário"></textarea>
           </label>
         </div>
       </div>
@@ -400,13 +403,13 @@ $catEdit = in_array($catAtual, $catsOk, true) ? $catAtual : 'SED';
         <strong class="bloco-h">Por Hora</strong>
         <div class="form-grid">
           <label class="field">Endereço de Início
-            <input name="inicio" maxlength="180" value="<?= e($tipoForm === 'hora' ? $campo('origem') : '') ?>" placeholder="Endereço completo">
+            <input name="inicio" required maxlength="180" value="<?= e($tipoForm === 'hora' ? $campo('origem') : '') ?>" placeholder="Endereço completo">
           </label>
           <label class="field">Ponto de Encerramento
             <input name="encerramento" maxlength="180" value="<?= e($tipoForm === 'hora' ? $campo('destino') : '') ?>" placeholder="Endereço completo">
           </label>
           <label class="field">Data
-            <input type="date" name="data_hora" value="<?= e($tipoForm === 'hora' ? $campo('data') : '') ?>" placeholder="dd/mm/aaaa">
+            <input type="date" name="data_hora" required value="<?= e($tipoForm === 'hora' ? $campo('data') : '') ?>" placeholder="dd/mm/aaaa">
           </label>
           <label class="field">Hora
             <input type="time" name="hora_servico" value="<?= e($tipoForm === 'hora' ? $campo('hora') : '') ?>" placeholder="--:--">

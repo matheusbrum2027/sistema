@@ -65,6 +65,11 @@ function reserva_rota_motorista(array $db, array $trip, string $trecho = ''): ar
     if ((string) ($trip['tipo'] ?? '') === 'hora') {
         $linhas['Horas'] = (string) ($trip['qtd_horas'] ?? '');
     }
+    if ((string) ($trip['tipo'] ?? '') === 'ida_volta' && trim((string) ($trip['data_volta'] ?? '')) !== '') {
+        $linhas['Volta'] = trim(br_date((string) $trip['data_volta']) . ' ' . (string) ($trip['hora_volta'] ?? ''));
+        $linhas['Embarque da volta'] = (string) ($trip['volta_origem'] ?? '');
+        $linhas['Desembarque da volta'] = (string) ($trip['volta_destino'] ?? '');
+    }
     if ((string) ($trip['tipo'] ?? '') === 'trajetos' && is_array($trip['trajetos'] ?? null)) {
         foreach ($trip['trajetos'] as $i => $t) {
             $linhas['Trajeto ' . (int) ($i + 1)] = trim(
@@ -135,6 +140,20 @@ function reserva_linhas(array $db, array $trip): array
     if ((string) ($trip['tipo'] ?? '') === 'hora') {
         $linhas['Quantidade de horas'] = (string) ($trip['qtd_horas'] ?? '');
     }
+    if ((string) ($trip['tipo'] ?? '') === 'ida_volta' && trim((string) ($trip['data_volta'] ?? '')) !== '') {
+        $linhas['Data da volta'] = br_date((string) $trip['data_volta']);
+        $linhas['Hora da volta'] = (string) ($trip['hora_volta'] ?? '');
+        $linhas['Embarque da volta'] = (string) ($trip['volta_origem'] ?? '');
+        $linhas['Desembarque da volta'] = (string) ($trip['volta_destino'] ?? '');
+    }
+    if ((string) ($trip['tipo'] ?? '') === 'trajetos' && is_array($trip['trajetos'] ?? null)) {
+        foreach ($trip['trajetos'] as $i => $t) {
+            $linhas['Trajeto ' . (int) ($i + 1)] = trim(
+                (string) ($t['embarque'] ?? '') . ' → ' . (string) ($t['desembarque'] ?? '')
+                . ' · ' . br_date((string) ($t['data'] ?? '')) . ' ' . (string) ($t['hora'] ?? '')
+            );
+        }
+    }
     $extras = [];
     foreach ($trip['extras'] ?? [] as $extra) {
         $extras[] = nome_motorista($db, $extra);
@@ -168,6 +187,9 @@ function reserva_linhas(array $db, array $trip): array
         if ($pagos !== []) {
             $linhas['Pagamento'] = implode(' · ', $pagos);
         }
+    }
+    if (!$ehMotorista && trim((string) ($trip['forma_detalhe'] ?? '')) !== '') {
+        $linhas['Instrução de pagamento'] = trim((string) $trip['forma_detalhe']);
     }
     if (!$ehMotorista) {
         foreach (reserva_obs_itens($db, $trip) as $item) {
@@ -681,76 +703,7 @@ function reserva_assinatura_jpeg(array $s): ?array
 
 function reserva_pdf_confirmacao(array $db, array $trip): string
 {
-    $trip = trip_com_obs($trip);
-    $s = is_array($db['settings'] ?? null) ? $db['settings'] : [];
-    $linhas = reserva_linhas($db, $trip);
-    unset(
-        $linhas['Repasse do motorista'],
-        $linhas['Seu repasse'],
-        $linhas['Faturado'],
-        $linhas['Valor'],
-        $linhas['Pagamento']
-    );
-    $blocos = [];
-    foreach ($linhas as $rotulo => $valor) {
-        $blocos[$rotulo] = $valor;
-    }
-    if ((string) ($trip['tipo'] ?? '') === 'trajetos' && is_array($trip['trajetos'] ?? null)) {
-        foreach ($trip['trajetos'] as $i => $trecho) {
-            $blocos['Trajeto ' . (int) ($i + 1)] = trim(
-                (string) ($trecho['embarque'] ?? '') . ' → ' . (string) ($trecho['desembarque'] ?? '')
-                . ' · ' . br_date((string) ($trecho['data'] ?? '')) . ' ' . (string) ($trecho['hora'] ?? '')
-                . ' · ' . (int) ($trecho['pax'] ?? 1) . ' passageiros'
-            );
-        }
-    }
-    if (!empty($s['contrato_pdf'])) {
-        foreach ([
-            'contrato_modelo' => 'Contrato',
-            'contrato_cancelamento' => 'Cancelamento',
-            'contrato_clausulas' => 'Cláusulas',
-        ] as $chave => $titulo) {
-            $texto = trim((string) ($s[$chave] ?? ''));
-            if ($texto === '') {
-                continue;
-            }
-            $texto = apply_template($texto, $trip, $db);
-            $blocos[] = '—';
-            $blocos[] = mb_strtoupper($titulo);
-            foreach (preg_split("/\n+/", $texto) ?: [] as $linha) {
-                $linha = trim($linha);
-                if ($linha !== '') {
-                    $blocos[] = $linha;
-                }
-            }
-        }
-    }
-    $blocos[] = '—';
-    $blocos[] = 'Contratante: ' . trim((string) ($trip['cliente'] ?? ''));
-    $documento = trim((string) ($trip['documento'] ?? ''));
-    if ($documento !== '') {
-        $blocos[] = 'Documento: ' . $documento;
-    }
-    $nomeAssinatura = trim((string) ($s['assinatura_nome'] ?? ''));
-    if ($nomeAssinatura === '') {
-        $nomeAssinatura = trim((string) ($s['rep_legal'] ?? ''));
-    }
-    $blocos[] = '—';
-    $blocos[] = 'Contratada';
-    $jpeg = reserva_assinatura_jpeg($s);
-    if ($jpeg !== null) {
-        $blocos[] = '__pdf_assinatura__';
-    }
-    if ($nomeAssinatura !== '') {
-        $blocos[] = $nomeAssinatura;
-    }
-    $razao = trim((string) ($s['razao'] ?? ''));
-    if ($razao !== '') {
-        $blocos[] = $razao;
-    }
-    $rodape = trim(str_replace("\n", ' · ', reserva_rodape_texto($s)));
-    $titulo = 'Reserva #' . (int) ($trip['id'] ?? 0) . ' · ' . trim((string) ($trip['cliente'] ?? 'Cliente'));
-    return pdf_simples_bytes($titulo, $blocos, $rodape, $jpeg);
+    return reserva_pdf_folha($db, $trip);
 }
 
 function reserva_folha_rodape(array $s, int $reservaId, int $pagina, int $total): void

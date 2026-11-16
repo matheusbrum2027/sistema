@@ -111,30 +111,58 @@
     }
     return fichasCarregando.get(chave);
   }
+  const cacheReservas = new Map();
+  let reservaPrefetchCtrl = null;
+  function inserirReserva(html, alvo, id) {
+    const tpl = document.createElement('template');
+    tpl.innerHTML = html;
+    document.body.appendChild(tpl.content);
+    return document.getElementById(alvo || ('dlg-ver-' + id));
+  }
+  function preaquecerReserva(id) {
+    const chave = String(id || '');
+    if (!chave || cacheReservas.has(chave) || reservasCarregando.has(chave) || navOcupado) return;
+    if (reservaPrefetchCtrl) reservaPrefetchCtrl.abort();
+    reservaPrefetchCtrl = new AbortController();
+    const contexto = document.body.dataset.page === 'reservas' ? '&contexto=reservas' : '';
+    fetch('index.php?p=agenda&fragment=reserva&id=' + encodeURIComponent(chave) + contexto, {
+      credentials: 'same-origin',
+      headers: { 'X-Requested-With': 'fetch' },
+      cache: 'no-store',
+      signal: reservaPrefetchCtrl.signal,
+    }).then(async (resposta) => {
+      if (!resposta.ok) return;
+      const html = await resposta.text();
+      if (html.includes('dlg-ver-')) cacheReservas.set(chave, html);
+    }).catch(() => {});
+  }
   async function carregarReserva(id, alvo) {
     if (!id) return null;
-    const existente = document.getElementById(alvo || ('dlg-ver-' + id));
+    const chave = String(id);
+    const existente = document.getElementById(alvo || ('dlg-ver-' + chave));
     if (existente) return existente;
-    if (!reservasCarregando.has(id)) {
+    const guardado = cacheReservas.get(chave);
+    if (guardado) return inserirReserva(guardado, alvo, chave);
+    if (!reservasCarregando.has(chave)) {
       const contexto = document.body.dataset.page === 'reservas' ? '&contexto=reservas' : '';
-      reservasCarregando.set(id, fetch('index.php?p=agenda&fragment=reserva&id=' + encodeURIComponent(id) + contexto, {
+      reservasCarregando.set(chave, fetch('index.php?p=agenda&fragment=reserva&id=' + encodeURIComponent(chave) + contexto, {
         credentials: 'same-origin',
         headers: { 'X-Requested-With': 'fetch' }
       }).then(async (resposta) => {
         if (!resposta.ok) throw new Error('Reserva indisponível');
-        const tpl = document.createElement('template');
-        tpl.innerHTML = await resposta.text();
-        document.body.appendChild(tpl.content);
-        return document.getElementById(alvo || ('dlg-ver-' + id));
-      }).finally(() => reservasCarregando.delete(id)));
+        const html = await resposta.text();
+        cacheReservas.set(chave, html);
+        return inserirReserva(html, alvo, chave);
+      }).finally(() => reservasCarregando.delete(chave)));
     }
-    return reservasCarregando.get(id);
+    return reservasCarregando.get(chave);
   }
   let pageTimer = 0;
   function iniciarPagina() {
     avisarFlash(document);
     window.clearInterval(pageTimer);
     pageTimer = 0;
+    preaquecerMenus();
     const tick = document.getElementById('tick');
     if (tick && document.body.dataset.autorefresh === '1') {
       let s = 60;
@@ -238,13 +266,120 @@
     });
     document.querySelector('.nav-link.active')?.closest('details')?.setAttribute('open', '');
   }
+  const cachePaginas = new Map();
+  let filaPrefetch = [];
+  let prefetchAtivo = false;
+  function chavePagina(url) {
+    try {
+      const alvo = new URL(url, location.href);
+      alvo.hash = '';
+      return alvo.pathname + alvo.search;
+    } catch (err) {
+      return '';
+    }
+  }
+  function podeCachear(url) {
+    let alvo;
+    try { alvo = new URL(url, location.href); } catch (err) { return false; }
+    if (alvo.origin !== location.origin) return false;
+    if (!alvo.pathname.endsWith('index.php') && alvo.pathname !== location.pathname) return false;
+    if (alvo.searchParams.has('fragment') || alvo.searchParams.has('baixar') || alvo.searchParams.has('hook') || alvo.searchParams.has('captcha')) return false;
+    const pagina = alvo.searchParams.get('p') || 'agenda';
+    return pagina !== 'entrar';
+  }
+  function guardarPagina(url, html) {
+    const chave = chavePagina(url);
+    if (!chave || !html || html.includes('auth-wrap') || html.includes('class="flash') || !html.includes('class="content"')) return;
+    cachePaginas.set(chave, html);
+    if (cachePaginas.size > 24) cachePaginas.delete(cachePaginas.keys().next().value);
+  }
+  function pintarPagina(html, url, gravar) {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const novo = doc.querySelector('.content');
+    if (!novo || doc.querySelector('.auth-wrap')) return false;
+    document.querySelectorAll('dialog[open]').forEach((dlg) => {
+      if (dlg.id !== 'dlg-confirma') dlg.close();
+    });
+    const conteudo = document.importNode(novo, true);
+    const atual = document.querySelector('.content');
+    if (!atual) return false;
+    atual.replaceWith(conteudo);
+    ativarScripts(conteudo);
+    abrirDialogos(conteudo);
+    const ferramentas = doc.querySelector('.topbar');
+    const atualBarra = document.querySelector('.topbar');
+    if (ferramentas && atualBarra) {
+      const marca = atualBarra.querySelector('.topbar-brand');
+      atualBarra.replaceChildren(marca, ...[...ferramentas.children].filter((el) => !el.classList.contains('topbar-brand')).map((el) => document.importNode(el, true)));
+    }
+    document.title = doc.title;
+    document.body.dataset.page = doc.body.dataset.page || '';
+    document.body.dataset.autorefresh = doc.body.dataset.autorefresh || '0';
+    if (gravar) history.pushState({ url }, '', url);
+    marcarMenu(url);
+    fecharMenu();
+    window.scrollTo(0, 0);
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+    iniciarPagina();
+    return true;
+  }
+  let navOcupado = false;
+  let prefetchCtrl = null;
+  function bombearPrefetch() {
+    if (prefetchAtivo || navOcupado || filaPrefetch.length === 0) return;
+    prefetchAtivo = true;
+    const passo = () => {
+      if (navOcupado) {
+        prefetchAtivo = false;
+        return;
+      }
+      const proxima = filaPrefetch.shift();
+      if (!proxima) {
+        prefetchAtivo = false;
+        return;
+      }
+      prefetchCtrl = new AbortController();
+      fetch(proxima, { credentials: 'same-origin', headers: { 'X-Requested-With': 'fetch' }, cache: 'no-store', signal: prefetchCtrl.signal })
+        .then((resposta) => resposta.ok && (resposta.headers.get('content-type') || '').includes('text/html') ? resposta.text() : '')
+        .then((html) => guardarPagina(proxima, html))
+        .catch(() => {})
+        .finally(() => window.setTimeout(passo, 80));
+    };
+    passo();
+  }
+  function pedirPagina(url) {
+    if (!podeCachear(url) || cachePaginas.has(chavePagina(url)) || filaPrefetch.includes(url)) return;
+    filaPrefetch.push(url);
+    bombearPrefetch();
+  }
+  function preaquecerMenus() {
+    const ordem = ['agenda', 'reservas', 'faturado', 'metricas', 'fin-dashboard', 'receber', 'relatorios', 'lancamentos', 'clientes', 'veiculos'];
+    const links = [...document.querySelectorAll('.sidebar a[href]')];
+    links.sort((a, b) => {
+      const pa = new URL(a.href, location.href).searchParams.get('p') || 'agenda';
+      const pb = new URL(b.href, location.href).searchParams.get('p') || 'agenda';
+      const ia = ordem.indexOf(pa);
+      const ib = ordem.indexOf(pb);
+      return (ia === -1 ? 50 : ia) - (ib === -1 ? 50 : ib);
+    });
+    links.forEach((link) => pedirPagina(link.href));
+  }
   let navSeq = 0;
   let navCtrl = null;
   async function abrirSemRecarregar(url, gravar) {
     const seq = ++navSeq;
+    navOcupado = true;
     if (navCtrl) navCtrl.abort();
+    if (prefetchCtrl) prefetchCtrl.abort();
+    if (reservaPrefetchCtrl) reservaPrefetchCtrl.abort();
     navCtrl = new AbortController();
-    document.body.classList.add('is-nav');
+    const guardado = podeCachear(url) ? cachePaginas.get(chavePagina(url)) : '';
+    let mostrou = false;
+    if (guardado) {
+      try { mostrou = pintarPagina(guardado, url, gravar); } catch (err) { mostrou = false; }
+    }
+    if (!mostrou) document.body.classList.add('is-nav');
     let resposta;
     try {
       resposta = await fetch(url, {
@@ -254,56 +389,38 @@
         cache: 'no-store',
       });
     } catch (err) {
-      if (err?.name === 'AbortError') return;
-      document.body.classList.remove('is-nav');
-      location.href = url;
+      if (err?.name !== 'AbortError' && !mostrou) location.href = url;
+      soltarNav(seq);
       return;
     }
     if (seq !== navSeq) return;
     const tipo = resposta.headers.get('content-type') || '';
     if (!resposta.ok || !tipo.includes('text/html')) {
-      document.body.classList.remove('is-nav');
-      location.href = url;
+      if (!mostrou) location.href = url;
+      soltarNav(seq);
       return;
     }
     try {
-      const doc = new DOMParser().parseFromString(await resposta.text(), 'text/html');
-      const novo = doc.querySelector('.content');
-      if (!novo || doc.querySelector('.auth-wrap')) {
-        document.body.classList.remove('is-nav');
-        location.href = resposta.url || url;
-        return;
+      const html = await resposta.text();
+      if (seq !== navSeq) return;
+      guardarPagina(resposta.url || url, html);
+      if (html !== guardado) {
+        if (!pintarPagina(html, resposta.url || url, gravar && !mostrou)) {
+          if (!mostrou) location.href = resposta.url || url;
+        }
       }
-      document.querySelectorAll('dialog[open]').forEach((dlg) => {
-        if (dlg.id !== 'dlg-confirma') dlg.close();
-      });
-      const conteudo = document.importNode(novo, true);
-      document.querySelector('.content').replaceWith(conteudo);
-      ativarScripts(conteudo);
-      abrirDialogos(conteudo);
-      const ferramentas = doc.querySelector('.topbar');
-      const atualBarra = document.querySelector('.topbar');
-      if (ferramentas && atualBarra) {
-        const marca = atualBarra.querySelector('.topbar-brand');
-        atualBarra.replaceChildren(marca, ...[...ferramentas.children].filter((el) => !el.classList.contains('topbar-brand')).map((el) => document.importNode(el, true)));
-      }
-      document.title = doc.title;
-      document.body.dataset.page = doc.body.dataset.page || '';
-      document.body.dataset.autorefresh = doc.body.dataset.autorefresh || '0';
-      const destino = resposta.url || url;
-      if (gravar) history.pushState({ url: destino }, '', destino);
-      marcarMenu(destino);
-      fecharMenu();
-      window.scrollTo(0, 0);
-      document.documentElement.scrollTop = 0;
-      document.body.scrollTop = 0;
-      iniciarPagina();
     } catch (err) {
       if (err?.name === 'AbortError') return;
-      location.href = url;
+      if (!mostrou) location.href = url;
     } finally {
-      if (seq === navSeq) document.body.classList.remove('is-nav');
+      soltarNav(seq);
     }
+  }
+  function soltarNav(seq) {
+    if (seq !== navSeq) return;
+    document.body.classList.remove('is-nav');
+    navOcupado = false;
+    bombearPrefetch();
   }
   const pdfProntos = new WeakMap();
   async function baixarPdfDoLink(link) {
@@ -513,6 +630,12 @@
     event.preventDefault();
     abrirSemRecarregar(destino.href, true);
   });
+  document.addEventListener('pointerover', (event) => {
+    const link = event.target.closest?.('.sidebar a[href]');
+    if (link) pedirPagina(link.href);
+    const reserva = event.target.closest?.('[data-reserva-id]');
+    if (reserva) preaquecerReserva(reserva.getAttribute('data-reserva-id'));
+  });
   window.addEventListener('popstate', () => {
     abrirSemRecarregar(location.href, false);
   });
@@ -630,6 +753,25 @@
     });
     return true;
   }
+  document.addEventListener('invalid', (event) => {
+    const campo = event.target;
+    if (!(campo instanceof HTMLInputElement) && !(campo instanceof HTMLSelectElement) && !(campo instanceof HTMLTextAreaElement)) return;
+    const form = campo.form;
+    if (!(form instanceof HTMLFormElement) || !form.closest('dialog')) return;
+    event.preventDefault();
+    if (form.dataset.avisoInvalido === '1') return;
+    form.dataset.avisoInvalido = '1';
+    window.setTimeout(() => { delete form.dataset.avisoInvalido; }, 0);
+    const rotulo = (campo.closest('label')?.innerText || 'Campo obrigatório').split('\n')[0].replace(/\s+/g, ' ').trim();
+    const aviso = document.createElement('div');
+    aviso.className = 'flash flash-err';
+    aviso.setAttribute('role', 'alert');
+    aviso.textContent = rotulo + ': ' + (campo.validationMessage || 'preencha este campo.');
+    document.body.appendChild(aviso);
+    window.setTimeout(() => aviso.remove(), 7000);
+    campo.scrollIntoView({ block: 'center' });
+    campo.focus({ preventScroll: true });
+  }, true);
   document.addEventListener('submit', (event) => {
     const form = event.target;
     if (!(form instanceof HTMLFormElement)) return;
@@ -666,6 +808,8 @@
         return;
       }
     }
+    cachePaginas.clear();
+    cacheReservas.clear();
     marcarFormBusy(form);
   });
   document.getElementById('confirma-sim')?.addEventListener('click', () => {

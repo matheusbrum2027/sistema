@@ -268,7 +268,24 @@ final class FolhaPdf
 
     public function imagem(float $x, float $y, float $w, float $h): void
     {
-        $this->ops .= sprintf("q %.2F 0 0 %.2F %.2F %.2F cm /Im1 Do Q\n", $w, $h, $x, $y);
+        $this->imagemNome('Im1', $x, $y, $w, $h);
+    }
+
+    public function imagemNome(string $nome, float $x, float $y, float $w, float $h): void
+    {
+        $this->ops .= sprintf("q %.2F 0 0 %.2F %.2F %.2F cm /%s Do Q\n", $w, $h, $x, $y, $nome);
+    }
+
+    public function pilula(float $x, float $y, float $w, float $h, array $cor): void
+    {
+        $raio = $h / 2;
+        if ($w <= $h) {
+            $this->ops .= sprintf("%s rg %.2F %.2F %.2F 0 360 arc f\n", $this->rgb($cor), $x + $w / 2, $y + $raio, $raio);
+            return;
+        }
+        $this->ret($x + $raio, $y, $w - $h, $h, $cor);
+        $this->ops .= sprintf("%s rg %.2F %.2F %.2F 0 360 arc f\n", $this->rgb($cor), $x + $raio, $y + $raio, $raio);
+        $this->ops .= sprintf("%s rg %.2F %.2F %.2F 0 360 arc f\n", $this->rgb($cor), $x + $w - $raio, $y + $raio, $raio);
     }
 
     private function rgb(array $cor): string

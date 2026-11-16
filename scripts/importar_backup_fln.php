@@ -66,7 +66,7 @@ function categoria_fln(?string $categoria): string
         'van' => 'VAN',
         'hatch' => 'HAT',
         'onibus' => 'ONIBUS',
-        default => 'SED',
+        default => '',
     };
 }
 
@@ -237,7 +237,8 @@ foreach ($reservas as $r) {
             $trip['obs'] = txt(trim($trip['obs'] . "\n" . $r['por_hora_itinerario']), 2000);
         }
     } elseif ($perna === 'volta') {
-        $trip['tipo'] = 'ida';
+        $trip['tipo'] = 'volta';
+        $trip['conjunto'] = 'ida_volta';
         $trip['origem'] = txt($r['volta_embarque'] ?? '', 240);
         $trip['destino'] = txt($r['volta_desembarque'] ?? '', 240);
         $trip['data'] = dia($r['volta_data'] ?? '');

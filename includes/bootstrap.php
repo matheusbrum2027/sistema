@@ -21,6 +21,7 @@ require_once __DIR__ . '/pdf_simples.php';
 require_once __DIR__ . '/qr_codigo.php';
 require_once __DIR__ . '/ficha.php';
 require_once __DIR__ . '/dossie_pdf.php';
+require_once __DIR__ . '/reserva_pdf.php';
 require_once __DIR__ . '/atendimento.php';
 require_once __DIR__ . '/captcha.php';
 require_once __DIR__ . '/totp.php';
@@ -334,6 +335,11 @@ function sessao_preparar_get(string $pagina, array $db): void
     if (!empty($_SESSION['flash']) && is_array($_SESSION['flash'])) {
         $GLOBALS['fln_flash'] = $_SESSION['flash'];
         unset($_SESSION['flash']);
+    }
+    // Renova o prazo da sessão no banco no máximo a cada 30 minutos.
+    $agora = time();
+    if ($agora - (int) ($_SESSION['fln_renova'] ?? 0) >= 1800) {
+        $_SESSION['fln_renova'] = $agora;
     }
 }
 

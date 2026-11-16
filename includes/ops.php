@@ -155,12 +155,16 @@ function agenda_legs(array $trip): array
         if ($hora === '') {
             $hora = (string) ($trip['hora'] ?? '');
         }
+        $lugarVolta = trim((string) ($trip['volta_destino'] ?? ''));
+        if ($lugarVolta === '') {
+            $lugarVolta = (string) ($trip['origem'] ?? '');
+        }
         $legs[] = [
             'data' => $data,
             'hora' => $hora,
             'kind' => 'volta',
             'label' => 'VOLTA',
-            'place' => short_place((string) $trip['origem']),
+            'place' => short_place($lugarVolta),
         ];
     }
     foreach ($legs as &$leg) {
@@ -589,6 +593,10 @@ function sync_trip_finance(array &$db, int $tripId): void
 
 function blank_trip(int $id): array
 {
+    static $hoje = null;
+    if ($hoje === null) {
+        $hoje = today()->format('Y-m-d');
+    }
     return [
         'id' => $id,
         'cliente_id' => null,
@@ -596,7 +604,7 @@ function blank_trip(int $id): array
         'telefone' => '',
         'email' => '',
         'tipo' => 'ida',
-        'categoria' => 'SED',
+        'categoria' => '',
         'origem' => '',
         'destino' => '',
         'data' => '',
@@ -620,7 +628,7 @@ function blank_trip(int $id): array
         'contrato_em' => null,
         'no_funil' => true,
         'obs' => '',
-        'criado_em' => today()->format('Y-m-d'),
+        'criado_em' => $hoje,
         'linha' => 'Principal',
         'documento' => '',
         'cupom' => '',
@@ -755,8 +763,8 @@ function montar_reservas(array &$db, ?array $current): array
         return ['Preencha nome, CPF/CNPJ, e-mail e telefone do cliente.', []];
     }
     $cid = (int) post('cliente_id');
-    $novo = post('origem_cliente') === 'novo';
-    if (!$novo && $cid > 0 && index_of($db['clientes'], $cid) !== null) {
+    $escolheu = post('origem_cliente') !== 'novo' && $cid > 0 && index_of($db['clientes'], $cid) !== null;
+    if ($escolheu) {
         $clienteId = $cid;
     } else {
         $clienteId = null;
@@ -766,7 +774,7 @@ function montar_reservas(array &$db, ?array $current): array
                 break;
             }
         }
-        if ($clienteId === null && !$novo) {
+        if ($clienteId === null && post('origem_cliente') !== 'novo') {
             foreach ($db['clientes'] as $c) {
                 if (mb_strtolower((string) $c['nome']) === mb_strtolower($nome)) {
                     $clienteId = (int) $c['id'];
@@ -774,7 +782,7 @@ function montar_reservas(array &$db, ?array $current): array
                 }
             }
         }
-        if ($clienteId === null && $novo) {
+        if ($clienteId === null) {
             $clienteId = $db['seq']['cliente']++;
             $db['clientes'][] = [
                 'id' => $clienteId,
@@ -791,7 +799,7 @@ function montar_reservas(array &$db, ?array $current): array
         }
     }
     $tipo = one_of(post('tipo_viagem'), ['ida', 'ida_volta', 'trajetos', 'hora'], 'ida');
-    $categoria = one_of(post('categoria'), array_merge(array_keys(categorias_veiculo()), ['']), 'SED');
+    $categoria = one_of(post('categoria'), array_merge(array_keys(categorias_veiculo()), ['']), '');
     $pagamentos = [];
     $soma = 0.0;
     foreach (meios_pagamento() as $chave => $rotulo) {
@@ -838,8 +846,8 @@ function montar_reservas(array &$db, ?array $current): array
     $base['repasse'] = $repasse;
     $base['status'] = $status;
     $base['pax'] = $pax;
-    $obsGeral = clip(post('obs'), 2000);
-    $obsIda = clip(post('obs_ida'), 2000);
+    $obsGeral = clip(post('obs'), 8000);
+    $obsIda = clip(post('obs_ida'), 8000);
     $base['cupom'] = clip(post('cupom'), 40);
     $base['obs'] = $obsGeral !== '' ? $obsGeral : $obsIda;
     $base['obs_tocada'] = true;
@@ -876,7 +884,7 @@ function montar_reservas(array &$db, ?array $current): array
         $base['cupom'] = clip(post('cupom_hora'), 40) ?: $base['cupom'];
         $base['qtd_horas'] = clip(post('qtd_horas'), 10);
         $base['trajetos'] = [];
-        $base['obs'] = clip(post('itinerario'), 2000) ?: $base['obs'];
+        $base['obs'] = clip(post('itinerario'), 8000) ?: $base['obs'];
         if ($usaEquipe) {
             aplicar_equipe($db, $base, ids_equipe('hora'));
         }
@@ -933,6 +941,19 @@ function montar_reservas(array &$db, ?array $current): array
             }
             return $item;
         };
+        if ($current !== null && (string) ($current['tipo'] ?? '') === 'trajetos') {
+            $base['tipo'] = 'trajetos';
+            $base['conjunto'] = '';
+            $base['ordem'] = 1;
+            $base['trajetos'] = $trechos;
+            $base['origem'] = $trechos[0]['embarque'];
+            $base['destino'] = $trechos[0]['desembarque'];
+            $base['data'] = $trechos[0]['data'];
+            $base['hora'] = $trechos[0]['hora'];
+            $base['pax'] = $trechos[0]['pax'];
+            $base['qtd_horas'] = '';
+            return [null, [$base]];
+        }
         if ($current !== null) {
             return [null, [$montarTrecho($base, $trechos[0], max(1, (int) ($current['ordem'] ?? 1)), $valor, $repasse)]];
         }
@@ -960,6 +981,26 @@ function montar_reservas(array &$db, ?array $current): array
     $base['trajetos'] = [];
     $base['qtd_horas'] = '';
     $jaDupla = $current !== null && (string) ($current['conjunto'] ?? '') === 'ida_volta';
+    $voltaUnica = $current !== null
+        && (string) ($current['tipo'] ?? '') === 'ida_volta'
+        && (string) ($current['conjunto'] ?? '') !== 'ida_volta';
+    if ($voltaUnica && $tipo === 'ida_volta') {
+        $base['tipo'] = 'ida_volta';
+        $base['conjunto'] = '';
+        $base['origem'] = $embarque;
+        $base['destino'] = $desembarque;
+        $base['data'] = $data;
+        $base['hora'] = $hora !== '' ? $hora : '00:00';
+        $voltaDe = clip(post('volta_embarque'), 180);
+        $voltaPara = clip(post('volta_desembarque'), 180);
+        $base['volta_origem'] = $voltaDe !== '' ? $voltaDe : (string) ($current['volta_origem'] ?? '');
+        $base['volta_destino'] = $voltaPara !== '' ? $voltaPara : (string) ($current['volta_destino'] ?? '');
+        $base['data_volta'] = post_date('data_volta') ?: (string) ($current['data_volta'] ?? $data);
+        $base['hora_volta'] = post_time('hora_volta') ?: (string) ($current['hora_volta'] ?? $base['hora']);
+        $base['trajetos'] = [];
+        $base['qtd_horas'] = '';
+        return [null, [$base]];
+    }
     if ($tipo !== 'ida_volta' || $jaDupla) {
         $base['tipo'] = $current !== null && (string) ($current['tipo'] ?? '') === 'volta' ? 'volta' : 'ida';
         $base['conjunto'] = $tipo === 'ida_volta' ? 'ida_volta' : '';
@@ -996,7 +1037,7 @@ function montar_reservas(array &$db, ?array $current): array
     $volta['hora'] = $horaVolta;
     $volta['pax'] = $paxVolta > 0 ? max(1, min(40, $paxVolta)) : $pax;
     $volta['cupom'] = clip(post('cupom_volta'), 40);
-    $obsVolta = clip(post('obs_volta'), 2000);
+    $obsVolta = clip(post('obs_volta'), 8000);
     $obsIdaTxt = trim((string) ($ida['obs'] ?? ''));
     if ($obsVolta !== '' && $obsIdaTxt === '') {
         $ida['obs'] = $obsVolta;
@@ -1334,7 +1375,7 @@ function ops_dispatch(array &$db, string $action): ?array
                 'placa' => $placa,
                 'marca' => clip(post('marca'), 40),
                 'modelo' => $modelo,
-                'tipo' => one_of(post('tipo'), array_merge(array_keys(categorias_veiculo()), ['SED', 'VAN', 'EXEC', 'BUS']), 'SED'),
+                'tipo' => one_of(post('tipo'), array_merge(array_keys(categorias_veiculo()), ['SED', 'VAN', 'EXEC', 'BUS']), ''),
                 'ano' => $ano,
                 'cor' => clip(post('cor'), 20),
                 'lugares' => $lugares,
@@ -2146,7 +2187,7 @@ function solicitacao_como_reserva(array $row): array
     $pax = (int) $pegar($dados, ['pax', 'passageiros', 'pessoas']);
     $cat = strtoupper($pegar($dados, ['categoria']));
     if (!in_array($cat, array_keys(categorias_veiculo()), true)) {
-        $cat = 'SED';
+        $cat = '';
     }
     $obsExtra = $pegar($dados, ['obs', 'mensagem', 'message', 'observacao', 'observacoes']);
     $obs = trim('Solicitação #' . (int) ($row['id'] ?? 0) . ($obsExtra !== '' ? "\n" . $obsExtra : ''));

@@ -26,6 +26,28 @@ function store_remoto(): bool
     return supabase_configurado() && strlen(env_valor('FLN_SEGREDO')) >= 32;
 }
 
+function store_curl(): \CurlHandle
+{
+    static $ch = null;
+    if ($ch instanceof \CurlHandle) {
+        return $ch;
+    }
+    $ch = curl_init();
+    $opcoes = [
+        CURLOPT_POST => true,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CONNECTTIMEOUT => 5,
+        CURLOPT_TCP_KEEPALIVE => 1,
+        CURLOPT_FORBID_REUSE => false,
+    ];
+    if (defined('CURL_HTTP_VERSION_2TLS')) {
+        $opcoes[CURLOPT_HTTP_VERSION] = CURL_HTTP_VERSION_2TLS;
+    }
+    curl_setopt_array($ch, $opcoes);
+    curl_ca_nativo($ch);
+    return $ch;
+}
+
 function store_rpc(string $funcao, array $args, int $timeout = 12): mixed
 {
     $inicio = microtime(true);
@@ -40,9 +62,9 @@ function store_rpc(string $funcao, array $args, int $timeout = 12): mixed
         throw new BancoIndisponivel('Não foi possível preparar os dados para gravação.');
     }
     $chave = env_valor('SUPABASE_ANON_KEY');
-    $ch = curl_init(rtrim(env_valor('SUPABASE_URL'), '/') . '/rest/v1/rpc/' . $funcao);
+    $ch = store_curl();
     curl_setopt_array($ch, [
-        CURLOPT_POST => true,
+        CURLOPT_URL => rtrim(env_valor('SUPABASE_URL'), '/') . '/rest/v1/rpc/' . $funcao,
         CURLOPT_HTTPHEADER => [
             'apikey: ' . $chave,
             'Authorization: Bearer ' . $chave,
@@ -50,11 +72,8 @@ function store_rpc(string $funcao, array $args, int $timeout = 12): mixed
             'Accept: application/json',
         ],
         CURLOPT_POSTFIELDS => $corpo,
-        CURLOPT_RETURNTRANSFER => true,
         CURLOPT_TIMEOUT => $timeout,
-        CURLOPT_CONNECTTIMEOUT => 5,
     ]);
-    curl_ca_nativo($ch);
     $resposta = null;
     $code = 0;
     for ($tentativa = 0; $tentativa < 2; $tentativa++) {
@@ -65,7 +84,6 @@ function store_rpc(string $funcao, array $args, int $timeout = 12): mixed
         }
         usleep(80000);
     }
-    curl_close($ch);
     perf_add('store_rpc_ms', (microtime(true) - $inicio) * 1000, strlen((string) $resposta));
     perf_count('store_rpc_count');
     perf_count('store_rpc_' . preg_replace('/[^a-z0-9_]+/i', '_', $funcao));
@@ -283,6 +301,7 @@ function com_db(string $acao, callable $alterar, bool $leve = false): mixed
 final class SessaoBanco implements SessionHandlerInterface
 {
     private bool $leituraOk = false;
+    private string $lido = '';
 
     public function open(string $path, string $name): bool
     {
@@ -299,6 +318,7 @@ final class SessaoBanco implements SessionHandlerInterface
         try {
             $dados = (string) store_rpc('fln_sessao_ler', ['p_id' => $id], 8);
             $this->leituraOk = true;
+            $this->lido = $dados;
             return $dados;
         } catch (Throwable) {
             // Não devolve sessão vazia: o PHP gravaria isso e apagaria o login.
@@ -309,11 +329,12 @@ final class SessaoBanco implements SessionHandlerInterface
 
     public function write(string $id, string $data): bool
     {
-        if (!$this->leituraOk) {
+        if (!$this->leituraOk || $data === $this->lido) {
             return true;
         }
         try {
             store_rpc('fln_sessao_gravar', ['p_id' => $id, 'p_dados' => $data, 'p_segundos' => (int) ini_get('session.gc_maxlifetime')], 8);
+            $this->lido = $data;
             return true;
         } catch (Throwable) {
             return false;
