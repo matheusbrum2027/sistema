@@ -50,13 +50,19 @@
   });
 
   document.addEventListener('cancel', (event) => {
-    if (event.target instanceof HTMLDialogElement) event.preventDefault();
+    if (event.target instanceof HTMLDialogElement && event.target.id === 'dlg-confirma') event.preventDefault();
   }, true);
+  document.addEventListener('click', (event) => {
+    const dlg = event.target;
+    if (!(dlg instanceof HTMLDialogElement) || dlg.id === 'dlg-confirma' || !dlg.open) return;
+    dlg.close();
+  });
 
   function abrirDialogos(root) {
     root.querySelectorAll('dialog[open]').forEach((dlg) => {
       dlg.removeAttribute('open');
-      dlg.setAttribute('closedby', 'none');
+      if (dlg.id === 'dlg-confirma') dlg.setAttribute('closedby', 'none');
+      else dlg.removeAttribute('closedby');
       dlg.showModal();
     });
   }
@@ -70,6 +76,27 @@
     });
   }
   const reservasCarregando = new Map();
+  const fichasCarregando = new Map();
+  async function carregarFicha(tipo, id, alvo) {
+    const chave = tipo + ':' + id;
+    const existente = document.getElementById(alvo);
+    if (existente) return existente;
+    if (!fichasCarregando.has(chave)) {
+      const pagina = tipo === 'cliente' ? 'clientes' : 'mot-cadastros';
+      const fragmento = tipo === 'cliente' ? 'cliente' : 'dossie';
+      fichasCarregando.set(chave, fetch('index.php?p=' + pagina + '&fragment=' + fragmento + '&id=' + encodeURIComponent(id), {
+        credentials: 'same-origin',
+        headers: { 'X-Requested-With': 'fetch' }
+      }).then(async (resposta) => {
+        if (!resposta.ok) throw new Error('Ficha indisponível');
+        const tpl = document.createElement('template');
+        tpl.innerHTML = await resposta.text();
+        document.body.appendChild(tpl.content);
+        return document.getElementById(alvo);
+      }).finally(() => fichasCarregando.delete(chave)));
+    }
+    return fichasCarregando.get(chave);
+  }
   async function carregarReserva(id, alvo) {
     if (!id) return null;
     const existente = document.getElementById(alvo || ('dlg-ver-' + id));
@@ -116,7 +143,7 @@
       const id = deep.getAttribute('data-reserva-deep-link');
       carregarReserva(id, 'dlg-ver-' + id).then((dlg) => {
         if (!dlg || dlg.open) return;
-        dlg.setAttribute('closedby', 'none');
+        dlg.removeAttribute('closedby');
         dlg.showModal();
       }).catch(() => {});
     }
@@ -315,20 +342,23 @@
       navigator.clipboard.writeText(text).then(avisar).catch(() => window.prompt('Copie:', text));
       return;
     }
-    const abrir = event.target.closest('[data-open-dialog]');
-    if (abrir) {
-      const alvo = abrir.getAttribute('data-open-dialog');
-      const id = abrir.getAttribute('data-reserva-id');
-      const mostrar = (dlg) => {
-        if (!dlg) return;
-        dlg.setAttribute('closedby', 'none');
-        dlg.showModal();
-      };
-      const dlg = document.getElementById(alvo);
-      if (dlg) mostrar(dlg);
-      else if (id) carregarReserva(id, alvo).then(mostrar).catch(() => { location.href = 'index.php?p=agenda&ver=' + encodeURIComponent(id); });
-      return;
-    }
+      const abrir = event.target.closest('[data-open-dialog]');
+      if (abrir) {
+        const alvo = abrir.getAttribute('data-open-dialog');
+        const id = abrir.getAttribute('data-reserva-id');
+        const ficha = abrir.getAttribute('data-ficha');
+        const fichaId = abrir.getAttribute('data-ficha-id');
+        const mostrar = (dlg) => {
+          if (!dlg) return;
+          if (dlg.id !== 'dlg-confirma') dlg.removeAttribute('closedby');
+          dlg.showModal();
+        };
+        const dlg = document.getElementById(alvo);
+        if (dlg) mostrar(dlg);
+        else if (ficha && fichaId) carregarFicha(ficha, fichaId, alvo).then(mostrar).catch(() => { location.href = 'index.php?p=clientes'; });
+        else if (id) carregarReserva(id, alvo).then(mostrar).catch(() => { location.href = 'index.php?p=agenda&ver=' + encodeURIComponent(id); });
+        return;
+      }
     const fechar = event.target.closest('[data-close-dialog]');
     if (fechar) {
       const dlg = fechar.closest('dialog');

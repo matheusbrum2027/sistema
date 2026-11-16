@@ -35,6 +35,7 @@ view_head('<button class="btn btn-primary" type="button" data-open-dialog="dlg-c
               <td><?= e($c['telefone'] ?: 'Não informado') ?></td>
               <td class="col-perfil"><span class="perfil" title="<?= $pct ?>%"><i style="width:<?= $pct ?>%"></i></span> <?= $pct ?>%</td>
               <td class="actions">
+                <button class="btn btn-sm" type="button" data-open-dialog="dlg-cli-<?= (int) $c['id'] ?>" data-ficha="cliente" data-ficha-id="<?= (int) $c['id'] ?>">Ver</button>
                 <a class="btn btn-sm" href="<?= e(href('clientes', ['edit' => $c['id']])) ?>">Editar</a>
                 <form method="post" action="index.php" data-confirm="Excluir o cliente <?= e($c['nome']) ?>? Esta ação não pode ser desfeita."><?= csrf_fields('delete_cliente') ?><input type="hidden" name="id" value="<?= (int) $c['id'] ?>"><button class="btn btn-sm btn-danger" type="submit">Excluir</button></form>
               </td>

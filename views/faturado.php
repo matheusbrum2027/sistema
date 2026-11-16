@@ -7,7 +7,7 @@ $q = trim((string) ($_GET['q'] ?? ''));
 $mot = (int) ($_GET['mot'] ?? 0);
 $pago = (string) ($_GET['pago'] ?? '');
 $rows = array_values(array_filter($db['transfers'], static function (array $t) use ($de, $ate, $q, $mot, $pago): bool {
-    if (empty($t['faturado']) || $t['status'] === 'cancelada') {
+    if (empty($t['faturado'])) {
         return false;
     }
     if ($de !== '' && $t['data'] < $de) {

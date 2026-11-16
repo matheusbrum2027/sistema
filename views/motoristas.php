@@ -20,6 +20,10 @@ foreach ($db['motoristas'] as $m) {
     }
 }
 $pg = slice_page($rows);
+$dossies = $pg['rows'];
+if (is_array($ver) && !in_array((int) $ver['id'], array_map(static fn(array $m): int => (int) $m['id'], $dossies), true)) {
+    $dossies[] = $ver;
+}
 view_head('<button class="btn btn-primary" type="button" data-open-dialog="dlg-mot">+ Novo motorista</button>', 'O login do motorista é o e-mail cadastrado. A senha-token aparece só uma vez para o administrador. O link único abre a mesma tela de login, já com o e-mail preenchido.');
 ?>
 <form class="filters" method="get" action="index.php">
@@ -27,31 +31,6 @@ view_head('<button class="btn btn-primary" type="button" data-open-dialog="dlg-m
   <label>Busca <input name="q" value="<?= e($q) ?>" placeholder="Buscar por nome ou CPF"></label>
   <button class="btn btn-sm" type="submit">Buscar</button>
 </form>
-<?php if ($ver): ?>
-  <?php
-    $verEmail = mb_strtolower(trim((string) ($ver['email'] ?? $ver['usuario'] ?? '')));
-    $verLink = link_motorista($ver);
-  ?>
-  <section class="card" style="margin-bottom:12px">
-    <header class="card-h"><h2><?= e($ver['nome']) ?></h2><a href="<?= e(href('mot-cadastros')) ?>">Fechar</a></header>
-    <p>Login (e-mail): <strong><?= e($verEmail !== '' ? $verEmail : '—') ?></strong> · <?= e(portal_label($ver)) ?></p>
-    <p class="hint">A senha-token não fica exposta aqui. Use o botão Senha na lista para gerar uma nova (aparece só uma vez).</p>
-    <p>Link do portal: <a href="<?= e($verLink) ?>" target="_blank" rel="noopener"><?= e($verLink) ?></a>
-      <button class="btn btn-sm" type="button" data-copy="<?= e($verLink) ?>">Copiar link</button>
-    </p>
-    <p class="hint"><?= e($ver['telefone']) ?> · <?= e($ver['cidade'] ?? '') ?> <?= e($ver['uf'] ?? '') ?> · CPF <?= e($ver['cpf'] ?? '—') ?></p>
-    <?php
-      $suas = array_values(array_filter($db['transfers'], static fn(array $t): bool => viagem_do_motorista($t, (int) $ver['id']) && $t['status'] !== 'cancelada'));
-    ?>
-    <?php if ($suas === []): ?>
-      <p class="hint">Nenhuma viagem atribuída.</p>
-    <?php else: ?>
-      <?php foreach ($suas as $t): ?>
-        <p>#<?= (int) $t['id'] ?> · <?= e(br_date((string) $t['data'])) ?> <?= e($t['hora']) ?> · <?= e($t['origem']) ?> → <?= e($t['destino']) ?></p>
-      <?php endforeach; ?>
-    <?php endif; ?>
-  </section>
-<?php endif; ?>
 <section class="card">
   <div class="table-wrap">
     <table class="table-lista">
@@ -67,10 +46,10 @@ view_head('<button class="btn btn-primary" type="button" data-open-dialog="dlg-m
             <td><span class="tag <?= portal_label($mot) === 'Senha OK' ? 'tag-ok' : 'tag-wait' ?>"><?= e(portal_label($mot)) ?></span></td>
             <td><?= e(isset($mot['criado_em']) ? br_date((string) $mot['criado_em']) : '—') ?></td>
             <td class="actions">
-              <a class="btn btn-sm" href="<?= e(href('mot-cadastros', ['id' => $mot['id']])) ?>">Abrir</a>
+              <button class="btn btn-sm" type="button" data-open-dialog="dlg-dossie-<?= (int) $mot['id'] ?>">Detalhes</button>
+              <a class="btn btn-sm" href="<?= e(href('mot-cadastros', ['edit' => $mot['id']])) ?>">Editar</a>
               <button class="btn btn-sm" type="button" data-copy="<?= e(link_motorista($mot)) ?>" title="<?= e(link_motorista($mot)) ?>">Copiar link</button>
               <form method="post" action="index.php" data-confirm="Gerar nova senha-token para <?= e((string) $mot['nome']) ?>? A atual deixa de valer e a nova aparece só uma vez."><?= csrf_fields('reset_senha_motorista') ?><input type="hidden" name="id" value="<?= (int) $mot['id'] ?>"><button class="btn btn-sm" type="submit">Senha</button></form>
-              <a class="btn btn-sm" href="<?= e(href('mot-cadastros', ['edit' => $mot['id']])) ?>">Editar</a>
             </td>
           </tr>
         <?php endforeach; ?>
@@ -79,6 +58,9 @@ view_head('<button class="btn btn-primary" type="button" data-open-dialog="dlg-m
   </div>
   <?= pager('mot-cadastros', $pg, array_filter(['q' => $q])) ?>
 </section>
+<?php foreach ($dossies as $mot): ?>
+  <?= ficha_motorista_dialog($db, $mot, is_array($ver) && (int) $ver['id'] === (int) $mot['id']) ?>
+<?php endforeach; ?>
 <dialog id="dlg-mot" class="dlg-cadastro" data-clear-query="edit" <?= $edit ? 'open' : '' ?>>
   <form method="post" action="index.php" id="form-mot">
     <header class="dialog-h dlg-top">

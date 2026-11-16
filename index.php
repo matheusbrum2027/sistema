@@ -396,14 +396,14 @@ if (!isset($routes[$current]) || $current === 'abrangencia') {
     $current = 'agenda';
 }
 $role = (string) ($_SESSION['role'] ?? 'admin');
-$paginasPublicas = ['entrar', 'seja-motorista'];
+$paginasPublicas = ['entrar', 'seja-motorista', 'verificar'];
 if (!in_array($current, $paginasPublicas, true) && empty($_SESSION['auth'])) {
     redirect(href('entrar'));
 }
 if ($current === 'entrar' && !empty($_SESSION['auth'])) {
     redirect(href('agenda'));
 }
-if ($role === 'motorista' && !in_array($current, ['entrar', 'agenda', 'seja-motorista'], true)) {
+if ($role === 'motorista' && !in_array($current, ['entrar', 'agenda', 'seja-motorista', 'verificar'], true)) {
     redirect(href('agenda'));
 }
 
@@ -411,7 +411,7 @@ $route = $routes[$current];
 $bare = !empty($route['bare']);
 $site = !empty($route['site']);
 $acessoLogin = strtolower((string) ($_GET['acesso'] ?? ''));
-if (in_array($current, $paginasPublicas, true) && !preg_match('/^[a-f0-9]{32}$/', $acessoLogin)) {
+if (in_array($current, ['entrar', 'seja-motorista'], true) && !preg_match('/^[a-f0-9]{32}$/', $acessoLogin)) {
     $db = [
         'settings' => ['nome' => 'Transfer FLN'],
         'motoristas' => [],
@@ -437,6 +437,8 @@ if (in_array($current, $paginasPublicas, true) && !preg_match('/^[a-f0-9]{32}$/'
     } elseif ($current === 'agenda') {
         $modo = 'corridas';
         [$de, $ate] = agenda_intervalo((string) ($_GET['mes'] ?? ''));
+    } elseif ($current === 'clientes' && (string) ($_GET['fragment'] ?? '') === 'cliente') {
+        $modo = 'corridas';
     } elseif (in_array($current, $comCorridas, true) || ($current === 'mot-cadastros' && (int) ($_GET['id'] ?? 0) > 0)) {
         $modo = 'corridas';
     }
@@ -475,8 +477,6 @@ if ($current === 'agenda' && (string) ($_GET['fragment'] ?? '') === 'reserva') {
     }
     if ($adminFragment) {
         $trip = trip_com_obs($trip);
-    } else {
-        $trip = trip_sem_dados_cliente($trip);
     }
     header('Content-Type: text/html; charset=utf-8');
     header('Cache-Control: private, no-store');
@@ -507,6 +507,42 @@ if ($current === 'agenda' && (string) ($_GET['baixar'] ?? '') === 'pdf') {
     }
     $pdf = reserva_pdf_confirmacao($db, $trip);
     $arquivo = reserva_arquivo_pdf($trip);
+    while (ob_get_level() > 0 && ob_end_clean()) {
+    }
+    header('Content-Type: application/pdf');
+    header('Content-Disposition: ' . reserva_pdf_disposition($arquivo));
+    header('Content-Length: ' . strlen($pdf));
+    header('Cache-Control: private, no-store');
+    header('X-Content-Type-Options: nosniff');
+    echo $pdf;
+    exit;
+}
+if ($current === 'verificar') {
+    require __DIR__ . '/views/verificar.php';
+    exit;
+}
+if ($current === 'clientes' && (string) ($_GET['fragment'] ?? '') === 'cliente') {
+    $cliente = ficha_cliente_por_id($db, (int) ($_GET['id'] ?? 0));
+    header('Content-Type: text/html; charset=utf-8');
+    header('Cache-Control: private, no-store');
+    if (!is_array($cliente)) {
+        http_response_code(404);
+        echo 'Cliente não encontrado.';
+        exit;
+    }
+    echo ficha_cliente_dialog($db, $cliente);
+    exit;
+}
+if ($current === 'mot-cadastros' && (string) ($_GET['baixar'] ?? '') === 'dossie') {
+    $mot = ficha_motorista_por_id($db, (int) ($_GET['id'] ?? 0));
+    if (!is_array($mot)) {
+        http_response_code(404);
+        header('Content-Type: text/plain; charset=utf-8');
+        echo 'Motorista não encontrado.';
+        exit;
+    }
+    $pdf = dossie_pdf_bytes($db, $mot);
+    $arquivo = 'Dossie ' . trim((string) ($mot['nome'] ?? 'motorista')) . '.pdf';
     while (ob_get_level() > 0 && ob_end_clean()) {
     }
     header('Content-Type: application/pdf');

@@ -791,7 +791,7 @@ function montar_reservas(array &$db, ?array $current): array
         }
     }
     $tipo = one_of(post('tipo_viagem'), ['ida', 'ida_volta', 'trajetos', 'hora'], 'ida');
-    $categoria = one_of(post('categoria'), array_keys(categorias_veiculo()), 'SED');
+    $categoria = one_of(post('categoria'), array_merge(array_keys(categorias_veiculo()), ['']), 'SED');
     $pagamentos = [];
     $soma = 0.0;
     foreach (meios_pagamento() as $chave => $rotulo) {
@@ -963,6 +963,9 @@ function montar_reservas(array &$db, ?array $current): array
     if ($tipo !== 'ida_volta' || $jaDupla) {
         $base['tipo'] = $current !== null && (string) ($current['tipo'] ?? '') === 'volta' ? 'volta' : 'ida';
         $base['conjunto'] = $tipo === 'ida_volta' ? 'ida_volta' : '';
+        if (trim((string) ($base['obs'] ?? '')) !== '') {
+            unset($base['obs_de']);
+        }
         if ($usaEquipe) {
             $chave = 'ida';
             if ($current !== null && (string) ($current['tipo'] ?? '') === 'volta') {
@@ -993,7 +996,20 @@ function montar_reservas(array &$db, ?array $current): array
     $volta['hora'] = $horaVolta;
     $volta['pax'] = $paxVolta > 0 ? max(1, min(40, $paxVolta)) : $pax;
     $volta['cupom'] = clip(post('cupom_volta'), 40);
-    $volta['obs'] = clip(post('obs_volta'), 2000) ?: $base['obs'];
+    $obsVolta = clip(post('obs_volta'), 2000);
+    $obsIdaTxt = trim((string) ($ida['obs'] ?? ''));
+    if ($obsVolta !== '' && $obsIdaTxt === '') {
+        $ida['obs'] = $obsVolta;
+        $ida['obs_de'] = 'volta';
+        $volta['obs'] = $obsVolta;
+    } elseif ($obsVolta === '' && $obsIdaTxt !== '') {
+        $volta['obs'] = $obsIdaTxt;
+        $volta['obs_de'] = 'ida';
+    } else {
+        $volta['obs'] = $obsVolta !== '' ? $obsVolta : $obsIdaTxt;
+    }
+    $ida['obs_tocada'] = true;
+    $volta['obs_tocada'] = true;
     $volta['motorista_id'] = $motoristaVolta;
     if ($usaEquipe) {
         aplicar_equipe($db, $ida, ids_equipe('ida'));

@@ -119,7 +119,7 @@ view_head('<button class="btn btn-primary" type="button" data-open-dialog="dlg-r
             <td class="col-cli" data-label="Cliente"><span class="clip" title="<?= e($trip['cliente']) ?>"><?= e($trip['cliente']) ?></span></td>
             <td class="col-contato" data-label="Contato"><span class="clip" title="<?= e(trim($trip['telefone'] . ' ' . $trip['email'])) ?>"><?= e($trip['telefone']) ?></span></td>
             <td class="col-fixo" data-label="Tipo"><?= tipo_badges($trip) ?></td>
-            <td class="col-fixo" data-label="Categoria"><span class="tag"><?= e($trip['categoria'] ?? 'SED') ?></span></td>
+            <td class="col-fixo" data-label="Categoria"><span class="tag"><?= e(trim((string) ($trip['categoria'] ?? '')) !== '' ? (string) $trip['categoria'] : '—') ?></span></td>
             <td class="col-rota" data-label="Trajeto"><span class="clip" title="<?= e($trip['origem'] . ' → ' . $trip['destino']) ?>"><?= e($trip['origem']) ?> → <?= e($trip['destino']) ?></span></td>
             <td class="col-fixo col-quando" data-label="Data"><?= e(br_date((string) $trip['data'])) ?> <span class="hint"><?= e(substr((string) $trip['hora'], 0, 5)) ?></span></td>
             <td class="col-mot" data-label="Motorista"><span class="clip" title="<?= e(nome_motorista($db, $trip['motorista_id'])) ?>"><?= e(nome_motorista($db, $trip['motorista_id'])) ?></span></td>
@@ -305,6 +305,7 @@ $catEdit = in_array($catAtual, $catsOk, true) ? $catAtual : 'SED';
         </label>
         <label class="field">Categoria do veículo *
           <select name="categoria">
+            <option value=""<?= $catEdit === '' ? ' selected' : '' ?>>Não informada</option>
             <?php foreach (categorias_veiculo() as $k => $lab): ?>
               <option value="<?= e($k) ?>"<?= $catEdit === $k ? ' selected' : '' ?>><?= e($lab) ?></option>
             <?php endforeach; ?>

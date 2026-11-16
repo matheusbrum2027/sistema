@@ -121,7 +121,7 @@ function reserva_linhas(array $db, array $trip): array
         'E-mail' => (string) ($trip['email'] ?? ''),
         'Telefone' => (string) ($trip['telefone'] ?? ''),
         'Tipo' => trim(preg_replace('/\s+/', ' ', strip_tags(tipo_badges($semFat))) ?? ''),
-        'Categoria' => $cats[$cat] ?? $cat,
+        'Categoria' => $cat === '' ? '—' : ($cats[$cat] ?? $cat),
         'Embarque' => (string) ($trip['origem'] ?? ''),
         'Desembarque' => (string) ($trip['destino'] ?? ''),
         'Data' => br_date((string) ($trip['data'] ?? '')),
@@ -170,14 +170,156 @@ function reserva_linhas(array $db, array $trip): array
         }
     }
     if (!$ehMotorista) {
-        $linhas['Observações'] = (string) ($trip['obs'] ?? '');
+        foreach (reserva_obs_itens($db, $trip) as $item) {
+            $chave = $item['aviso'] !== '' ? $item['aviso'] : 'Observações';
+            $linhas[$chave] = $item['texto'];
+        }
     }
     return array_filter($linhas, static fn(string $v): bool => trim($v) !== '');
 }
 
+function reserva_irma_ida_volta(array $db, array $trip): ?array
+{
+    if ((string) ($trip['conjunto'] ?? '') !== 'ida_volta') {
+        return null;
+    }
+    $tipo = (string) ($trip['tipo'] ?? '');
+    $oposto = $tipo === 'ida' ? 'volta' : ($tipo === 'volta' ? 'ida' : '');
+    $id = (int) ($trip['id'] ?? 0);
+    if ($oposto === '' || $id <= 0) {
+        return null;
+    }
+    $par = (int) ($trip['par_id'] ?? 0);
+    if ($par > 0) {
+        foreach ($db['transfers'] ?? [] as $outro) {
+            if (is_array($outro) && (int) ($outro['id'] ?? 0) === $par && (string) ($outro['tipo'] ?? '') === $oposto) {
+                return function_exists('trip_com_obs') ? trip_com_obs($outro) : $outro;
+            }
+        }
+        if (function_exists('store_remoto') && store_remoto() && function_exists('store_ler')) {
+            $versao = function_exists('store_versao') ? store_versao() : 0;
+            try {
+                $dados = store_ler(false, 'uma', '', '', $par);
+            } catch (Throwable) {
+                $dados = null;
+            }
+            if (function_exists('store_versao')) {
+                store_versao($versao);
+            }
+            foreach (is_array($dados['transfers'] ?? null) ? $dados['transfers'] : [] as $outro) {
+                if (is_array($outro) && (int) ($outro['id'] ?? 0) === $par) {
+                    return function_exists('trip_com_obs') ? trip_com_obs($outro) : $outro;
+                }
+            }
+        }
+    }
+    $candidatos = [];
+    foreach ($db['transfers'] ?? [] as $outro) {
+        if (is_array($outro)) {
+            $candidatos[] = $outro;
+        }
+    }
+    $temOutro = false;
+    foreach ($candidatos as $outro) {
+        if ((int) ($outro['id'] ?? 0) !== $id) {
+            $temOutro = true;
+            break;
+        }
+    }
+    if (!$temOutro && function_exists('store_remoto') && store_remoto() && function_exists('store_ler')) {
+        $versao = function_exists('store_versao') ? store_versao() : 0;
+        foreach ([$id - 1, $id + 1] as $vizinho) {
+            if ($vizinho <= 0) {
+                continue;
+            }
+            try {
+                $dados = store_ler(false, 'uma', '', '', $vizinho);
+            } catch (Throwable) {
+                continue;
+            }
+            foreach (is_array($dados['transfers'] ?? null) ? $dados['transfers'] : [] as $outro) {
+                if (is_array($outro) && (int) ($outro['id'] ?? 0) === $vizinho) {
+                    $candidatos[] = $outro;
+                }
+            }
+        }
+        if (function_exists('store_versao')) {
+            store_versao($versao);
+        }
+    }
+    $cliente = (int) ($trip['cliente_id'] ?? 0);
+    $nome = mb_strtolower(trim((string) ($trip['cliente'] ?? '')));
+    $melhores = [];
+    foreach ($candidatos as $outro) {
+        if ((int) ($outro['id'] ?? 0) === $id) {
+            continue;
+        }
+        if ((string) ($outro['conjunto'] ?? '') !== 'ida_volta' || (string) ($outro['tipo'] ?? '') !== $oposto) {
+            continue;
+        }
+        if ($cliente > 0 && (int) ($outro['cliente_id'] ?? 0) !== $cliente) {
+            continue;
+        }
+        if ($cliente <= 0 && $nome !== '' && mb_strtolower(trim((string) ($outro['cliente'] ?? ''))) !== $nome) {
+            continue;
+        }
+        $melhores[] = $outro;
+    }
+    if ($melhores === []) {
+        return null;
+    }
+    usort($melhores, static function (array $a, array $b) use ($id): int {
+        return abs((int) ($a['id'] ?? 0) - $id) <=> abs((int) ($b['id'] ?? 0) - $id);
+    });
+    $criado = (string) ($trip['criado_em'] ?? '');
+    foreach ($melhores as $outro) {
+        if ($criado !== '' && (string) ($outro['criado_em'] ?? '') === $criado && abs((int) ($outro['id'] ?? 0) - $id) <= 3) {
+            return function_exists('trip_com_obs') ? trip_com_obs($outro) : $outro;
+        }
+    }
+    $perto = $melhores[0];
+    if (abs((int) ($perto['id'] ?? 0) - $id) > 3) {
+        return null;
+    }
+    return function_exists('trip_com_obs') ? trip_com_obs($perto) : $perto;
+}
+
+/** @return list<array{aviso:string,texto:string}> */
+function reserva_obs_itens(array $db, array $trip): array
+{
+    $cacheId = (int) ($trip['id'] ?? 0);
+    static $cache = [];
+    if ($cacheId > 0 && isset($cache[$cacheId])) {
+        return $cache[$cacheId];
+    }
+    if (function_exists('trip_com_obs')) {
+        $trip = trip_com_obs($trip);
+    }
+    $propria = trim((string) ($trip['obs'] ?? ''));
+    $de = (string) ($trip['obs_de'] ?? '');
+    $irma = reserva_irma_ida_volta($db, $trip);
+    $textoIrma = $irma !== null ? trim((string) ($irma['obs'] ?? '')) : '';
+    $pernaIrma = $irma !== null && (string) ($irma['tipo'] ?? '') === 'volta' ? 'volta' : 'ida';
+    $itens = [];
+    if ($propria !== '' && $de === '') {
+        $itens[] = ['aviso' => '', 'texto' => $propria];
+    }
+    if ($textoIrma !== '' && $textoIrma !== $propria) {
+        $itens[] = ['aviso' => 'Observação da ' . $pernaIrma, 'texto' => $textoIrma];
+    } elseif ($de !== '' && $propria !== '') {
+        $itens[] = ['aviso' => 'Observação da ' . $de, 'texto' => $propria];
+    } elseif ($propria === '' && $textoIrma !== '') {
+        $itens[] = ['aviso' => 'Observação da ' . $pernaIrma, 'texto' => $textoIrma];
+    }
+    if ($cacheId > 0) {
+        $cache[$cacheId] = $itens;
+    }
+    return $itens;
+}
+
 function detalhe_linha(string $rotulo, string $valor): void
 {
-    $obs = $rotulo === 'Observações';
+    $obs = $rotulo === 'Observações' || str_starts_with($rotulo, 'Observação da ');
     echo '<dt>' . e($rotulo) . '</dt>';
     echo '<dd' . ($obs ? ' class="obs-linha"' : '') . '><button type="button" class="copiar-dado no-print" data-copy="' . e($valor) . '" data-copy-keep="1" aria-label="Copiar ' . e($rotulo) . '">' . icon('copy') . '</button>';
     echo '<span>' . e($valor) . '</span>';
@@ -186,14 +328,25 @@ function detalhe_linha(string $rotulo, string $valor): void
 
 function reserva_detalhes(array $db, array $trip): void
 {
+    $obsItens = reserva_obs_itens($db, $trip);
     if (usuario_e_motorista()) {
         $trip = trip_sem_dados_cliente($trip);
-    } else {
-        $trip = trip_com_obs($trip);
     }
     echo '<dl class="detalhe-lista">';
     foreach (reserva_linhas($db, $trip) as $rotulo => $valor) {
+        if ($rotulo === 'Observações' || str_starts_with((string) $rotulo, 'Observação da ')) {
+            continue;
+        }
         detalhe_linha((string) $rotulo, (string) $valor);
+    }
+    foreach ($obsItens as $item) {
+        echo '<dt>Observações</dt>';
+        echo '<dd class="obs-linha obs-par">';
+        if ($item['aviso'] !== '') {
+            echo '<span class="obs-par-tag">' . e($item['aviso']) . '</span>';
+        }
+        echo '<span>' . e($item['texto']) . '</span>';
+        echo '</dd>';
     }
     if ((string) ($trip['tipo'] ?? '') === 'trajetos' && is_array($trip['trajetos'] ?? null)) {
         foreach ($trip['trajetos'] as $i => $trecho) {
@@ -840,7 +993,6 @@ function reserva_dialogos(array $db, array $trip, bool $admin, string $contexto 
         $trip = trip_com_obs($trip);
     } else {
         $admin = false;
-        $trip = trip_sem_dados_cliente($trip);
     }
     $id = (int) $trip['id'];
     $legsCom = agenda_legs($trip);
@@ -875,17 +1027,17 @@ function reserva_dialogos(array $db, array $trip, bool $admin, string $contexto 
           </form>
           <?php endif; ?>
         <?php else: ?>
-          <form method="post" action="index.php" data-confirm="Alterar o status da reserva #<?= $id ?>?">
+          <form class="dlg-status" method="post" action="index.php" data-confirm="Alterar o status da reserva #<?= $id ?>?">
             <?= csrf_fields('set_transfer_status') ?>
             <input type="hidden" name="id" value="<?= $id ?>">
-            <label class="field">Status
-              <select name="status">
+            <label class="dlg-status-rotulo">Status
+              <select class="dlg-status-sel" name="status">
                 <?php foreach (['pendente' => 'Pendente', 'reserva' => 'Reservada', 'andamento' => 'Em andamento', 'concluida' => 'Concluída', 'cancelada' => 'Cancelada'] as $k => $lab): ?>
                   <option value="<?= e($k) ?>"<?= ($trip['status'] ?? '') === $k ? ' selected' : '' ?>><?= e($lab) ?></option>
                 <?php endforeach; ?>
               </select>
             </label>
-            <button class="btn btn-sm btn-primary" type="submit">Atualizar status</button>
+            <button class="btn btn-primary dlg-status-btn" type="submit">Atualizar status</button>
           </form>
         <?php endif; ?>
         <?php if (reserva_pode_pdf($trip)): ?>

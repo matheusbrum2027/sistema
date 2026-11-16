@@ -126,6 +126,17 @@ function route_map(): array
         'group' => '',
         'bare' => true,
     ];
+    $map['verificar'] = [
+        'id' => 'verificar',
+        'title' => 'Verificar motorista',
+        'icon' => 'users',
+        'subtitle' => '',
+        'view' => 'views/verificar.php',
+        'filters' => false,
+        'group' => '',
+        'bare' => true,
+        'site' => true,
+    ];
     $map['seja-motorista'] = [
         'id' => 'seja-motorista',
         'title' => 'Seja motorista',
