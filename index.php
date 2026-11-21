@@ -90,35 +90,32 @@ if (isset($_GET['cron'])) {
         $enviados = disparar_pendentes(40.0);
         $sheetsOk = null;
         $drive = null;
-        $presenca = null;
-        $dbc = load_db();
+        $presenca = ['ok' => false, 'pulado' => true];
+        $dbc = load_db(true, false, 'casca');
         try {
-            $presenca = com_db('wa_presenca_cron', static function (array &$db): array {
-                if (!function_exists('uazapi_aplicar_presenca')) {
-                    return ['ok' => false, 'pulado' => true];
-                }
-                if ((($db['settings']['wa_status'] ?? '') !== 'conectado') || !uazapi_settings_ready($db['settings'] ?? [])) {
-                    return ['ok' => false, 'pulado' => true];
-                }
-                uazapi_aplicar_presenca($db['settings']);
-                $db['settings']['wa_presenca_em'] = time();
-                return [
+            $ajustes = $dbc['settings'] ?? [];
+            if (function_exists('uazapi_aplicar_presenca')
+                && (($ajustes['wa_status'] ?? '') === 'conectado')
+                && uazapi_settings_ready($ajustes)) {
+                uazapi_aplicar_presenca($ajustes);
+                $presenca = [
                     'ok' => true,
                     'online' => function_exists('uazapi_dentro_horario_online')
-                        ? uazapi_dentro_horario_online($db['settings'])
+                        ? uazapi_dentro_horario_online($ajustes)
                         : true,
                 ];
-            });
+            }
         } catch (Throwable) {
             $presenca = ['ok' => false];
         }
-        if (sheets_ativo()) {
-            if (!empty($dbc['settings']['sheets_sync_pendente'])) {
-                sheets_sync($dbc, 'cron');
-                $sheetsOk = (string) ($dbc['settings']['sheets_sync_erro'] ?? '') === '';
-            }
+        if (sheets_ativo() && !empty($dbc['settings']['sheets_sync_pendente'])) {
+            $GLOBALS['fln_menu'] = false;
+            $dbc = load_db(true, true);
+            sheets_sync($dbc, 'cron');
+            $sheetsOk = (string) ($dbc['settings']['sheets_sync_erro'] ?? '') === '';
         }
-        if (drive_conectado($dbc)) {
+        if (drive_conectado($dbc) && (string) ($dbc['settings']['drive_ultimo_dia'] ?? '') !== today()->format('d/m/Y')) {
+            $GLOBALS['fln_menu'] = false;
             $drive = com_db('drive_cron', static function (array &$db): array {
                 $out = drive_cron($db);
                 return is_array($out) ? $out : ['ok' => true, 'pulado' => true];

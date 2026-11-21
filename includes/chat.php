@@ -686,25 +686,6 @@ function chat_webhook_recebido(array $payload): void
         return;
     }
     if ($evento === 'presence') {
-        $ev = is_array($payload['event'] ?? null) ? $payload['event'] : $payload;
-        $state = strtolower((string) ($ev['State'] ?? $ev['state'] ?? ''));
-        $chatid = trim((string) ($ev['Chat'] ?? $ev['chatid'] ?? ''));
-        $meu = !empty($ev['IsFromMe']);
-        $texto = $state === 'composing' || $state === 'recording'
-            ? ($meu ? 'conectado digitando…' : 'digitando…')
-            : '';
-        try {
-            com_db('chat_digitando', static function (array &$db) use ($chatid, $texto): bool {
-                if ($texto === '') {
-                    chat_store_garantir($db);
-                    unset($db['chat']['digitando'][$chatid]);
-                    return true;
-                }
-                chat_marcar_digitando($db, $chatid, $texto);
-                return true;
-            });
-        } catch (Throwable) {
-        }
         return;
     }
     if ($evento !== '' && $evento !== 'messages' && $evento !== 'message') {
@@ -789,20 +770,6 @@ function chat_puxar_novas(array $db): int
     $settings = $db['settings'] ?? [];
     if (!uazapi_settings_ready($settings) || (($settings['wa_status'] ?? '') !== 'conectado')) {
         return 0;
-    }
-    try {
-        com_db('wa_presenca', static function (array &$store): bool {
-            $ultimo = (int) ($store['settings']['wa_presenca_em'] ?? 0);
-            if ($ultimo > 0 && (time() - $ultimo) < 180) {
-                return false;
-            }
-            if (function_exists('uazapi_aplicar_presenca')) {
-                uazapi_aplicar_presenca($store['settings']);
-            }
-            $store['settings']['wa_presenca_em'] = time();
-            return true;
-        });
-    } catch (Throwable) {
     }
     chat_store_garantir($db);
     $desde = chat_desde_ms($db);

@@ -1395,8 +1395,14 @@ function dispatch_whatsapp(array &$db, bool $manual): bool
  */
 function disparar_pendentes(float $limite): int
 {
-    $agora = (new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i');
-    $reservados = com_db('whatsapp_reservar', static function (array &$db) use ($agora) {
+    $agoraDt = new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo'));
+    $agora = $agoraDt->format('Y-m-d H:i');
+    $amostra = load_db(true, false, 'corridas', $agoraDt->modify('-1 day')->format('Y-m-d'), $agoraDt->modify('+1 day')->format('Y-m-d'));
+    $GLOBALS['fln_menu'] = false;
+    if (whatsapp_fila($amostra, false) === []) {
+        return 0;
+    }
+    $reservados = com_db('whatsapp_reservar', static function (array &$db) use ($agora): mixed {
         $itens = whatsapp_fila($db, false);
         if ($itens === []) {
             return false;

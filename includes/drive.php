@@ -348,7 +348,7 @@ function drive_cron(array &$db): ?array
     }
     $hoje = today()->format('d/m/Y');
     if ((string) ($db['settings']['drive_ultimo_dia'] ?? '') === $hoje) {
-        return ['ok' => true, 'pulado' => true, 'motivo' => 'já feito hoje'];
+        return null;
     }
     return drive_backup_executar($db, 'cron');
 }
