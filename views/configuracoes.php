@@ -135,7 +135,7 @@ view_head('', 'Cada bloco salva sozinho. Toque em Editar para liberar os campos.
     <input type="hidden" name="editando" value="0">
     <fieldset disabled>
       <label class="field">Antecedência mínima (horas) <input type="number" name="antecedencia" min="0" max="72" value="<?= e($s['antecedencia']) ?>" placeholder="2"></label>
-      <label class="field">Intervalo entre viagens (minutos) <input type="number" name="intervalo_motorista" min="15" max="720" step="5" required value="<?= e($s['intervalo_motorista'] ?? '120') ?>" placeholder="120"></label>
+      <label class="field">Intervalo entre viagens (minutos) <input type="number" name="intervalo_motorista" min="1" max="720" step="1" required value="<?= e($s['intervalo_motorista'] ?? '120') ?>" placeholder="120"></label>
       <label class="cfg-switch"><input type="checkbox" name="modo_simples" value="1"<?= !empty($s['modo_simples']) ? ' checked' : '' ?>> <span>Modo simples<small>Enxuga a operação do dia a dia.</small></span></label>
       <label class="field">Usuário do administrador <input name="usuario" required maxlength="80" value="<?= e($s['usuario'] ?? 'admin') ?>" placeholder="admin" autocomplete="username"></label>
       <?php $temSenhaAdmin = segredo_cadastrado((string) ($s['senha'] ?? '')); ?>
@@ -325,7 +325,7 @@ $classe2fa = $estado2fa === 'on' ? 'ok' : ($estado2fa === 'setup' ? 'warn' : 'of
     </ul>
   <?php endif; ?>
   <ol class="cfg-passos">
-    <li><strong>Android.</strong> Instale só o <a href="assets/app/fln-transfer.apk" data-apk>APK FLN Transfer</a>. Se o Chrome pedir para instalar o site, cancele: isso cria um segundo aplicativo. Entre no APK e toque em Ativar neste aparelho.</li>
+    <li><strong>Android.</strong> Instale só o <a href="assets/app/fln-transfer.apk?v=3" data-apk>APK FLN Transfer</a>. Se o Chrome pedir para instalar o site, cancele: isso cria um segundo aplicativo. Entre no APK e toque em Ativar neste aparelho.</li>
     <li><strong>iPhone.</strong> No Safari, nesta página, use Compartilhar → Adicionar à Tela de Início uma única vez. Se já existirem dois ícones, apague um e fique com o FLN Transfer.</li>
     <li><strong>Computador.</strong> No Chrome, toque em Ativar neste aparelho. Instalar aplicativo, quando aparecer, é só para o computador.</li>
     <li><strong>Teste.</strong> Feche o painel, bloqueie a tela e toque em Testar som e vibração.</li>

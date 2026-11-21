@@ -467,10 +467,13 @@ function find_lanc(array $db, int $tripId, string $papel): ?int
 function proximo_id(array &$db, string $chave, callable $maior): int
 {
     $seq = (int) ($db['seq'][$chave] ?? 1);
-    $id = max($seq, $maior($db));
-    if ($id < 1) {
-        $id = 1;
+    $livre = $maior($db);
+    if ($livre < 1) {
+        $livre = 1;
     }
+    // Lista completa: o próximo é o maior número que existe + 1.
+    // Uma sequência antiga, de cadastro já apagado, não pode pular esse número.
+    $id = empty($GLOBALS['fln_menu']) ? $livre : max($seq, $livre);
     $db['seq'][$chave] = $id + 1;
     return $id;
 }
@@ -1782,7 +1785,7 @@ function ops_dispatch(array &$db, string $action): ?array
             }
             $db['settings']['antecedencia'] = (string) max(0, min(72, (int) post('antecedencia')));
             if (array_key_exists('intervalo_motorista', $_POST)) {
-                $db['settings']['intervalo_motorista'] = (string) max(15, min(720, (int) post('intervalo_motorista')));
+                $db['settings']['intervalo_motorista'] = (string) max(1, min(720, (int) post('intervalo_motorista')));
             }
             $db['settings']['modo_simples'] = post('modo_simples') === '1';
             $adminRaw = clip(post('usuario'), 80);

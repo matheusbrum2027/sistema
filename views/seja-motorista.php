@@ -83,7 +83,7 @@ $faixa = ['Aeroporto Hercílio Luz', 'Jurerê', 'Lagoa da Conceição', 'Campech
           </div>
           <p class="sm-ja ja-instalado">Este celular já tem o FLN Transfer. Não adicione outro ícone.</p>
           <div class="sm-store-row sm-rise sm-d4 so-instalar">
-            <a class="sm-store so-android" href="assets/app/fln-transfer.apk" data-apk>
+            <a class="sm-store so-android" href="assets/app/fln-transfer.apk?v=3" data-apk>
               <b aria-hidden="true">▶</b>
               <span><small>Android · um arquivo</small><strong>Baixar APK</strong></span>
             </a>
@@ -263,7 +263,7 @@ $faixa = ['Aeroporto Hercílio Luz', 'Jurerê', 'Lagoa da Conceição', 'Campech
             <span>Android</span>
             <h3>Só o APK</h3>
             <p>Toque uma vez em baixar, abra o arquivo e permita a instalação. Não use o aviso do Chrome que oferece instalar o site: esse segundo ícone é o aplicativo duplicado. Depois entre e ative os avisos.</p>
-            <a class="sm-btn" href="assets/app/fln-transfer.apk" data-apk>Baixar o aplicativo</a>
+            <a class="sm-btn" href="assets/app/fln-transfer.apk?v=3" data-apk>Baixar o aplicativo</a>
           </article>
           <article class="so-ios" data-reveal>
             <span>iPhone</span>

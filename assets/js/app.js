@@ -455,6 +455,16 @@
     const rotulo = link.textContent;
     link.setAttribute('aria-busy', 'true');
     link.textContent = 'Preparando…';
+    if (window.FlnApp && typeof window.FlnApp.baixar === 'function') {
+      try {
+        window.FlnApp.baixar(new URL(link.href, location.href).href, nome);
+        link.textContent = 'PDF salvo';
+      } catch (err) {
+        link.textContent = rotulo;
+      }
+      link.removeAttribute('aria-busy');
+      return;
+    }
     try {
       const resposta = await fetch(link.href, { credentials: 'same-origin', cache: 'no-store' });
       const bruto = await resposta.arrayBuffer();

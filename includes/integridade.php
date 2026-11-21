@@ -9,7 +9,7 @@ if (realpath((string) ($_SERVER['SCRIPT_FILENAME'] ?? '')) === realpath(__FILE__
 function intervalo_motorista(array $db): int
 {
     $min = (int) ($db['settings']['intervalo_motorista'] ?? 120);
-    return max(15, min(720, $min));
+    return max(1, min(720, $min));
 }
 
 function motoristas_do_trecho(array $trip, string $kind): array
