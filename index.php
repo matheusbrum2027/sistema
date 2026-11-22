@@ -526,7 +526,7 @@ if ($current === 'agenda' && (string) ($_GET['baixar'] ?? '') === 'pdf') {
     }
     @ini_set('zlib.output_compression', '0');
     header('Content-Type: application/pdf');
-    header('Content-Disposition: ' . reserva_pdf_disposition($arquivo));
+    header('Content-Disposition: ' . reserva_pdf_disposition($arquivo, (string) ($_GET['ver'] ?? '') === '1'));
     header('Content-Length: ' . strlen($pdf));
     header('Cache-Control: private, no-store');
     header('X-Content-Type-Options: nosniff');

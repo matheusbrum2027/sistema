@@ -1047,6 +1047,17 @@ dialog.dlg-reserva[open],
 dialog.dlg-reserva:modal { width: min(760px, calc(100vw - 48px)) !important; }
 dialog.dlg-pdf[open],
 dialog.dlg-pdf:modal { width: min(920px, calc(100vw - 48px)) !important; }
+dialog.dlg-pdf-visor[open],
+dialog.dlg-pdf-visor:modal {
+  width: min(960px, calc(100vw - 32px)) !important;
+  max-height: calc(100dvh - 24px);
+  display: flex;
+  flex-direction: column;
+}
+.pdf-visor-nome { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+.pdf-visor-corpo { flex: 1; min-height: 0; padding: 0; background: #d7dbe2; }
+.pdf-visor-frame { display: block; width: 100%; height: min(72dvh, 760px); border: 0; background: #fff; }
+.pdf-visor-estado { margin: 16px; color: var(--muted); }
 dialog.dlg-com[open],
 dialog.dlg-com:modal { width: min(520px, calc(100vw - 48px)) !important; }
 .com-form .help { margin: 0 0 12px; color: var(--muted); font-size: 12.5px; line-height: 1.45; }
@@ -1468,6 +1479,11 @@ html[data-theme="dark"] .com-card-mark { background: #1b2028; border-color: #3d4
   dialog.dlg-reserva:modal,
   dialog.dlg-pdf[open],
   dialog.dlg-pdf:modal { width: auto !important; }
+  dialog.dlg-pdf-visor[open],
+  dialog.dlg-pdf-visor:modal {
+    height: calc(100dvh - var(--fln-safe-top) - var(--fln-safe-bottom) - 16px) !important;
+  }
+  .pdf-visor-frame { height: calc(100dvh - var(--fln-safe-top) - var(--fln-safe-bottom) - 150px); }
   .cfg-card fieldset, .detalhe-lista, .form-grid, .sign, .stat-row, .stat-row.five, .kpi-grid, .kpi-grid.row2, .cfg-switches, .cfg-passos { grid-template-columns: 1fr; }
   .filters, .sheet-top { grid-template-columns: 1fr; }
   .content { padding: 10px; }

@@ -635,7 +635,7 @@ function reserva_arquivo_pdf(array $trip): string
     return $nome . '.pdf';
 }
 
-function reserva_pdf_disposition(string $arquivo): string
+function reserva_pdf_disposition(string $arquivo, bool $inline = false): string
 {
     $arquivo = str_replace(["\r", "\n", '"'], '', $arquivo);
     if (!str_ends_with(strtolower($arquivo), '.pdf')) {
@@ -650,7 +650,8 @@ function reserva_pdf_disposition(string $arquivo): string
     if ($ascii === '' || !str_ends_with(strtolower($ascii), '.pdf')) {
         $ascii = 'reserva.pdf';
     }
-    return 'attachment; filename="' . $ascii . '"; filename*=UTF-8\'\'' . rawurlencode($arquivo);
+    $modo = $inline ? 'inline' : 'attachment';
+    return $modo . '; filename="' . $ascii . '"; filename*=UTF-8\'\'' . rawurlencode($arquivo);
 }
 
 function reserva_assinatura_jpeg(array $s): ?array

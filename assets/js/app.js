@@ -412,78 +412,129 @@
     navOcupado = false;
     bombearPrefetch();
   }
-  const pdfProntos = new WeakMap();
-  async function baixarPdfDoLink(link) {
-    if (link.getAttribute('aria-busy') === 'true') return;
-    const nome = (link.getAttribute('data-baixar-pdf') || link.getAttribute('download') || 'reserva.pdf').trim();
-    const titulo = nome.replace(/\.pdf$/i, '');
-    const guardado = pdfProntos.get(link);
-    const disparar = (href) => {
-      const a = document.createElement('a');
-      a.href = href;
-      a.download = nome;
-      a.rel = 'noopener';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-    };
-    const compartilhar = async (file) => {
-      if (!navigator.canShare || !navigator.canShare({ files: [file] })) return false;
-      try {
-        await navigator.share({ files: [file], title: titulo });
-        return true;
-      } catch (erro) {
-        if (erro && erro.name === 'AbortError') return true;
-        return false;
+  const pdfBlobs = new Map();
+  function visorPdf() {
+    let dlg = document.getElementById('dlg-pdf-visor');
+    if (dlg) return dlg;
+    dlg = document.createElement('dialog');
+    dlg.id = 'dlg-pdf-visor';
+    dlg.className = 'dlg-pdf dlg-pdf-visor';
+    dlg.innerHTML = ''
+      + '<header class="dialog-h">'
+      + '<div><h2>Pré-visualização do PDF</h2><p class="pdf-visor-nome"></p></div>'
+      + '<div class="dialog-tools">'
+      + '<button class="btn btn-sm btn-primary" type="button" data-pdf-salvar>Baixar PDF</button>'
+      + '<button class="dlg-x" type="button" data-close-dialog aria-label="Fechar">×</button>'
+      + '</div></header>'
+      + '<div class="dialog-b pdf-visor-corpo">'
+      + '<p class="pdf-visor-estado">Carregando a pré-visualização…</p>'
+      + '<iframe class="pdf-visor-frame" title="Pré-visualização do PDF" hidden></iframe>'
+      + '</div>'
+      + '<footer class="dlg-foot">'
+      + '<button class="btn btn-primary" type="button" data-pdf-salvar>Baixar PDF</button>'
+      + '<button class="btn" type="button" data-close-dialog>Fechar</button>'
+      + '</footer>';
+    document.body.appendChild(dlg);
+    dlg.addEventListener('close', () => {
+      const frame = dlg.querySelector('iframe');
+      if (frame) {
+        frame.hidden = true;
+        frame.removeAttribute('src');
       }
-    };
-    if (guardado) {
-      if (await compartilhar(guardado.file)) return;
-      disparar(guardado.href);
-      return;
-    }
-    const rotulo = link.textContent;
-    link.setAttribute('aria-busy', 'true');
-    link.textContent = 'Preparando…';
-    if (window.FlnApp && typeof window.FlnApp.baixar === 'function') {
-      try {
-        window.FlnApp.baixar(new URL(link.href, location.href).href, nome);
-        link.textContent = 'PDF salvo';
-      } catch (err) {
-        link.textContent = rotulo;
-      }
-      link.removeAttribute('aria-busy');
-      return;
-    }
-    try {
-      const resposta = await fetch(link.href, { credentials: 'same-origin', cache: 'no-store' });
+    });
+    return dlg;
+  }
+  function salvarArquivo(href, nome) {
+    const a = document.createElement('a');
+    a.href = href;
+    a.download = nome;
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+  async function pdfPronto(url) {
+    if (pdfBlobs.has(url)) return pdfBlobs.get(url);
+    const pedido = fetch(url, { credentials: 'same-origin', cache: 'no-store' }).then(async (resposta) => {
       const bruto = await resposta.arrayBuffer();
       const bytes = new Uint8Array(bruto);
       const ehPdf = resposta.ok && bytes.length > 5 && bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46;
       if (!ehPdf) throw new Error('pdf');
-      const blob = new Blob([bruto], { type: 'application/pdf' });
-      const file = new File([blob], nome, { type: 'application/pdf' });
-      const href = URL.createObjectURL(blob);
-      pdfProntos.set(link, { file, href });
-      if (await compartilhar(file)) {
-        link.textContent = rotulo;
-        return;
-      }
-      disparar(href);
-      if (window.matchMedia('(pointer: coarse)').matches) {
-        link.textContent = 'Salvar PDF';
-        link.title = 'Toque de novo para salvar o arquivo no celular.';
-      } else {
-        link.textContent = rotulo;
-      }
-    } catch (erro) {
-      link.textContent = rotulo;
-      window.location.assign(link.href);
-    } finally {
-      link.removeAttribute('aria-busy');
+      return URL.createObjectURL(new Blob([bruto], { type: 'application/pdf' }));
+    });
+    pdfBlobs.set(url, pedido);
+    try {
+      return await pedido;
+    } catch (err) {
+      pdfBlobs.delete(url);
+      throw err;
     }
   }
+  async function abrirPreviaPdf(url, nome) {
+    const dlg = visorPdf();
+    const estado = dlg.querySelector('.pdf-visor-estado');
+    const frame = dlg.querySelector('iframe');
+    const rotulo = dlg.querySelector('.pdf-visor-nome');
+    if (rotulo) rotulo.textContent = nome;
+    if (estado) {
+      estado.hidden = false;
+      estado.textContent = 'Carregando a pré-visualização…';
+    }
+    if (frame) {
+      frame.hidden = true;
+      frame.removeAttribute('src');
+    }
+    dlg.dataset.pdfUrl = url;
+    dlg.dataset.pdfNome = nome;
+    dlg.removeAttribute('closedby');
+    if (!dlg.open) dlg.showModal();
+    const previa = new URL(url, location.href);
+    previa.searchParams.set('ver', '1');
+    if (frame) {
+      frame.src = previa.href;
+      frame.hidden = false;
+    }
+    if (estado) estado.hidden = true;
+    pdfPronto(url).catch(() => {});
+  }
+  async function salvarPdfDireto(url, nome, botao) {
+    const rotulo = botao ? botao.textContent : '';
+    if (botao) {
+      botao.disabled = true;
+      botao.textContent = 'Baixando…';
+    }
+    try {
+      if (window.FlnApp && typeof window.FlnApp.baixar === 'function') {
+        window.FlnApp.baixar(url, nome);
+        return;
+      }
+      const href = await pdfPronto(url);
+      salvarArquivo(href, nome);
+    } catch (err) {
+      salvarArquivo(url, nome);
+    } finally {
+      if (botao) {
+        botao.disabled = false;
+        botao.textContent = rotulo;
+      }
+    }
+  }
+  function baixarPdfDoLink(link) {
+    const nome = (link.getAttribute('data-baixar-pdf') || link.getAttribute('download') || 'reserva.pdf').trim();
+    const url = new URL(link.href, location.href);
+    url.searchParams.delete('ver');
+    abrirPreviaPdf(url.href, nome);
+  }
   document.addEventListener('click', (event) => {
+    const salvarPdf = event.target.closest('[data-pdf-salvar]');
+    if (salvarPdf) {
+      event.preventDefault();
+      const dlg = salvarPdf.closest('#dlg-pdf-visor');
+      const url = dlg?.dataset.pdfUrl || '';
+      const nome = dlg?.dataset.pdfNome || 'reserva.pdf';
+      if (url) salvarPdfDireto(url, nome, salvarPdf);
+      return;
+    }
     const pdfLink = event.target.closest('[data-baixar-pdf]');
     if (pdfLink) {
       event.preventDefault();
@@ -687,19 +738,7 @@
     if (!/^\d+$/.test(id)) return;
     const arquivo = nome.replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim();
     const url = 'index.php?p=agenda&baixar=pdf&id=' + encodeURIComponent(id);
-    const ios = /iPad|iPhone|iPod/.test(navigator.userAgent)
-      || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-    if (ios) {
-      const aberto = window.open(url, '_blank');
-      if (aberto) return;
-    }
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = arquivo;
-    a.rel = 'noopener';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+    abrirPreviaPdf(new URL(url, location.href).href, arquivo || 'reserva.pdf');
   }
   function aplicarTema(tema, gravar) {
     if (tema === 'dark') document.documentElement.dataset.theme = 'dark';
