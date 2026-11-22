@@ -125,10 +125,49 @@ function totp_uri(string $secret, string $conta, string $emissor = 'FLN Transfer
     return 'otpauth://totp/' . $label . '?' . $q;
 }
 
+/**
+ * O gerador local cabe em 106 bytes. A chave manual continua completa;
+ * o QR leva a mesma chave com um rótulo curto quando o nome da empresa não cabe.
+ */
+function totp_uri_para_qr(string $otpauthUri): string
+{
+    if (strlen($otpauthUri) <= 106) {
+        return $otpauthUri;
+    }
+    if (!preg_match('/[?&]secret=([A-Z2-7]+)/i', $otpauthUri, $m)) {
+        return substr($otpauthUri, 0, 106);
+    }
+    $curta = 'otpauth://totp/FLN:admin?secret=' . totp_secret_limpo($m[1]);
+    return strlen($curta) <= 106 ? $curta : substr($curta, 0, 106);
+}
+
 function totp_qr_url(string $otpauthUri, int $tamanho = 220): string
 {
     $tamanho = max(160, min(320, $tamanho));
-    return 'https://api.qrserver.com/v1/create-qr-code/?size=' . $tamanho . 'x' . $tamanho . '&ecc=M&margin=8&data=' . rawurlencode($otpauthUri);
+    if (!function_exists('qr_matriz')) {
+        require_once __DIR__ . '/qr_codigo.php';
+    }
+    $matriz = qr_matriz(totp_uri_para_qr($otpauthUri));
+    $n = count($matriz);
+    $quiet = 4;
+    $cel = 4;
+    $lado = ($n + $quiet * 2) * $cel;
+    $rects = '';
+    for ($y = 0; $y < $n; $y++) {
+        for ($x = 0; $x < $n; $x++) {
+            if (($matriz[$y][$x] ?? 0) !== 1) {
+                continue;
+            }
+            $x0 = ($x + $quiet) * $cel;
+            $y0 = ($y + $quiet) * $cel;
+            $rects .= '<rect x="' . $x0 . '" y="' . $y0 . '" width="' . $cel . '" height="' . $cel . '"/>';
+        }
+    }
+    $svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' . $lado . ' ' . $lado
+        . '" width="' . $tamanho . '" height="' . $tamanho . '" shape-rendering="crispEdges">'
+        . '<rect width="100%" height="100%" fill="#fff"/>'
+        . '<g fill="#111827">' . $rects . '</g></svg>';
+    return 'data:image/svg+xml;base64,' . base64_encode($svg);
 }
 
 /**

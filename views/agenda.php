@@ -111,6 +111,9 @@ foreach ($todas as $trip) {
             if ($admin) {
                 $faixa['cliente'] = $trip['cliente'];
             }
+            $inverteFaixa = $leg['kind'] === 'volta' && (string) ($trip['tipo'] ?? '') === 'ida_volta';
+            $faixa['de'] = (string) ($inverteFaixa ? $trip['destino'] : $trip['origem']);
+            $faixa['para'] = (string) ($inverteFaixa ? $trip['origem'] : $trip['destino']);
             $byDay[$dataLeg][] = $leg + $faixa;
         }
         if ($statusTrip !== 'concluida' && $dataLeg >= $hojeIso && $dataLeg <= $limiteIso) {
@@ -145,6 +148,46 @@ if ($admin) {
     }
     $obsPorId = store_anotacoes($idsObs);
 }
+$vista = (string) ($agendaVista ?? 'calendario');
+if (!in_array($vista, ['calendario', 'kanban', 'lista'], true)) {
+    $vista = 'calendario';
+}
+$tzAgenda = new DateTimeZone('America/Sao_Paulo');
+$semanaPedida = (string) ($_GET['semana'] ?? '');
+$semanaDia = DateTimeImmutable::createFromFormat('!Y-m-d', $semanaPedida, $tzAgenda);
+if (!$semanaDia || $semanaDia->format('Y-m-d') !== $semanaPedida) {
+    $semanaDia = $mes === today()->format('Y-m') ? today() : $cursor;
+}
+$semanaInicio = $semanaDia->modify('-' . (int) $semanaDia->format('w') . ' days');
+$cartaoAgenda = static function (array $leg, bool $admin, array $obsPorId): void {
+    $horaLeg = $leg['hora'] !== '' ? substr((string) $leg['hora'], 0, 5) : '--:--';
+    $idCls = 'chip-ok';
+    if (($leg['status'] ?? '') === 'andamento') {
+        $idCls = 'chip-run';
+    } elseif (($leg['status'] ?? '') === 'concluida') {
+        $idCls = 'chip-done';
+    } elseif (!empty($leg['passou'])) {
+        $idCls = 'chip-late';
+    }
+    $frotaLbl = (string) ($leg['frota_label'] ?? '');
+    $obsChip = $admin ? trim((string) ($obsPorId[(int) ($leg['id'] ?? 0)] ?? '')) : '';
+    $de = trim((string) ($leg['de'] ?? ''));
+    $para = trim((string) ($leg['para'] ?? ''));
+    ?>
+    <button type="button" class="agenda-card agenda-card-<?= e((string) ($leg['kind'] ?? 'ida')) ?><?= !empty($leg['passou']) ? ' passou' : '' ?>" data-open-dialog="dlg-ver-<?= (int) $leg['id'] ?>" data-reserva-id="<?= (int) $leg['id'] ?>">
+      <span class="agenda-card-topo">
+        <span class="agenda-card-hora"><?= e($horaLeg) ?></span>
+        <span class="chip-id <?= $idCls ?>">#<?= (int) $leg['id'] ?></span>
+        <span class="chip-tipo"><?= e((string) ($leg['label'] ?? '')) ?></span>
+        <?php if ($frotaLbl !== ''): ?><span class="chip-frota frota-<?= e(($leg['frota'] ?? '') !== '' ? (string) $leg['frota'] : 'carro') ?>"><?= e($frotaLbl) ?></span><?php endif; ?>
+        <?= status_badge((string) ($leg['status'] ?? '')) ?>
+      </span>
+      <?php if ($de !== '' || $para !== ''): ?><span class="agenda-card-rota"><?= e($de) ?> → <?= e($para) ?></span><?php endif; ?>
+      <?php if ($admin && trim((string) ($leg['cliente'] ?? '')) !== ''): ?><span class="agenda-card-cli"><?= e((string) $leg['cliente']) ?></span><?php endif; ?>
+      <?php if ($obsChip !== ''): ?><span class="agenda-card-obs"><?= e($obsChip) ?></span><?php endif; ?>
+    </button>
+    <?php
+};
 if (!$admin) {
     view_head('', 'Suas viagens. O acesso mostra somente o que foi atribuído a você.');
     echo '<p id="push-estado" class="help">Preparando os avisos deste celular…</p>';
@@ -152,6 +195,12 @@ if (!$admin) {
     view_head();
 }
 ?>
+<div class="agenda-pagina agenda-pagina-<?= e($vista) ?>">
+<nav class="agenda-vistas" aria-label="Modelo da agenda">
+  <a class="<?= $vista === 'calendario' ? 'is-on' : '' ?>" href="<?= e(href('agenda', ['vista' => 'calendario', 'mes' => $mes])) ?>">Mês</a>
+  <a class="<?= $vista === 'kanban' ? 'is-on' : '' ?>" href="<?= e(href('agenda', ['vista' => 'kanban', 'mes' => $semanaInicio->modify('+3 days')->format('Y-m'), 'semana' => $semanaInicio->format('Y-m-d')])) ?>">Quadro</a>
+  <a class="<?= $vista === 'lista' ? 'is-on' : '' ?>" href="<?= e(href('agenda', ['vista' => 'lista', 'mes' => $mes])) ?>">Lista</a>
+</nav>
 <section class="agenda-lista<?= $admin ? ' so-celular' : '' ?>" aria-label="Próximas viagens">
   <h2 class="sec-title">Próximas viagens</h2>
   <?php if ($proximas === []): ?>
@@ -175,6 +224,92 @@ if (!$admin) {
     <?php endforeach; ?>
   <?php endif; ?>
 </section>
+<?php if ($vista === 'kanban'): ?>
+<?php
+  $semanaFim = $semanaInicio->modify('+6 days');
+  $semanaAnt = $semanaInicio->modify('-7 days');
+  $semanaProx = $semanaInicio->modify('+7 days');
+  $tituloSemana = $semanaInicio->format('m') === $semanaFim->format('m')
+      ? $semanaInicio->format('j') . '–' . $semanaFim->format('j') . ' ' . mes_longo($semanaInicio)
+      : $semanaInicio->format('j') . ' ' . mes_longo($semanaInicio) . ' – ' . $semanaFim->format('j') . ' ' . mes_longo($semanaFim);
+  $nomesQuadro = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+  $hojeSemana = today()->modify('-' . (int) today()->format('w') . ' days');
+?>
+<div class="cal-wrap kanban-wrap">
+  <div class="cal-head">
+    <a class="cal-nav" href="<?= e(href('agenda', ['vista' => 'kanban', 'mes' => $semanaAnt->modify('+3 days')->format('Y-m'), 'semana' => $semanaAnt->format('Y-m-d')])) ?>" aria-label="Semana anterior">‹</a>
+    <strong><?= e($tituloSemana) ?> <?= e($semanaFim->format('Y')) ?></strong>
+    <a class="cal-nav" href="<?= e(href('agenda', ['vista' => 'kanban', 'mes' => $semanaProx->modify('+3 days')->format('Y-m'), 'semana' => $semanaProx->format('Y-m-d')])) ?>" aria-label="Próxima semana">›</a>
+    <a class="btn btn-sm cal-hoje" href="<?= e(href('agenda', ['vista' => 'kanban', 'mes' => today()->format('Y-m'), 'semana' => $hojeSemana->format('Y-m-d')])) ?>">Hoje</a>
+  </div>
+  <div class="kanban-board">
+    <?php for ($i = 0; $i < 7; $i++): ?>
+      <?php
+        $day = $semanaInicio->modify('+' . $i . ' days');
+        $key = $day->format('Y-m-d');
+        $legs = $byDay[$key] ?? [];
+      ?>
+      <section class="kanban-col<?= $key === $hojeIso ? ' today' : '' ?>">
+        <header class="kanban-col-top">
+          <b><?= e($nomesQuadro[$i]) ?> <?= e($day->format('d/m')) ?></b>
+          <?php if ($legs !== []): ?><span class="cal-qtd"><?= count($legs) ?></span><?php endif; ?>
+        </header>
+        <div class="kanban-cards">
+          <?php if ($legs === []): ?>
+            <p class="kanban-vazio">Nenhuma corrida</p>
+          <?php else: ?>
+            <?php foreach ($legs as $leg) { $cartaoAgenda($leg, $admin, $obsPorId); } ?>
+          <?php endif; ?>
+        </div>
+      </section>
+    <?php endfor; ?>
+  </div>
+  <p class="cal-note">Quadro da semana. No celular e no tablet, deslize para o lado para ver os outros dias. Toque no cartão para abrir a reserva.</p>
+</div>
+<?php elseif ($vista === 'lista'): ?>
+<div class="cal-wrap lista-wrap">
+  <div class="cal-head">
+    <a class="cal-nav" href="<?= e(href('agenda', ['vista' => 'lista', 'mes' => $cursor->modify('-1 month')->format('Y-m')])) ?>" aria-label="Mês anterior">‹</a>
+    <strong><?= e(ucfirst(mes_longo($cursor))) ?> <?= e($cursor->format('Y')) ?></strong>
+    <a class="cal-nav" href="<?= e(href('agenda', ['vista' => 'lista', 'mes' => $cursor->modify('+1 month')->format('Y-m')])) ?>" aria-label="Próximo mês">›</a>
+    <a class="btn btn-sm cal-hoje" href="<?= e(href('agenda', ['vista' => 'lista', 'mes' => today()->format('Y-m')])) ?>">Hoje</a>
+  </div>
+  <?php
+    $nomesLista = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+    $diasLista = 0;
+    $diaMes = $cursor;
+    $fimMes = $cursor->modify('last day of this month');
+  ?>
+  <div class="lista-dias">
+  <?php while ($diaMes <= $fimMes): ?>
+    <?php
+      $key = $diaMes->format('Y-m-d');
+      $legs = $byDay[$key] ?? [];
+      if ($legs === [] && $key !== $hojeIso) {
+          $diaMes = $diaMes->modify('+1 day');
+          continue;
+      }
+      $diasLista++;
+    ?>
+    <section class="lista-dia<?= $key === $hojeIso ? ' today' : '' ?>">
+      <h3><?= $key === $hojeIso ? 'Hoje · ' : '' ?><?= e($nomesLista[(int) $diaMes->format('w')]) ?> <?= e($diaMes->format('d/m')) ?><?php if ($legs !== []): ?> <span class="cal-qtd"><?= count($legs) ?></span><?php endif; ?></h3>
+      <?php if ($legs === []): ?>
+        <p class="kanban-vazio">Nenhuma corrida neste dia.</p>
+      <?php else: ?>
+        <div class="lista-cards">
+          <?php foreach ($legs as $leg) { $cartaoAgenda($leg, $admin, $obsPorId); } ?>
+        </div>
+      <?php endif; ?>
+    </section>
+    <?php $diaMes = $diaMes->modify('+1 day'); ?>
+  <?php endwhile; ?>
+  <?php if ($diasLista === 0): ?>
+    <p class="empty-box"><strong>Nenhuma corrida neste mês.</strong></p>
+  <?php endif; ?>
+  </div>
+  <p class="cal-note">Lista do mês, só com os dias que têm corrida. Toque no cartão para abrir a reserva.</p>
+</div>
+<?php else: ?>
 <div class="cal-wrap">
   <div class="cal-head">
     <a class="cal-nav" href="<?= e(href('agenda', ['mes' => $cursor->modify('-1 month')->format('Y-m')])) ?>" aria-label="Mês anterior">‹</a>
@@ -247,6 +382,8 @@ if (!$admin) {
     <p id="cal-foco-vazio" class="cal-foco-vazio" hidden>Nenhuma reserva neste dia.</p>
   </section>
   <p class="cal-note">Cada faixa: <strong>#código</strong> · frota · ida/volta · horário · local. No celular, toque o dia: as reservas se separam e dá para filtrar por ida, volta ou busca. Ida em vermelho, volta em verde.</p>
+</div>
+<?php endif; ?>
 </div>
 <?php if ($ver > 0): ?>
   <span hidden data-reserva-deep-link="<?= $ver ?>"></span>

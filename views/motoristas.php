@@ -8,7 +8,7 @@ $edit = null;
 $ver = null;
 $rows = $db['motoristas'];
 if ($q !== '') {
-    $rows = array_values(array_filter($rows, static fn(array $m): bool => str_contains(mb_strtolower($m['nome'] . ' ' . ($m['cpf'] ?? '') . ' ' . $m['telefone']), mb_strtolower($q))));
+    $rows = array_values(array_filter($rows, static fn(array $m): bool => str_contains(mb_strtolower($m['nome'] . ' ' . ($m['cpf'] ?? '') . ' ' . $m['telefone'] . ' ' . ($m['email'] ?? '') . ' ' . ($m['usuario'] ?? '')), mb_strtolower($q))));
 }
 usort($rows, static fn(array $a, array $b): int => strcmp((string) $a['nome'], (string) $b['nome']));
 foreach ($db['motoristas'] as $m) {
@@ -24,7 +24,7 @@ $dossies = $pg['rows'];
 if (is_array($ver) && !in_array((int) $ver['id'], array_map(static fn(array $m): int => (int) $m['id'], $dossies), true)) {
     $dossies[] = $ver;
 }
-view_head('<button class="btn btn-primary" type="button" data-open-dialog="dlg-mot">+ Novo motorista</button>', 'O login do motorista é o e-mail cadastrado. A senha-token aparece só uma vez para o administrador. O link único abre a mesma tela de login, já com o e-mail preenchido.');
+view_head('<button class="btn btn-primary" type="button" data-open-dialog="dlg-mot">+ Novo motorista</button>', 'O login é o e-mail, quando existir. Sem e-mail, o sistema cria um usuário e mostra a senha temporária uma única vez no aviso verde. O link único abre a mesma tela de login.');
 ?>
 <form class="filters" method="get" action="index.php">
   <input type="hidden" name="p" value="mot-cadastros">
@@ -34,22 +34,23 @@ view_head('<button class="btn btn-primary" type="button" data-open-dialog="dlg-m
 <section class="card">
   <div class="table-wrap">
     <table class="table-lista">
-      <thead><tr><th>Nome</th><th>CPF</th><th>Telefone</th><th>Cidade/UF</th><th>Frota</th><th>Portal</th><th>Data</th><th>Ações</th></tr></thead>
+      <thead><tr><th>Nome</th><th>Login</th><th>CPF</th><th>Telefone</th><th>Cidade/UF</th><th>Frota</th><th>Portal</th><th>Data</th><th>Ações</th></tr></thead>
       <tbody>
         <?php foreach ($pg['rows'] as $mot): ?>
           <tr>
             <td><strong><?= e($mot['nome']) ?></strong></td>
+            <td><?= e(mb_strtolower(trim((string) ($mot['usuario'] ?? $mot['email'] ?? ''))) ?: '—') ?></td>
             <td><?= e($mot['cpf'] ?? '—') ?></td>
             <td><?= e($mot['telefone']) ?></td>
             <td><?= e(trim(($mot['cidade'] ?? '') . (($mot['uf'] ?? '') !== '' ? ' - ' . $mot['uf'] : '')) ?: '—') ?></td>
             <td><?= status_badge((string) ($mot['status'] ?? 'ativo')) ?></td>
-            <td><span class="tag <?= portal_label($mot) === 'Senha OK' ? 'tag-ok' : 'tag-wait' ?>"><?= e(portal_label($mot)) ?></span></td>
+            <td><span class="tag <?= portal_label($mot) === 'Pendente' ? 'tag-wait' : 'tag-ok' ?>"><?= e(portal_label($mot)) ?></span></td>
             <td><?= e(isset($mot['criado_em']) ? br_date((string) $mot['criado_em']) : '—') ?></td>
             <td class="actions">
               <button class="btn btn-sm" type="button" data-open-dialog="dlg-dossie-<?= (int) $mot['id'] ?>">Detalhes</button>
               <a class="btn btn-sm" href="<?= e(href('mot-cadastros', ['edit' => $mot['id']])) ?>">Editar</a>
               <button class="btn btn-sm" type="button" data-copy="<?= e(link_motorista($mot)) ?>" title="<?= e(link_motorista($mot)) ?>">Copiar link</button>
-              <form method="post" action="index.php" data-confirm="Gerar nova senha-token para <?= e((string) $mot['nome']) ?>? A atual deixa de valer e a nova aparece só uma vez."><?= csrf_fields('reset_senha_motorista') ?><input type="hidden" name="id" value="<?= (int) $mot['id'] ?>"><button class="btn btn-sm" type="submit">Senha</button></form>
+              <form method="post" action="index.php" data-confirm="Gerar nova senha temporária para <?= e((string) $mot['nome']) ?>? A atual deixa de valer e a nova aparece só uma vez no aviso verde."><?= csrf_fields('reset_senha_motorista') ?><input type="hidden" name="id" value="<?= (int) $mot['id'] ?>"><button class="btn btn-sm" type="submit">Senha</button></form>
             </td>
           </tr>
         <?php endforeach; ?>
@@ -66,7 +67,7 @@ view_head('<button class="btn btn-primary" type="button" data-open-dialog="dlg-m
     <header class="dialog-h dlg-top">
       <div>
         <h2><?= $edit ? 'Editar motorista' : 'Cadastrar motorista' ?></h2>
-        <p>Obrigatório: nome, CPF, telefone e e-mail. O e-mail é o login; a senha-token aparece só uma vez ao salvar.</p>
+        <p>Obrigatório: nome, CPF e telefone. O e-mail, quando informado, vira o login. A senha temporária aparece só uma vez no aviso verde.</p>
       </div>
       <button class="dlg-x" type="button" data-close-dialog aria-label="Fechar">×</button>
     </header>
@@ -86,7 +87,8 @@ view_head('<button class="btn btn-primary" type="button" data-open-dialog="dlg-m
           <label class="field">RG <input name="rg" maxlength="20" value="<?= e($edit['rg'] ?? '') ?>" placeholder="0.000.000"></label>
           <label class="field">Data de nascimento <input type="date" name="nascimento" value="<?= e($edit['nascimento'] ?? '') ?>"></label>
           <label class="field">Telefone * <input name="telefone" required maxlength="30" value="<?= e($edit['telefone'] ?? '') ?>" placeholder="(11) 99999-0000"></label>
-          <label class="field full">E-mail * <input type="email" name="email" required maxlength="80" value="<?= e($edit['email'] ?? '') ?>" placeholder="motorista@email.com" autocomplete="email"></label>
+          <label class="field full">E-mail <input type="email" name="email" maxlength="80" value="<?= e($edit['email'] ?? '') ?>" placeholder="motorista@email.com" autocomplete="off"></label>
+          <label class="field full">Nova senha <input type="text" name="nova_senha" maxlength="72" minlength="10" autocomplete="off" placeholder="<?= $edit ? 'Em branco mantém a senha atual' : 'Em branco gera uma senha temporária' ?>"></label>
         </div>
         <h3 class="sec-title">Endereço</h3>
         <div class="form-grid">
@@ -127,9 +129,9 @@ view_head('<button class="btn btn-primary" type="button" data-open-dialog="dlg-m
           <label class="field full">Observações <textarea name="obs" maxlength="800" placeholder="Anotações internas"><?= e($edit['obs'] ?? '') ?></textarea></label>
         </div>
         <?php if ($edit && (($edit['email'] ?? '') !== '' || ($edit['usuario'] ?? '') !== '')): ?>
-          <p class="hint">Login do portal: <strong><?= e(mb_strtolower(trim((string) ($edit['email'] ?? $edit['usuario'])))) ?></strong>. A senha-token não é reexibida; use o botão Senha na lista para gerar outra.</p>
+          <p class="hint">Login do portal: <strong><?= e(mb_strtolower(trim((string) ($edit['usuario'] ?? $edit['email'])))) ?></strong>. A senha gravada não é reexibida. Para trocar, preencha Nova senha ou use o botão Senha na lista. O aviso verde mostra a senha só nessa hora.</p>
         <?php else: ?>
-          <p class="hint">Ao salvar, o login fica sendo o e-mail, a senha-token aparece só uma vez no aviso verde, e o link único abre esta mesma tela de login com o e-mail preenchido.</p>
+          <p class="hint">Ao salvar, o login fica sendo o e-mail ou um usuário gerado. A senha temporária aparece só uma vez no aviso verde, e o link único abre a tela de login.</p>
         <?php endif; ?>
       </div>
       <div data-form-pane="pagamento" hidden>

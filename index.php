@@ -37,7 +37,12 @@ header('X-Content-Type-Options: nosniff');
 header('Referrer-Policy: same-origin');
 header('Permissions-Policy: camera=(), microphone=(), geolocation=()');
 header('Cache-Control: private, no-store');
-header("Content-Security-Policy: default-src 'self'; img-src 'self' data: blob: https://pps.whatsapp.net https://*.whatsapp.net https://api.qrserver.com https://tile.openstreetmap.org https://*.tile.openstreetmap.org https://unpkg.com; media-src 'self'; style-src 'self' https://fonts.googleapis.com https://unpkg.com 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com data:; script-src 'self' https://unpkg.com 'unsafe-inline'; connect-src 'self' https://*.tile.openstreetmap.org; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://www.driverflntransfer.app https://driverflntransfer.app https://accounts.google.com");
+$httpsPainel = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+    || (strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https');
+if ($httpsPainel) {
+    header('Strict-Transport-Security: max-age=15552000');
+}
+header("Content-Security-Policy: default-src 'self'; img-src 'self' data: blob: https://pps.whatsapp.net https://*.whatsapp.net https://tile.openstreetmap.org https://*.tile.openstreetmap.org https://unpkg.com; media-src 'self'; style-src 'self' https://fonts.googleapis.com https://unpkg.com 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com data:; script-src 'self' https://unpkg.com 'unsafe-inline'; connect-src 'self' https://*.tile.openstreetmap.org; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://www.driverflntransfer.app https://driverflntransfer.app https://accounts.google.com");
 if ((string) ($_GET['p'] ?? '') === 'marca') {
     $chave = (string) ($_GET['k'] ?? '');
     if (!in_array($chave, ['logo', 'logo_lateral', 'favicon', 'assinatura'], true)) {
@@ -572,6 +577,11 @@ if ($current === 'solicitacoes' && isset($_GET['csv']) && $role === 'admin') {
     }
     fclose($out);
     exit;
+}
+
+$agendaVista = 'calendario';
+if ($current === 'agenda' && (string) ($_GET['fragment'] ?? '') !== 'reserva' && (string) ($_GET['baixar'] ?? '') !== 'pdf') {
+    $agendaVista = agenda_vista_fixar();
 }
 
 if (!empty($site)) {

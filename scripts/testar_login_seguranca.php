@@ -8,6 +8,7 @@ declare(strict_types=1);
 
 $raiz = dirname(__DIR__);
 require_once $raiz . '/includes/captcha.php';
+require_once $raiz . '/includes/senha.php';
 require_once $raiz . '/includes/totp.php';
 
 $falhas = 0;
@@ -54,8 +55,11 @@ $passado = totp_codigo($secret, time() - 30);
 ok('totp janela -1', totp_confere($secret, $passado));
 ok('totp rejeita codigo curto', !totp_confere($secret, '123'));
 $uri = totp_uri($secret, 'admin', 'FLN Transfer');
-ok('otpauth uri', str_starts_with($uri, 'otpauth://totp/'), $uri);
-ok('qr url', str_contains(totp_qr_url($uri), 'api.qrserver.com'));
+ok('otpauth uri', str_starts_with($uri, 'otpauth://totp/'));
+$qr = totp_qr_url($uri);
+ok('qr local', str_starts_with($qr, 'data:image/svg+xml;base64,') && !str_contains($qr, 'qrserver'));
+$svg = base64_decode(substr($qr, strlen('data:image/svg+xml;base64,')), true);
+ok('qr desenha', is_string($svg) && str_contains($svg, '<svg') && str_contains($svg, '<rect'));
 
 $dbOff = ['settings' => ['verificacao_2fa' => false, 'totp_secret' => '']];
 $dbSetup = ['settings' => ['verificacao_2fa' => false, 'totp_secret' => $secret]];
@@ -72,6 +76,23 @@ $rfcEm = totp_codigo($rfcSecret, 59);
 ok('RFC 6238 t=59', $rfcEm === '287082', $rfcEm);
 $rfcEm2 = totp_codigo($rfcSecret, 1111111109);
 ok('RFC 6238 t=1111111109', $rfcEm2 === '081804', $rfcEm2);
+
+echo "\n== Senhas ==\n";
+$clara = 'frase-de-teste-12';
+$hash = senha_proteger($clara);
+ok('senha vira hash', senha_e_hash($hash) && $hash !== $clara);
+ok('senha confere hash', senha_confere($hash, $clara));
+ok('senha rejeita outra', !senha_confere($hash, 'outra-frase-12'));
+ok('senha legada ainda entra', senha_confere('segredo-antigo', 'segredo-antigo'));
+ok('senha legada rejeita', !senha_confere('segredo-antigo', 'outra'));
+ok('senha vazia nao entra', !senha_confere('', 'x') && !senha_confere($hash, ''));
+ok('senha curta recusada', senha_nova_erro('curta') !== '' && senha_nova_erro('') === '');
+ok('senha curta do motorista', str_contains(senha_nova_erro('curta', 'motorista'), 'motorista'));
+$doc = ['settings' => ['senha' => 'admin-painel-1'], 'motoristas' => [['senha' => 'TOKENMOTOR'], ['senha' => ''], ['senha' => $hash]]];
+senhas_proteger_documento($doc);
+ok('documento protege admin', senha_confere((string) $doc['settings']['senha'], 'admin-painel-1'));
+ok('documento protege motorista', senha_confere((string) $doc['motoristas'][0]['senha'], 'TOKENMOTOR'));
+ok('documento mantem vazio e hash', $doc['motoristas'][1]['senha'] === '' && $doc['motoristas'][2]['senha'] === $hash);
 
 echo "\n== Fonte PNG captcha ==\n";
 $fonte = captcha_fonte();

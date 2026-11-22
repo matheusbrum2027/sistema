@@ -129,7 +129,7 @@ function agenda_legs(array $trip): array
                 'place' => short_place((string) ($trecho['desembarque'] ?? $trecho['embarque'] ?? '')),
             ];
         }
-    } elseif ($tipo === 'hora') {
+    } elseif ($tipo === 'hora' || $tipo === 'por_hora') {
         $legs[] = [
             'data' => (string) $trip['data'],
             'hora' => (string) ($trip['hora'] ?? ''),
@@ -333,10 +333,10 @@ function sincronizar_cliente_nas_reservas(array &$db, array $antes, array $depoi
 function portal_label(array $mot): string
 {
     $email = mb_strtolower(trim((string) ($mot['email'] ?? $mot['usuario'] ?? '')));
-    $temEmail = $email !== '' && str_contains($email, '@');
+    $temLogin = $email !== '';
     $temSenha = trim((string) ($mot['senha'] ?? '')) !== '';
     $temLink = (bool) preg_match('/^[a-f0-9]{32}$/', strtolower((string) ($mot['acesso'] ?? '')));
-    if ($temEmail && $temSenha && $temLink) {
+    if ($temLogin && $temSenha && $temLink) {
         return 'Portal OK';
     }
     return $temSenha ? 'Senha OK' : 'Pendente';
@@ -1064,6 +1064,50 @@ function montar_reservas(array &$db, ?array $current): array
     return [null, [$ida, $volta]];
 }
 
+/**
+ * Grava login e senha do motorista.
+ * E-mail vazio mantém o login que já existe (ou gera um a partir do nome).
+ * Senha digitada vazia mantém a atual; se ainda não houver, gera um token.
+ * O terceiro valor é a senha em texto puro só quando ela acabou de ser criada.
+ *
+ * @return array{0:?string,1:?array,2:string}
+ */
+function acesso_motorista_aplicar(array &$db, array $mot, string $senhaAtual): array
+{
+    $email = mb_strtolower(trim((string) ($mot['email'] ?? '')));
+    if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
+        return ['Informe um e-mail válido. Quando preenchido, ele é o login do portal.', null, ''];
+    }
+    if ($email !== '' && email_motorista_em_uso($db, $email, (int) ($mot['id'] ?? 0))) {
+        return ['Este e-mail já está em uso por outro motorista.', null, ''];
+    }
+    $digitada = post('nova_senha');
+    if (strlen($digitada) > 72) {
+        $digitada = substr($digitada, 0, 72);
+    }
+    if ($digitada !== '') {
+        $erroSenha = senha_nova_erro($digitada, 'motorista');
+        if ($erroSenha !== '') {
+            return [$erroSenha, null, ''];
+        }
+    }
+    $mot['email'] = $email;
+    $login = $email !== '' ? $email : (string) ($mot['usuario'] ?? '');
+    $guardar = $digitada !== '' ? $digitada : $senhaAtual;
+    $geradaAgora = $digitada === '' && $senhaAtual === '';
+    $mot = credenciais_motorista($db, $mot, $login, $guardar);
+    $exibir = '';
+    if ($digitada !== '') {
+        $exibir = $digitada;
+    } elseif ($geradaAgora) {
+        $exibir = (string) ($mot['senha'] ?? '');
+    }
+    if ($exibir !== '' && senha_e_hash($exibir)) {
+        $exibir = '';
+    }
+    return [null, $mot, $exibir];
+}
+
 function motorista_campos(): array
 {
     return [
@@ -1403,26 +1447,26 @@ function ops_dispatch(array &$db, string $action): ?array
             $nome = clip(post('nome'), 80);
             $telefone = clip(post('telefone'), 30);
             $campos = motorista_campos();
-            $email = mb_strtolower(trim((string) ($campos['email'] ?? '')));
             if ($nome === '' || $telefone === '') {
                 return ['Informe nome completo e telefone do motorista.', ''];
             }
-            if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                return ['Informe o e-mail do motorista. Ele será o login do portal.', ''];
-            }
-            if (email_motorista_em_uso($db, $email)) {
-                return ['Este e-mail já está em uso por outro motorista.', ''];
-            }
-            $campos['email'] = $email;
-            $mot = credenciais_motorista($db, array_merge($campos, [
-                'id' => $db['seq']['motorista']++,
+            $id = $db['seq']['motorista']++;
+            [$erroAcesso, $mot, $senhaClara] = acesso_motorista_aplicar($db, array_merge($campos, [
+                'id' => $id,
                 'nome' => $nome,
                 'telefone' => $telefone,
                 'status' => one_of(post('status'), ['ativo', 'inativo'], 'ativo'),
                 'criado_em' => today()->format('Y-m-d'),
-            ]), $email, '');
+            ]), '');
+            if ($erroAcesso !== null || $mot === null) {
+                $db['seq']['motorista'] = $id;
+                return [$erroAcesso ?? 'Não foi possível criar o login.', ''];
+            }
             $db['motoristas'][] = $mot;
-            return [null, 'Motorista cadastrado. Login (e-mail): ' . $mot['usuario'] . ' · Senha-token (copie agora, aparece só esta vez): ' . $mot['senha'] . ' · Link do portal: ' . link_motorista($mot)];
+            $avisoSenha = $senhaClara !== ''
+                ? $senhaClara
+                : (senha_e_hash((string) ($mot['senha'] ?? '')) ? '' : (string) $mot['senha']);
+            return [null, 'Motorista cadastrado. Login: ' . $mot['usuario'] . ' · Senha temporária (copie agora, aparece só esta vez): ' . $avisoSenha . ' · Link do portal: ' . link_motorista($mot)];
 
         case 'update_motorista':
             $i = index_of($db['motoristas'], (int) post('id'));
@@ -1433,35 +1477,29 @@ function ops_dispatch(array &$db, string $action): ?array
             $nome = clip(post('nome'), 80);
             $telefone = clip(post('telefone'), 30);
             $campos = motorista_campos();
-            $email = mb_strtolower(trim((string) ($campos['email'] ?? '')));
             if ($nome === '' || $telefone === '') {
                 return ['Informe nome completo e telefone do motorista.', ''];
             }
-            if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                return ['Informe o e-mail do motorista. Ele será o login do portal.', ''];
-            }
-            if (email_motorista_em_uso($db, $email, (int) $db['motoristas'][$i]['id'])) {
-                return ['Este e-mail já está em uso por outro motorista.', ''];
-            }
-            $campos['email'] = $email;
             $senhaAtual = (string) ($db['motoristas'][$i]['senha'] ?? '');
             $acessoAtual = (string) ($db['motoristas'][$i]['acesso'] ?? '');
-            $db['motoristas'][$i] = array_merge($db['motoristas'][$i], $campos, [
+            $base = array_merge($db['motoristas'][$i], $campos, [
                 'nome' => $nome,
                 'telefone' => $telefone,
                 'status' => one_of(post('status'), ['ativo', 'inativo'], (string) ($db['motoristas'][$i]['status'] ?? 'ativo')),
             ]);
-            $db['motoristas'][$i] = credenciais_motorista(
-                $db,
-                $db['motoristas'][$i],
-                $email,
-                $senhaAtual !== '' ? $senhaAtual : ''
-            );
-            if ($acessoAtual !== '' && preg_match('/^[a-f0-9]{32}$/', strtolower($acessoAtual))) {
-                $db['motoristas'][$i]['acesso'] = strtolower($acessoAtual);
+            [$erroAcesso, $mot, $senhaClara] = acesso_motorista_aplicar($db, $base, $senhaAtual);
+            if ($erroAcesso !== null || $mot === null) {
+                return [$erroAcesso ?? 'Não foi possível atualizar o login.', ''];
             }
+            if ($acessoAtual !== '' && preg_match('/^[a-f0-9]{32}$/', strtolower($acessoAtual))) {
+                $mot['acesso'] = strtolower($acessoAtual);
+            }
+            $db['motoristas'][$i] = $mot;
             $sync = sincronizar_motorista_nas_reservas($db, $antes, $db['motoristas'][$i]);
             $msg = 'Motorista atualizado. Login: ' . $db['motoristas'][$i]['usuario'] . '. Link do portal: ' . link_motorista($db['motoristas'][$i]);
+            if ($senhaClara !== '') {
+                $msg .= ' · Senha nova (copie agora, aparece só esta vez): ' . $senhaClara;
+            }
             if ($sync > 0) {
                 $msg .= ' · ' . $sync . ' reserva' . ($sync === 1 ? '' : 's') . ' atribuída' . ($sync === 1 ? '' : 's') . ' já refletem o nome/telefone novos.';
             }
@@ -1472,13 +1510,20 @@ function ops_dispatch(array &$db, string $action): ?array
             if ($i === null) {
                 return ['Motorista não encontrado.', ''];
             }
-            $email = mb_strtolower(trim((string) ($db['motoristas'][$i]['email'] ?? $db['motoristas'][$i]['usuario'] ?? '')));
-            if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                return ['Cadastre o e-mail do motorista antes de gerar a senha.', ''];
+            $mot = $db['motoristas'][$i];
+            $email = mb_strtolower(trim((string) ($mot['email'] ?? '')));
+            if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
+                $email = '';
             }
-            $db['motoristas'][$i]['email'] = $email;
-            $db['motoristas'][$i] = credenciais_motorista($db, $db['motoristas'][$i], $email, '');
-            return [null, 'Nova senha-token de ' . $db['motoristas'][$i]['nome'] . ' (copie agora, aparece só esta vez): login ' . $db['motoristas'][$i]['usuario'] . ' · senha ' . $db['motoristas'][$i]['senha'] . ' · Link: ' . link_motorista($db['motoristas'][$i])];
+            $mot['email'] = $email;
+            $login = $email !== '' ? $email : (string) ($mot['usuario'] ?? '');
+            $mot = credenciais_motorista($db, $mot, $login, '');
+            $clara = (string) ($mot['senha'] ?? '');
+            if ($clara === '' || senha_e_hash($clara)) {
+                return ['A senha não foi gerada. Tente de novo.', ''];
+            }
+            $db['motoristas'][$i] = $mot;
+            return [null, 'Nova senha temporária de ' . $mot['nome'] . ' (copie agora, aparece só esta vez): login ' . $mot['usuario'] . ' · senha ' . $clara . ' · Link: ' . link_motorista($mot)];
 
         case 'add_lancamento':
         case 'edit_lancamento':
@@ -1797,6 +1842,10 @@ function ops_dispatch(array &$db, string $action): ?array
             }
             $db['settings']['usuario'] = $adminUser;
             $senha = clip(post('senha'), 80);
+            $erroSenha = senha_nova_erro($senha);
+            if ($erroSenha !== '') {
+                return [$erroSenha, ''];
+            }
             if ($senha !== '') {
                 $db['settings']['senha'] = $senha;
             }

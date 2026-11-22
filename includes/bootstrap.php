@@ -24,6 +24,7 @@ require_once __DIR__ . '/dossie_pdf.php';
 require_once __DIR__ . '/reserva_pdf.php';
 require_once __DIR__ . '/atendimento.php';
 require_once __DIR__ . '/captcha.php';
+require_once __DIR__ . '/senha.php';
 require_once __DIR__ . '/totp.php';
 require_once __DIR__ . '/campanha.php';
 require_once __DIR__ . '/mapa.php';
@@ -544,6 +545,28 @@ function agenda_intervalo(string $mes = ''): array
     $de = $gridStart < $hoje ? $gridStart : $hoje;
     $ate = $gridFim > $limite ? $gridFim : $limite;
     return [$de->format('Y-m-d'), $ate->format('Y-m-d')];
+}
+
+/** Modelo da agenda: mês, quadro ou lista. Fica salvo neste navegador até trocar. */
+function agenda_vista_fixar(): string
+{
+    $permitidas = ['calendario', 'kanban', 'lista'];
+    $pedida = (string) ($_GET['vista'] ?? '');
+    if (in_array($pedida, $permitidas, true)) {
+        $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+            || strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https';
+        setcookie('fln_agenda_vista', $pedida, [
+            'expires' => time() + 400 * 86400,
+            'path' => '/',
+            'secure' => $https,
+            'httponly' => true,
+            'samesite' => 'Lax',
+        ]);
+        $_COOKIE['fln_agenda_vista'] = $pedida;
+        return $pedida;
+    }
+    $salva = (string) ($_COOKIE['fln_agenda_vista'] ?? '');
+    return in_array($salva, $permitidas, true) ? $salva : 'calendario';
 }
 
 function normalize_db(array $db): array
@@ -1451,6 +1474,7 @@ function template_text(array $db, string $id): string
 
 function save_db(array $db, string $acao = ''): void
 {
+    senhas_proteger_documento($db);
     $acaoNorm = strtolower(trim($acao));
     $semSheets = $acaoNorm === ''
         || str_starts_with($acaoNorm, 'chat_')
@@ -1697,7 +1721,7 @@ function handle_post(): void
         $role = '';
         $motoristaId = 0;
         $adminUser = mb_strtolower((string) ($db['settings']['usuario'] ?? 'admin'));
-        if ($usuario !== '' && $senha !== '' && $usuario === $adminUser && hash_equals((string) $db['settings']['senha'], $senha)) {
+        if ($usuario !== '' && $senha !== '' && $usuario === $adminUser && senha_confere((string) $db['settings']['senha'], $senha)) {
             $role = 'admin';
             $motoristaId = 0;
             $entrou = true;
@@ -1710,7 +1734,7 @@ function handle_post(): void
                 $login = mb_strtolower(trim((string) ($mot['usuario'] ?? '')));
                 $email = mb_strtolower(trim((string) ($mot['email'] ?? '')));
                 $bate = $usuario === $login || ($email !== '' && $usuario === $email);
-                if ($bate && hash_equals((string) ($mot['senha'] ?? ''), $senha)) {
+                if ($bate && senha_confere((string) ($mot['senha'] ?? ''), $senha)) {
                     $role = 'motorista';
                     $motoristaId = (int) $mot['id'];
                     $entrou = true;
@@ -1923,7 +1947,12 @@ function acao_legada(array &$db, string $action): array
                 break;
             }
             $db['settings']['usuario'] = $adminUser;
-            $adminSenha = clip(post('senha'), 40);
+            $adminSenha = clip(post('senha'), 80);
+            $erroSenha = senha_nova_erro($adminSenha);
+            if ($erroSenha !== '') {
+                $err = $erroSenha;
+                break;
+            }
             if ($adminSenha !== '') {
                 $db['settings']['senha'] = $adminSenha;
             }
@@ -2463,6 +2492,8 @@ function acao_legada(array &$db, string $action): array
 $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
     || (strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https');
 ini_set('session.gc_maxlifetime', '43200');
+ini_set('session.use_strict_mode', '1');
+ini_set('session.use_only_cookies', '1');
 session_set_cookie_params([
     'lifetime' => 43200,
     'httponly' => true,
