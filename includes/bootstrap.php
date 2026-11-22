@@ -1485,8 +1485,12 @@ function save_db(array $db, string $acao = ''): void
         $db['settings']['sheets_sync_pendente'] = true;
         $db['settings']['sheets_sync_pendente_em'] = date('Y-m-d H:i');
     }
+    $gravar = $db;
+    if (str_starts_with($acaoNorm, 'chat_') || str_starts_with($acaoNorm, 'push_') || $acaoNorm === 'acesso_motorista') {
+        unset($gravar['transfers'], $gravar['lancamentos'], $gravar['_menu']);
+    }
     if (store_remoto()) {
-        store_gravar($db, $acao);
+        store_gravar($gravar, $acao);
     } else {
         $_SESSION['db'] = $db;
     }

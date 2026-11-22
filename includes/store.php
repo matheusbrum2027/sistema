@@ -277,6 +277,10 @@ function store_gravar(array $db, string $acao): void
  */
 function com_db(string $acao, callable $alterar, bool $leve = false): mixed
 {
+    // Chat, push e acesso não podem reenviar as 3 mil reservas: isso estoura a cota.
+    if (!$leve && preg_match('/^(chat_|push_|acesso_)/', $acao) === 1) {
+        $leve = true;
+    }
     for ($tentativa = 0; $tentativa < 4; $tentativa++) {
         $db = $leve ? load_db(true, false, 'casca') : load_db(true, true);
         $resultado = $alterar($db);

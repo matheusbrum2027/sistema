@@ -340,7 +340,7 @@ function chat_marcar_desconectado(string $motivo = ''): void
         com_db('chat_token', static function (array &$db) use ($motivo): ?bool {
             $status = (string) ($db['settings']['wa_status'] ?? '');
             if ($status === 'desconectado' && trim((string) ($db['settings']['wa_erro'] ?? '')) !== '') {
-                return null;
+                return false;
             }
             $db['settings']['wa_status'] = 'desconectado';
             $db['settings']['wa_instance_status'] = 'disconnected';
