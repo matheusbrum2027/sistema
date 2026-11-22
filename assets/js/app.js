@@ -361,6 +361,7 @@
     if (prefetchCtrl) prefetchCtrl.abort();
     if (reservaPrefetchCtrl) reservaPrefetchCtrl.abort();
     navCtrl = new AbortController();
+    const prazoNav = window.setTimeout(() => navCtrl.abort(), 20000);
     const guardado = podeCachear(url) ? cachePaginas.get(chavePagina(url)) : '';
     let mostrou = false;
     if (guardado) {
@@ -379,6 +380,8 @@
       if (err?.name !== 'AbortError' && !mostrou) location.href = url;
       soltarNav(seq);
       return;
+    } finally {
+      window.clearTimeout(prazoNav);
     }
     if (seq !== navSeq) return;
     const tipo = resposta.headers.get('content-type') || '';

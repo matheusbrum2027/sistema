@@ -746,6 +746,10 @@ function persistir_acesso_motorista(array $db): array
     if (empty($GLOBALS['fln_acesso_novo']) && empty($GLOBALS['fln_vapid_novo']) && empty($GLOBALS['fln_chat_novo']) && empty($GLOBALS['fln_lixo_novo']) && empty($GLOBALS['fln_ia_operador_novo'])) {
         return $db;
     }
+    // Abrir a tela não pode gravar: a gravação segura o banco e a página fica carregando.
+    if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET') {
+        return $db;
+    }
     $gravar = $db;
     if (!empty($GLOBALS['fln_menu'])) {
         unset($gravar['transfers'], $gravar['lancamentos']);

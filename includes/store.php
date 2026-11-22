@@ -74,16 +74,8 @@ function store_rpc(string $funcao, array $args, int $timeout = 12): mixed
         CURLOPT_POSTFIELDS => $corpo,
         CURLOPT_TIMEOUT => $timeout,
     ]);
-    $resposta = null;
-    $code = 0;
-    for ($tentativa = 0; $tentativa < 2; $tentativa++) {
-        $resposta = curl_exec($ch);
-        $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        if ($resposta !== false && $code > 0 && $code < 500) {
-            break;
-        }
-        usleep(80000);
-    }
+    $resposta = curl_exec($ch);
+    $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
     perf_add('store_rpc_ms', (microtime(true) - $inicio) * 1000, strlen((string) $resposta));
     perf_count('store_rpc_count');
     perf_count('store_rpc_' . preg_replace('/[^a-z0-9_]+/i', '_', $funcao));
@@ -231,7 +223,7 @@ function store_anotacoes(array $ids): array
         return [];
     }
     try {
-        $r = store_rpc('fln_anotacoes', ['p_ids' => $ids, 'p_base' => store_base()], 20);
+        $r = store_rpc('fln_anotacoes', ['p_ids' => $ids, 'p_base' => store_base()], 8);
     } catch (Throwable) {
         return [];
     }
@@ -264,7 +256,7 @@ function store_gravar(array $db, string $acao): void
         'p_acao' => $acao,
         'p_usuario' => store_quem(),
         'p_base' => store_base(),
-    ], 90);
+    ], 22);
     if ($nova < 0) {
         throw new BancoConflito('Outra pessoa salvou ao mesmo tempo.');
     }
