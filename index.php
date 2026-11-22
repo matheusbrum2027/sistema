@@ -413,6 +413,13 @@ $route = $routes[$current];
 $bare = !empty($route['bare']);
 $site = !empty($route['site']);
 $acessoLogin = strtolower((string) ($_GET['acesso'] ?? ''));
+// A leitura do banco leva vários segundos. Solta a sessão antes, senão o próximo clique fica na fila.
+$soltarSessaoAntes = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET'
+    && !in_array($current, $paginasPublicas, true);
+if ($soltarSessaoAntes) {
+    sessao_preparar_get($current, []);
+    session_write_close();
+}
 if (in_array($current, ['entrar', 'seja-motorista'], true) && !preg_match('/^[a-f0-9]{32}$/', $acessoLogin)) {
     $db = [
         'settings' => ['nome' => 'Transfer FLN'],
@@ -446,7 +453,7 @@ if (in_array($current, ['entrar', 'seja-motorista'], true) && !preg_match('/^[a-
     }
     $db = load_db(false, false, $modo, $de, $ate, $idTrip);
 }
-if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET') {
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET' && empty($soltarSessaoAntes)) {
     // CSRF/captcha/flash precisam gravar antes de soltar o lock da sessão.
     sessao_preparar_get($current, $db);
     // Login e landing pública mantêm a sessão aberta para o CSRF do formulário.

@@ -162,7 +162,6 @@
     avisarFlash(document);
     window.clearInterval(pageTimer);
     pageTimer = 0;
-    preaquecerMenus();
     const tick = document.getElementById('tick');
     if (tick && document.body.dataset.autorefresh === '1') {
       let s = 60;
@@ -352,18 +351,6 @@
     if (!podeCachear(url) || cachePaginas.has(chavePagina(url)) || filaPrefetch.includes(url)) return;
     filaPrefetch.push(url);
     bombearPrefetch();
-  }
-  function preaquecerMenus() {
-    const ordem = ['agenda', 'reservas', 'faturado', 'metricas', 'fin-dashboard', 'receber', 'relatorios', 'lancamentos', 'clientes', 'veiculos'];
-    const links = [...document.querySelectorAll('.sidebar a[href]')];
-    links.sort((a, b) => {
-      const pa = new URL(a.href, location.href).searchParams.get('p') || 'agenda';
-      const pb = new URL(b.href, location.href).searchParams.get('p') || 'agenda';
-      const ia = ordem.indexOf(pa);
-      const ib = ordem.indexOf(pb);
-      return (ia === -1 ? 50 : ia) - (ib === -1 ? 50 : ib);
-    });
-    links.forEach((link) => pedirPagina(link.href));
   }
   let navSeq = 0;
   let navCtrl = null;
