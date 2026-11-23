@@ -654,6 +654,7 @@ function blank_trip(int $id): array
         'contrato_em' => null,
         'no_funil' => true,
         'obs' => '',
+        'obs_interna' => '',
         'criado_em' => $hoje,
         'linha' => 'Principal',
         'documento' => '',
@@ -872,10 +873,11 @@ function montar_reservas(array &$db, ?array $current): array
     $base['repasse'] = $repasse;
     $base['status'] = $status;
     $base['pax'] = $pax;
-    $obsGeral = clip(post('obs'), 8000);
-    $obsIda = clip(post('obs_ida'), 8000);
+    $obsPublica = clip(post('obs'), 8000);
+    $obsInterna = $tipo === 'hora' ? clip(post('obs_interna_hora'), 8000) : clip(post('obs_interna'), 8000);
     $base['cupom'] = clip(post('cupom'), 40);
-    $base['obs'] = $obsGeral !== '' ? $obsGeral : $obsIda;
+    $base['obs'] = $obsPublica;
+    $base['obs_interna'] = $obsInterna;
     $base['obs_tocada'] = true;
     $base['esconder_valores'] = post('esconder') === '1';
     $usaEquipe = post('equipe_modo') === '1';
@@ -910,7 +912,10 @@ function montar_reservas(array &$db, ?array $current): array
         $base['cupom'] = clip(post('cupom_hora'), 40) ?: $base['cupom'];
         $base['qtd_horas'] = clip(post('qtd_horas'), 10);
         $base['trajetos'] = [];
-        $base['obs'] = clip(post('itinerario'), 8000) ?: $base['obs'];
+        $iti = clip(post('itinerario'), 8000);
+        if ($iti !== '' && $iti !== $obsPublica && !str_contains($obsPublica, $iti)) {
+            $base['obs'] = trim($obsPublica . "\n" . $iti);
+        }
         if ($usaEquipe) {
             aplicar_equipe($db, $base, ids_equipe('hora'));
         }
@@ -1063,18 +1068,11 @@ function montar_reservas(array &$db, ?array $current): array
     $volta['hora'] = $horaVolta;
     $volta['pax'] = $paxVolta > 0 ? max(1, min(40, $paxVolta)) : $pax;
     $volta['cupom'] = clip(post('cupom_volta'), 40);
-    $obsVolta = clip(post('obs_volta'), 8000);
-    $obsIdaTxt = trim((string) ($ida['obs'] ?? ''));
-    if ($obsVolta !== '' && $obsIdaTxt === '') {
-        $ida['obs'] = $obsVolta;
-        $ida['obs_de'] = 'volta';
-        $volta['obs'] = $obsVolta;
-    } elseif ($obsVolta === '' && $obsIdaTxt !== '') {
-        $volta['obs'] = $obsIdaTxt;
-        $volta['obs_de'] = 'ida';
-    } else {
-        $volta['obs'] = $obsVolta !== '' ? $obsVolta : $obsIdaTxt;
-    }
+    $ida['obs'] = $obsPublica;
+    $volta['obs'] = $obsPublica;
+    $ida['obs_interna'] = $obsInterna;
+    $volta['obs_interna'] = clip(post('obs_interna_volta'), 8000);
+    unset($ida['obs_de'], $volta['obs_de']);
     $ida['obs_tocada'] = true;
     $volta['obs_tocada'] = true;
     $volta['motorista_id'] = $motoristaVolta;

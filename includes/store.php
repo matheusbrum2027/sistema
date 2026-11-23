@@ -241,10 +241,38 @@ function store_anotacoes(array $ids): array
 
 function trip_com_obs(array $trip): array
 {
-    if (trim((string) ($trip['obs'] ?? '')) !== '') {
+    $id = (int) ($trip['id'] ?? 0);
+    $temObs = trim((string) ($trip['obs'] ?? '')) !== '';
+    $temInterna = array_key_exists('obs_interna', $trip);
+    if ($temObs && $temInterna) {
         return $trip;
     }
-    $trip['obs'] = store_anotacao((int) ($trip['id'] ?? 0));
+    if ($id <= 0 || !store_remoto()) {
+        if (!$temInterna) {
+            $trip['obs_interna'] = '';
+        }
+        return $trip;
+    }
+    try {
+        $par = store_rpc('fln_anotacao_par', ['p_id' => $id, 'p_base' => store_base()], 8);
+    } catch (Throwable) {
+        $par = null;
+    }
+    if (!is_array($par)) {
+        if (!$temObs) {
+            $trip['obs'] = store_anotacao($id);
+        }
+        if (!$temInterna) {
+            $trip['obs_interna'] = '';
+        }
+        return $trip;
+    }
+    if (!$temObs) {
+        $trip['obs'] = (string) ($par['obs'] ?? '');
+    }
+    if (!$temInterna) {
+        $trip['obs_interna'] = (string) ($par['interna'] ?? '');
+    }
     return $trip;
 }
 

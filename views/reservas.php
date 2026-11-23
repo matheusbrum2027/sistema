@@ -344,14 +344,6 @@ $catEdit = in_array($catAtual, $catsOk, true) ? $catAtual : '';
       <?php if ($solForm > 0): ?><input type="hidden" name="solicitacao_id" value="<?= (int) $solForm ?>"><?php endif; ?>
       <input type="hidden" name="cliente_id" id="cliente-id" value="<?= (int) ($edit['cliente_id'] ?? 0) ?>">
 
-      <?php $obsVisivel = trim($campo('obs')); ?>
-      <?php if ($obsVisivel !== ''): ?>
-        <div class="box obs-reserva">
-          <span class="lbl">Observações da reserva</span>
-          <p><?= e($obsVisivel) ?></p>
-        </div>
-      <?php endif; ?>
-
       <h3 class="sec-title">Informações do Cliente</h3>
       <div class="box">
         <span class="lbl">Origem do cliente</span>
@@ -427,8 +419,9 @@ $catEdit = in_array($catAtual, $catsOk, true) ? $catAtual : '';
           <label class="field">Cupom
             <input name="cupom" maxlength="40" value="<?= e($campo('cupom')) ?>" placeholder="FLN10">
           </label>
-          <label class="field full">Mensagem / Observações
-            <textarea name="obs_ida" maxlength="8000" placeholder="Duas malas grandes, voo G3 1234"><?= e(($tipoForm === 'ida' || $tipoForm === 'ida_volta' || $tipoForm === 'trajetos') ? $campo('obs') : '') ?></textarea>
+          <label class="field full">Observações internas (só o administrador)
+            <textarea name="obs_interna" maxlength="8000" placeholder="Anotação interna. Não sai no PDF nem no painel do motorista."><?= e($tipoForm !== 'hora' ? $campo('obs_interna') : '') ?></textarea>
+            <span class="hint">Este campo não aparece para o motorista nem no PDF.</span>
           </label>
         </div>
       </div>
@@ -454,8 +447,8 @@ $catEdit = in_array($catAtual, $catsOk, true) ? $catAtual : '';
           <label class="field">Cupom
             <input name="cupom_volta" maxlength="40" placeholder="FLN10">
           </label>
-          <label class="field full">Mensagem / Observações
-            <textarea name="obs_volta" maxlength="8000" placeholder="Voo de retorno e horário"><?= e((string) ($pre['obs_volta'] ?? '')) ?></textarea>
+          <label class="field full">Observações internas da volta (só o administrador)
+            <textarea name="obs_interna_volta" maxlength="8000" placeholder="Anotação interna da volta. Não sai no PDF nem para o motorista."></textarea>
           </label>
         </div>
       </div>
@@ -513,8 +506,9 @@ $catEdit = in_array($catAtual, $catsOk, true) ? $catAtual : '';
           <label class="field full">Cupom
             <input name="cupom_hora" maxlength="40" value="<?= e($tipoForm === 'hora' ? $campo('cupom') : '') ?>" placeholder="FLN10">
           </label>
-          <label class="field full">Itinerário / Observações
-            <textarea name="itinerario" maxlength="2000" placeholder="Roteiro do dia, paradas e horários"><?= e($tipoForm === 'hora' ? $campo('obs') : '') ?></textarea>
+          <label class="field full">Observações internas (só o administrador)
+            <textarea name="obs_interna_hora" maxlength="8000" placeholder="Anotação interna. Não sai no PDF nem no painel do motorista."><?= e($tipoForm === 'hora' ? $campo('obs_interna') : '') ?></textarea>
+            <span class="hint">O roteiro que o motorista e o cliente precisam ver fica no campo de baixo.</span>
           </label>
         </div>
       </div>
@@ -592,8 +586,9 @@ $catEdit = in_array($catAtual, $catsOk, true) ? $catAtual : '';
         </select>
         <span class="hint">Em Concluída, com repasse &gt; 0, gera automaticamente a despesa do motorista no Financeiro.</span>
       </label>
-      <label class="field">Observações
-        <textarea name="obs" maxlength="2000" placeholder="Uma informação por linha. Enter quebra a linha.&#10;Ex.: Nome do passageiro&#10;Voo e horário"><?= e($campo('obs')) ?></textarea>
+      <label class="field">Observações para o motorista e o PDF
+        <textarea name="obs" maxlength="8000" placeholder="Uma informação por linha. O motorista e o cliente veem este texto no PDF.&#10;Ex.: Nome do passageiro&#10;Voo e horário"><?= e($campo('obs')) ?></textarea>
+        <span class="hint">Só este texto sai no PDF e no painel do motorista. A observação interna fica no primeiro campo.</span>
       </label>
     </div>
     <footer class="dlg-foot">

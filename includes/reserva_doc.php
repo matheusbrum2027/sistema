@@ -11,7 +11,7 @@ function usuario_e_motorista(): bool
     return (($_SESSION['role'] ?? '') === 'motorista');
 }
 
-/** Nome, contato, documento, cupom, observações e valor cobrado ficam só com o administrador. */
+/** Nome, contato, documento, cupom, observação interna e valor cobrado ficam só com o administrador. A observação pública continua com o motorista. */
 function trip_sem_dados_cliente(array $trip): array
 {
     $trip['cliente'] = '';
@@ -19,7 +19,7 @@ function trip_sem_dados_cliente(array $trip): array
     $trip['email'] = '';
     $trip['documento'] = '';
     $trip['cupom'] = '';
-    $trip['obs'] = '';
+    $trip['obs_interna'] = '';
     $trip['valor'] = 0;
     $trip['pagamentos'] = [];
     $trip['faturado'] = false;
@@ -82,6 +82,13 @@ function reserva_rota_motorista(array $db, array $trip, string $trecho = ''): ar
     // Roteiro do motorista: sem dados do cliente e sem valores.
     foreach (['Valor', 'Repasse', 'Repasse do motorista', 'Seu repasse', 'Pagamento', 'Faturado', 'Cupom', 'Cliente', 'Telefone', 'E-mail', 'CPF/CNPJ', 'Documento', 'Observações'] as $proibido) {
         unset($linhas[$proibido]);
+    }
+    if (function_exists('trip_com_obs')) {
+        $trip = trip_com_obs($trip);
+    }
+    $obsPublica = trim((string) ($trip['obs'] ?? ''));
+    if ($obsPublica !== '') {
+        $linhas['Observações'] = $obsPublica;
     }
     return array_filter($linhas, static fn(string $v): bool => trim($v) !== '');
 }
@@ -351,6 +358,9 @@ function detalhe_linha(string $rotulo, string $valor): void
 
 function reserva_detalhes(array $db, array $trip): void
 {
+    if (function_exists('trip_com_obs')) {
+        $trip = trip_com_obs($trip);
+    }
     $obsItens = reserva_obs_itens($db, $trip);
     if (usuario_e_motorista()) {
         $esconde = !empty($trip['esconder_valores']);
@@ -378,6 +388,13 @@ function reserva_detalhes(array $db, array $trip): void
         }
         echo '<span>' . e($item['texto']) . '</span>';
         echo '</dd>';
+    }
+    if (!usuario_e_motorista()) {
+        $interna = trim((string) ($trip['obs_interna'] ?? ''));
+        if ($interna !== '') {
+            echo '<dt>Observações internas</dt>';
+            echo '<dd class="obs-linha obs-par"><span class="obs-par-tag">Só o administrador</span><span>' . e($interna) . '</span></dd>';
+        }
     }
     if ((string) ($trip['tipo'] ?? '') === 'trajetos' && is_array($trip['trajetos'] ?? null)) {
         foreach ($trip['trajetos'] as $i => $trecho) {
