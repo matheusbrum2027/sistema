@@ -8,11 +8,18 @@ $estado = (string) ($_GET['estado'] ?? '');
 $mot = (int) ($_GET['motorista'] ?? 0);
 $fat = (string) ($_GET['faturado'] ?? '');
 $q = trim((string) ($_GET['q'] ?? ''));
+$ordens = ['id', 'cliente', 'contato', 'tipo', 'categoria', 'motorista', 'valor', 'pgto', 'status'];
+$ord = (string) ($_GET['ord'] ?? '');
+if (!in_array($ord, $ordens, true)) {
+    $ord = '';
+}
+$dir = (string) ($_GET['dir'] ?? '');
+if ($ord !== '' && $dir !== 'asc') {
+    $dir = 'desc';
+}
 $editId = (int) ($_GET['edit'] ?? 0);
 $edit = null;
-$rows = $db['transfers'];
-usort($rows, static fn(array $a, array $b): int => $b['id'] <=> $a['id']);
-$rows = array_values(array_filter($rows, static function (array $t) use ($de, $ate, $estado, $mot, $fat, $q): bool {
+$rows = array_values(array_filter($db['transfers'], static function (array $t) use ($de, $ate, $estado, $mot, $fat, $q): bool {
     if ($de !== '' && $t['data'] < $de) {
         return false;
     }
@@ -39,6 +46,49 @@ $rows = array_values(array_filter($rows, static function (array $t) use ($de, $a
     }
     return true;
 }));
+$textoOrd = static function (string $valor): string {
+    $valor = mb_strtolower(trim($valor));
+    if ($valor === '' || $valor === '—' || $valor === '-') {
+        return '';
+    }
+    return strtr($valor, [
+        'á' => 'a', 'à' => 'a', 'â' => 'a', 'ã' => 'a', 'ä' => 'a',
+        'é' => 'e', 'ê' => 'e', 'í' => 'i', 'ó' => 'o', 'ô' => 'o', 'õ' => 'o',
+        'ú' => 'u', 'ç' => 'c',
+    ]);
+};
+usort($rows, static function (array $a, array $b) use ($ord, $dir, $db, $textoOrd): int {
+    if ($ord === '') {
+        return ((int) $b['id']) <=> ((int) $a['id']);
+    }
+    $chave = static function (array $t) use ($ord, $db, $textoOrd): int|string {
+        return match ($ord) {
+            'id' => (int) $t['id'],
+            'cliente' => $textoOrd((string) ($t['cliente'] ?? '')),
+            'contato' => $textoOrd(trim((string) ($t['telefone'] ?? '')) !== '' ? (string) $t['telefone'] : (string) ($t['email'] ?? '')),
+            'tipo' => $textoOrd(trim(preg_replace('/\s+/u', ' ', strip_tags(tipo_badges($t))) ?? '')),
+            'categoria' => $textoOrd((string) ($t['categoria'] ?? '')),
+            'motorista' => $textoOrd(nome_motorista($db, $t['motorista_id'] ?? 0)),
+            'valor' => (float) ($t['valor'] ?? 0),
+            'pgto' => $textoOrd(rotulo_forma_pgto($t)),
+            'status' => $textoOrd(status_label((string) ($t['status'] ?? ''))),
+            default => (int) $t['id'],
+        };
+    };
+    $va = $chave($a);
+    $vb = $chave($b);
+    $aVazio = $va === '';
+    $bVazio = $vb === '';
+    if ($aVazio !== $bVazio) {
+        return $aVazio ? 1 : -1;
+    }
+    $sinal = $dir === 'asc' ? 1 : -1;
+    $cmp = is_int($va) || is_float($va) ? ($va <=> $vb) : strcmp((string) $va, (string) $vb);
+    if ($cmp !== 0) {
+        return $cmp * $sinal;
+    }
+    return ((int) $b['id']) <=> ((int) $a['id']);
+});
 foreach ($db['transfers'] as $t) {
     if ((int) $t['id'] === $editId) {
         $edit = trip_com_obs($t);
@@ -72,7 +122,21 @@ $campo = static function (string $chave) use ($edit, $pre): string {
 };
 $solForm = (int) ($convertendo['id'] ?? 0);
 $pg = slice_page($rows);
-$keep = array_filter(['de' => $de, 'ate' => $ate, 'estado' => $estado, 'motorista' => $mot ?: null, 'faturado' => $fat, 'q' => $q]);
+$consulta = array_filter(['de' => $de, 'ate' => $ate, 'estado' => $estado, 'motorista' => $mot ?: null, 'faturado' => $fat, 'q' => $q]);
+$keep = $consulta;
+if ($ord !== '') {
+    $keep['ord'] = $ord;
+    $keep['dir'] = $dir;
+}
+$thOrd = static function (string $chave, string $titulo) use ($ord, $dir, $consulta): string {
+    $proxima = ($ord === $chave && $dir === 'desc') ? 'asc' : 'desc';
+    $ativo = $ord === $chave;
+    $baixo = $ativo && $dir === 'desc';
+    $classe = 'th-ord' . ($ativo ? ' is-on' : '');
+    $seta = 'seta' . ($baixo ? ' is-baixo' : '');
+    $sentido = $ativo ? ($dir === 'desc' ? 'decrescente' : 'crescente') : 'ordenar';
+    return '<a class="' . $classe . '" href="' . e(href('reservas', $consulta + ['ord' => $chave, 'dir' => $proxima])) . '" aria-label="' . e($titulo . ', ' . $sentido) . '">' . e($titulo) . '<i class="' . $seta . '" aria-hidden="true"></i></a>';
+};
 view_head('<button class="btn btn-primary" type="button" data-open-dialog="dlg-reserva">+ Criar Reserva</button>', 'Transfer (' . count($db['transfers']) . ')');
 ?>
 <?php if ($solNegada): ?>
@@ -80,6 +144,10 @@ view_head('<button class="btn btn-primary" type="button" data-open-dialog="dlg-r
 <?php endif; ?>
 <form class="filters" method="get" action="index.php">
   <input type="hidden" name="p" value="reservas">
+  <?php if ($ord !== ''): ?>
+    <input type="hidden" name="ord" value="<?= e($ord) ?>">
+    <input type="hidden" name="dir" value="<?= e($dir) ?>">
+  <?php endif; ?>
   <label>Data (de) <input type="date" name="de" value="<?= e($de) ?>" placeholder="dd/mm/aaaa"></label>
   <label>Data (até) <input type="date" name="ate" value="<?= e($ate) ?>" placeholder="dd/mm/aaaa"></label>
   <label>Estado
@@ -111,7 +179,20 @@ view_head('<button class="btn btn-primary" type="button" data-open-dialog="dlg-r
 <section class="card">
   <div class="table-wrap">
     <table class="table-reservas">
-      <thead><tr><th>Nº</th><th>Cliente</th><th>Contato</th><th>Tipo</th><th>Categoria</th><th>Trajeto</th><th class="col-quando">Data</th><th>Motorista</th><th>Valor</th><th class="col-pgto" title="Forma de pagamento">Forma pgto</th><th>Status</th><th>Ações</th></tr></thead>
+      <thead><tr>
+        <th><?= $thOrd('id', 'Nº') ?></th>
+        <th><?= $thOrd('cliente', 'Cliente') ?></th>
+        <th><?= $thOrd('contato', 'Contato') ?></th>
+        <th><?= $thOrd('tipo', 'Tipo') ?></th>
+        <th><?= $thOrd('categoria', 'Categoria') ?></th>
+        <th class="sem-ordem">Trajeto</th>
+        <th class="col-quando sem-ordem">Data</th>
+        <th><?= $thOrd('motorista', 'Motorista') ?></th>
+        <th><?= $thOrd('valor', 'Valor') ?></th>
+        <th class="col-pgto" title="Forma de pagamento"><?= $thOrd('pgto', 'Forma pgto') ?></th>
+        <th><?= $thOrd('status', 'Status') ?></th>
+        <th class="sem-ordem">Ações</th>
+      </tr></thead>
       <tbody>
         <?php foreach ($pg['rows'] as $trip): ?>
           <tr>
