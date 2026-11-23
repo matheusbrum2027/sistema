@@ -31,9 +31,26 @@ function date_in(string $date, DateTimeImmutable $start, DateTimeImmutable $end)
     return $d >= $start->setTime(0, 0, 0) && $d <= $end->setTime(0, 0, 0);
 }
 
-function range_bounds(string $range, DateTimeImmutable $today): array
+function range_bounds(string $range, DateTimeImmutable $today, string $de = '', string $ate = ''): array
 {
     $today = $today->setTime(0, 0, 0);
+    if ($range === 'periodo') {
+        $zona = new DateTimeZone('America/Sao_Paulo');
+        $inicio = DateTimeImmutable::createFromFormat('!Y-m-d', $de, $zona);
+        $fim = DateTimeImmutable::createFromFormat('!Y-m-d', $ate, $zona);
+        if ($inicio instanceof DateTimeImmutable && $fim instanceof DateTimeImmutable && $inicio->format('Y-m-d') === $de && $fim->format('Y-m-d') === $ate) {
+            $inicio = $inicio->setTime(0, 0, 0);
+            $fim = $fim->setTime(0, 0, 0);
+            if ($fim < $inicio) {
+                [$inicio, $fim] = [$fim, $inicio];
+            }
+            $dias = (int) $inicio->diff($fim)->days;
+            $prevEnd = $inicio->modify('-1 day');
+            $prevStart = $prevEnd->modify('-' . $dias . ' days');
+            return [$inicio, $fim, $prevStart, $prevEnd];
+        }
+        $range = '30d';
+    }
     switch ($range) {
         case 'hoje':
             $start = $today;
@@ -64,8 +81,15 @@ function range_bounds(string $range, DateTimeImmutable $today): array
     return [$start, $today, $prevStart, $prevEnd];
 }
 
-function range_phrase(string $range): string
+function range_phrase(string $range, string $de = '', string $ate = ''): string
 {
+    if ($range === 'periodo' && $de !== '' && $ate !== '') {
+        $inicio = DateTimeImmutable::createFromFormat('!Y-m-d', $de);
+        $fim = DateTimeImmutable::createFromFormat('!Y-m-d', $ate);
+        if ($inicio instanceof DateTimeImmutable && $fim instanceof DateTimeImmutable) {
+            return $inicio->format('d/m/Y') . ' a ' . $fim->format('d/m/Y');
+        }
+    }
     return match ($range) {
         'hoje' => 'hoje',
         '7d' => 'últimos 7 dias',
@@ -75,8 +99,15 @@ function range_phrase(string $range): string
     };
 }
 
-function range_short(string $range): string
+function range_short(string $range, string $de = '', string $ate = ''): string
 {
+    if ($range === 'periodo' && $de !== '' && $ate !== '') {
+        $inicio = DateTimeImmutable::createFromFormat('!Y-m-d', $de);
+        $fim = DateTimeImmutable::createFromFormat('!Y-m-d', $ate);
+        if ($inicio instanceof DateTimeImmutable && $fim instanceof DateTimeImmutable) {
+            return $inicio->format('d/m') . '–' . $fim->format('d/m');
+        }
+    }
     return match ($range) {
         'hoje' => 'HOJE',
         '7d' => '7D',
@@ -128,10 +159,10 @@ function trips_between(array $trips, DateTimeImmutable $start, DateTimeImmutable
     return array_values(array_filter($trips, static fn(array $t): bool => date_in($t['data'], $start, $end)));
 }
 
-function build_metrics(array $db, string $range): array
+function build_metrics(array $db, string $range, string $de = '', string $ate = ''): array
 {
     $today = today();
-    [$start, $end, $pStart, $pEnd] = range_bounds($range, $today);
+    [$start, $end, $pStart, $pEnd] = range_bounds($range, $today, $de, $ate);
     $trips = active_trips($db['transfers']);
     $cur = trips_between($trips, $start, $end);
     $prev = trips_between($trips, $pStart, $pEnd);
@@ -209,8 +240,8 @@ function build_metrics(array $db, string $range): array
     usort($grupos, static fn(array $a, array $b): int => strcmp((string) $b['data'], (string) $a['data']));
 
     return [
-        'phrase' => range_phrase($range),
-        'short' => range_short($range),
+        'phrase' => range_phrase($range, $de, $ate),
+        'short' => range_short($range, $de, $ate),
         'frota_ativos' => $countV('ativo'),
         'frota_total' => $frotaTotal,
         'frota_manut' => $countV('manutencao'),

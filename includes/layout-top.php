@@ -8,6 +8,14 @@ declare(strict_types=1);
 $partial = !$bare && strtolower((string) ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '')) === 'fetch';
 $brand = (string) ($db['settings']['nome'] ?? 'Transfer FLN');
 $ranges = ['hoje' => 'Hoje', '7d' => '7 dias', '30d' => '30 dias', '90d' => '90 dias', '12m' => '12 meses'];
+$filtroDe = (string) ($rangeDe ?? '');
+$filtroAte = (string) ($rangeAte ?? '');
+if ($range !== 'periodo') {
+    [$iniFiltro, $fimFiltro] = range_bounds($range, today());
+    $filtroDe = $iniFiltro->format('Y-m-d');
+    $filtroAte = $fimFiltro->format('Y-m-d');
+}
+$periodoAtivo = $range === 'periodo' ? ' is-on' : '';
 $auto = $current === 'metricas';
 $btnCorridas = in_array($current, ['agenda', 'reservas'], true)
     ? '<button class="btn topbar-atualizar" type="button" data-atualizar-corridas>' . icon('refresh') . ' Atualizar corridas</button>'
@@ -57,7 +65,7 @@ foreach ($db['automacoes'] as $autoRow) {
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="assets/css/app.css?v=104">
+  <link rel="stylesheet" href="assets/css/app.css?v=105">
   <?php endif; ?>
 </head>
 <?php
@@ -78,11 +86,19 @@ if ($notifLigado) {
   <header class="topbar" data-shell-nav>
     <div class="topbar-brand"></div>
     <?php if (!empty($route['filters'])): ?>
-      <div class="range" role="tablist" aria-label="Período">
-        <?php foreach ($ranges as $key => $label): ?>
-          <a class="<?= $range === $key ? 'active' : '' ?>" href="<?= e(href('metricas', ['range' => $key])) ?>"><?= e($label) ?></a>
-        <?php endforeach; ?>
-        <a class="range-refresh" href="<?= e(current_url()) ?>" title="Atualizar" aria-label="Atualizar"><?= icon('refresh') ?></a>
+      <div class="range-bar">
+        <div class="range" role="tablist" aria-label="Período">
+          <?php foreach ($ranges as $key => $label): ?>
+            <a class="<?= $range === $key ? 'active' : '' ?>" href="<?= e(href('metricas', ['range' => $key])) ?>"><?= e($label) ?></a>
+          <?php endforeach; ?>
+          <a class="range-refresh" href="<?= e(current_url()) ?>" title="Atualizar" aria-label="Atualizar"><?= icon('refresh') ?></a>
+        </div>
+        <form class="range-datas<?= $periodoAtivo ?>" method="get" action="index.php">
+          <input type="hidden" name="p" value="metricas">
+          <label>Início <input type="date" name="de" value="<?= e($filtroDe) ?>" required></label>
+          <label>Fim <input type="date" name="ate" value="<?= e($filtroAte) ?>" required></label>
+          <button class="btn btn-sm btn-primary" type="submit">Filtrar</button>
+        </form>
       </div>
     <?php else: ?>
       <div class="crumb"><?= e($route['group']) ?> / <?= e($route['title']) ?></div>
@@ -104,11 +120,19 @@ if ($notifLigado) {
           <span><?= e($brand) ?> — Gestão de Frota</span>
         </div>
         <?php if (!empty($route['filters'])): ?>
-          <div class="range" role="tablist" aria-label="Período">
-            <?php foreach ($ranges as $key => $label): ?>
-              <a class="<?= $range === $key ? 'active' : '' ?>" href="<?= e(href('metricas', ['range' => $key])) ?>"><?= e($label) ?></a>
-            <?php endforeach; ?>
-            <a class="range-refresh" href="<?= e(current_url()) ?>" title="Atualizar" aria-label="Atualizar"><?= icon('refresh') ?></a>
+          <div class="range-bar">
+            <div class="range" role="tablist" aria-label="Período">
+              <?php foreach ($ranges as $key => $label): ?>
+                <a class="<?= $range === $key ? 'active' : '' ?>" href="<?= e(href('metricas', ['range' => $key])) ?>"><?= e($label) ?></a>
+              <?php endforeach; ?>
+              <a class="range-refresh" href="<?= e(current_url()) ?>" title="Atualizar" aria-label="Atualizar"><?= icon('refresh') ?></a>
+            </div>
+            <form class="range-datas<?= $periodoAtivo ?>" method="get" action="index.php">
+              <input type="hidden" name="p" value="metricas">
+              <label>Início <input type="date" name="de" value="<?= e($filtroDe) ?>" required></label>
+              <label>Fim <input type="date" name="ate" value="<?= e($filtroAte) ?>" required></label>
+              <button class="btn btn-sm btn-primary" type="submit">Filtrar</button>
+            </form>
           </div>
         <?php else: ?>
           <div class="crumb"><?= e($route['group']) ?> / <?= e($route['title']) ?></div>

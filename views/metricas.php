@@ -2,7 +2,7 @@
 declare(strict_types=1);
 defined('APP') || exit;
 
-$m = build_metrics($db, $range);
+$m = build_metrics($db, $range, (string) ($rangeDe ?? ''), (string) ($rangeAte ?? ''));
 $live = true;
 foreach ($db['automacoes'] as $autoRow) {
     if ($autoRow['id'] === 'resumo' && empty($autoRow['ativo'])) {

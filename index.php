@@ -573,6 +573,21 @@ $range = (string) ($_GET['range'] ?? '30d');
 if (!in_array($range, ['hoje', '7d', '30d', '90d', '12m'], true)) {
     $range = '30d';
 }
+$rangeDe = '';
+$rangeAte = '';
+$deInformada = (string) ($_GET['de'] ?? '');
+$ateInformada = (string) ($_GET['ate'] ?? '');
+$zonaPeriodo = new DateTimeZone('America/Sao_Paulo');
+$deOk = DateTimeImmutable::createFromFormat('!Y-m-d', $deInformada, $zonaPeriodo);
+$ateOk = DateTimeImmutable::createFromFormat('!Y-m-d', $ateInformada, $zonaPeriodo);
+if ($deOk instanceof DateTimeImmutable && $ateOk instanceof DateTimeImmutable && $deOk->format('Y-m-d') === $deInformada && $ateOk->format('Y-m-d') === $ateInformada) {
+    if ($ateOk < $deOk) {
+        [$deOk, $ateOk] = [$ateOk, $deOk];
+    }
+    $range = 'periodo';
+    $rangeDe = $deOk->format('Y-m-d');
+    $rangeAte = $ateOk->format('Y-m-d');
+}
 
 if ($current === 'solicitacoes' && isset($_GET['csv']) && $role === 'admin') {
     header('Content-Type: text/csv; charset=utf-8');

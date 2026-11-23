@@ -213,6 +213,22 @@ a:hover { text-decoration: underline; }
 .range a:hover { background: #f6f7f9; text-decoration: none; }
 .range a.active { background: var(--orange); color: #fff; }
 .range-refresh { width: 30px; padding: 0 !important; display: grid; place-items: center; }
+.topbar:has(.range-bar) { height: auto; min-height: 46px; flex-wrap: wrap; padding-top: 8px; padding-bottom: 8px; }
+.range-bar { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-left: auto; min-width: 0; flex-wrap: wrap; }
+.range-datas {
+  display: flex; align-items: center; gap: 6px; padding: 3px 6px;
+  border: 1px solid var(--line-strong); border-radius: 4px; background: #fff;
+}
+.range-datas label {
+  display: flex; align-items: center; gap: 4px; margin: 0;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase; color: #4b5568;
+}
+.range-datas input[type="date"] {
+  height: 28px; width: 132px; border: 1px solid var(--line); border-radius: 4px;
+  padding: 0 6px; font-size: 12px; font-weight: 600; color: var(--ink); background: #fff;
+}
+.range-datas.is-on { border-color: var(--orange); box-shadow: inset 0 0 0 1px var(--orange); }
+.range-datas .btn { min-height: 28px; padding: 0 10px; }
 .topbar-atualizar { flex: 0 0 auto; min-height: 34px; white-space: nowrap; }
 body.is-nav .topbar-atualizar .ico { animation: girar-atualizar .7s linear infinite; }
 @keyframes girar-atualizar { to { transform: rotate(360deg); } }
@@ -1710,9 +1726,12 @@ html[data-theme="dark"] .nav-group .chev { color: var(--muted); }
 html[data-theme="dark"] .f-track { background: #2c3340; }
 html[data-theme="dark"] .flash-ok { background: #173528; color: #8ee0b0; border-color: #246044; }
 html[data-theme="dark"] .flash-err { background: #3d2220; color: #ffb4ae; border-color: #7a403c; }
-html[data-theme="dark"] .range { background: #141820; }
-html[data-theme="dark"] .range a { color: var(--muted); }
+html[data-theme="dark"] .range,
+html[data-theme="dark"] .range-datas { background: #141820; }
+html[data-theme="dark"] .range a,
+html[data-theme="dark"] .range-datas label { color: var(--muted); }
 html[data-theme="dark"] .range a.active { background: var(--orange); color: #fff; }
+html[data-theme="dark"] .range-datas input[type="date"] { background: #1b2028; color: var(--ink); border-color: #323a48; color-scheme: dark; }
 html[data-theme="dark"] select option { background: #1b2028; color: var(--ink); }
 html[data-theme="dark"] .nav-scroll::-webkit-scrollbar-thumb { background: #465064; }
 
@@ -1798,8 +1817,11 @@ html[data-theme="dark"] .nav-scroll::-webkit-scrollbar-thumb { background: #4650
   .topbar-brand > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 58vw; }
   .crumb { margin-left: auto; }
   .topbar-atualizar { flex: 1 1 100%; min-height: 44px; }
+  .range-bar { flex: 1 1 100%; margin-left: 0; }
   .range { flex: 1 1 100%; max-width: 100%; overflow-x: auto; }
   .range a { flex: 0 0 auto; white-space: nowrap; }
+  .range-datas { flex: 1 1 100%; flex-wrap: wrap; }
+  .range-datas input[type="date"] { flex: 1 1 120px; width: auto; min-width: 0; }
   .page-head, .page-actions { width: 100%; flex-wrap: wrap; }
   .agenda-lista { display: none; }
   .cal-wrap, .cal-grid, .cal-foco { min-width: 0; max-width: 100%; }
