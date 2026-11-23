@@ -62,11 +62,15 @@
       attributionControl: true,
     }).setView([-27.5954, -48.5480], 11);
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      subdomains: 'abc',
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-    }).addTo(map);
+    const tiles = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+      maxZoom: 20,
+      subdomains: 'abcd',
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    });
+    tiles.on('tileloadstart', (ev) => {
+      if (ev.tile) ev.tile.referrerPolicy = 'origin';
+    });
+    tiles.addTo(map);
 
     layerRotas = L.layerGroup().addTo(map);
     layerPins = L.layerGroup().addTo(map);
@@ -117,7 +121,7 @@
     document.getElementById('mapa-kpi-rotas').textContent = String(r.rotas || 0);
     badge(Number(r.total) || 0);
     const linha = document.getElementById('mapa-status-linha');
-    if (linha) linha.textContent = (r.total || 0) + ' viagens · Leaflet / OpenStreetMap';
+    if (linha) linha.textContent = (r.total || 0) + ' viagens · mapa ao vivo';
 
     layerRotas.clearLayers();
     layerPins.clearLayers();
