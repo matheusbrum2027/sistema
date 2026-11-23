@@ -38,7 +38,7 @@ begin
   end if;
 
   if p_modo in ('corridas', 'financeiro')
-     and not fln_privado.cota_permite('lista', 20) then
+     and not fln_privado.cota_permite('lista', 60) then
     raise exception 'cota de leitura da lista' using errcode = '53400';
   end if;
 
@@ -112,7 +112,7 @@ declare
   doc jsonb;
 begin
   perform fln_privado.conferir(p_segredo);
-  if not fln_privado.cota_permite('lista', 20) then
+  if not fln_privado.cota_permite('lista', 60) then
     raise exception 'cota de leitura da lista' using errcode = '53400';
   end if;
   select versao, dados, transfers_doc, lancamentos_doc into r
@@ -138,7 +138,7 @@ declare
   doc jsonb;
 begin
   perform fln_privado.conferir(p_segredo);
-  if not fln_privado.cota_permite('lista', 20) then
+  if not fln_privado.cota_permite('lista', 60) then
     raise exception 'cota de leitura da lista' using errcode = '53400';
   end if;
   select versao, dados, transfers_doc, lancamentos_doc into r
