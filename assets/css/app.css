@@ -2263,10 +2263,14 @@ html[data-theme="dark"] .dock-aba-txt {
 }
 .dock-aba:hover,
 .dock-aba:focus-visible {
+  box-sizing: content-box;
   width: max-content;
+  max-width: none;
+  height: 44px;
+  overflow: visible;
   justify-content: flex-start;
   gap: 8px;
-  padding: 0 16px 0 12px;
+  padding: 0 18px 0 14px;
   background: var(--orange);
   box-shadow: -8px 4px 18px rgba(242, 107, 26, .28);
 }
@@ -2284,7 +2288,7 @@ html[data-theme="dark"] .dock-aba:hover .dock-ico .ico,
 html[data-theme="dark"] .dock-aba:focus-visible .dock-ico .ico { color: #fff; stroke: #fff; }
 .dock-aba:hover .dock-aba-txt,
 .dock-aba:focus-visible .dock-aba-txt {
-  max-width: none; width: max-content; overflow: visible; opacity: 1;
+  max-width: none; width: auto; flex: 0 0 auto; overflow: visible; opacity: 1;
 }
 .dock-aba:hover .dock-aba-badge,
 .dock-aba:focus-visible .dock-aba-badge {
