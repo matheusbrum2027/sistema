@@ -62,8 +62,9 @@
       attributionControl: true,
     }).setView([-27.5954, -48.5480], 11);
 
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
+      subdomains: 'abc',
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     }).addTo(map);
 
@@ -229,6 +230,9 @@
     if (borda) borda.hidden = true;
     abrir.setAttribute('aria-expanded', 'true');
     garantirMapa();
+    requestAnimationFrame(() => requestAnimationFrame(ajustarMapa));
+    setTimeout(ajustarMapa, 60);
+    setTimeout(ajustarMapa, 280);
     carregar();
     clearInterval(poll);
     poll = window.setInterval(() => { if (aberta) carregar(); }, 45000);

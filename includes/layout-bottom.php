@@ -230,10 +230,10 @@ declare(strict_types=1);
     </form>
   </section>
 </aside>
-<link rel="stylesheet" href="assets/vendor/leaflet/leaflet.css?v=1">
-<script src="assets/vendor/leaflet/leaflet.js?v=1"></script>
+<link rel="stylesheet" href="assets/vendor/leaflet/leaflet.css?v=2">
+<script src="assets/vendor/leaflet/leaflet.js?v=2"></script>
 <script src="assets/js/chat.js?v=17"></script>
-<script src="assets/js/mapa.js?v=4"></script>
+<script src="assets/js/mapa.js?v=5"></script>
 <script src="assets/js/push.js?v=8"></script>
 <?php endif; ?>
 <?php endif; ?>
