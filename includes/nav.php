@@ -43,7 +43,7 @@ function navigation(): array
                         nav_item('receber', 'Contas a receber', 'inbox', 'Viagens ainda não recebidas.', 'views/receber.php'),
                         nav_item('faturado', 'Faturado', 'receipt', 'Corridas que a empresa paga no fim do mês, por boleto.', 'views/faturado.php'),
                         nav_item('pagar', 'Contas a pagar', 'card', 'Despesas e pro-labore dos motoristas.', 'views/pagar.php'),
-                        nav_item('relatorios', 'Relatórios', 'bars', 'Consolidados do período para consulta e impressão.', 'views/relatorios.php'),
+                        nav_item('relatorios', 'Relatórios', 'bars', 'Filtre o período e baixe o PDF em paisagem.', 'views/relatorios.php'),
                     ],
                 ],
                 [

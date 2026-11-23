@@ -533,6 +533,27 @@ if ($current === 'agenda' && (string) ($_GET['baixar'] ?? '') === 'pdf') {
     echo $pdf;
     exit;
 }
+if ($current === 'relatorios' && (string) ($_GET['baixar'] ?? '') === 'pdf') {
+    $consulta = relatorio_consulta($db);
+    $pdf = relatorio_pdf_bytes($db, $consulta);
+    $arquivo = relatorio_arquivo_pdf($consulta);
+    while (ob_get_level() > 0 && ob_end_clean()) {
+    }
+    if (!str_starts_with($pdf, '%PDF')) {
+        http_response_code(500);
+        header('Content-Type: text/plain; charset=utf-8');
+        echo 'Não foi possível gerar o PDF.';
+        exit;
+    }
+    @ini_set('zlib.output_compression', '0');
+    header('Content-Type: application/pdf');
+    header('Content-Disposition: ' . reserva_pdf_disposition($arquivo, (string) ($_GET['ver'] ?? '') === '1'));
+    header('Content-Length: ' . strlen($pdf));
+    header('Cache-Control: private, no-store');
+    header('X-Content-Type-Options: nosniff');
+    echo $pdf;
+    exit;
+}
 if ($current === 'verificar') {
     require __DIR__ . '/views/verificar.php';
     exit;

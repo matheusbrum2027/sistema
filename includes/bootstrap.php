@@ -22,6 +22,7 @@ require_once __DIR__ . '/qr_codigo.php';
 require_once __DIR__ . '/ficha.php';
 require_once __DIR__ . '/dossie_pdf.php';
 require_once __DIR__ . '/reserva_pdf.php';
+require_once __DIR__ . '/relatorio_pdf.php';
 require_once __DIR__ . '/atendimento.php';
 require_once __DIR__ . '/captcha.php';
 require_once __DIR__ . '/senha.php';
