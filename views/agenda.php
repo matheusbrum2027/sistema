@@ -204,7 +204,11 @@ if (!$admin) {
     view_head('', 'Suas viagens. O acesso mostra somente o que foi atribuído a você.');
     echo '<section class="mot-painel" data-mot-painel aria-label="Clima e câmbio">';
     echo '<div class="mot-painel-topo"><div><strong>Olá, ' . e($primeiroNome) . '</strong><small>Painel só seu · Florianópolis</small></div><time data-mot-relogio>--:--</time></div>';
-    echo '<div class="mot-painel-grade" data-mot-grade><p class="mot-painel-espera">Carregando clima e câmbio…</p></div>';
+    echo '<div class="mot-painel-grade" data-mot-grade>';
+    echo '<article class="mot-card mot-card-clima is-aberto"><span class="mot-card-k">Florianópolis</span><strong>…</strong><small>Clima de hoje</small></article>';
+    echo '<article class="mot-card"><span class="mot-card-k">Dólar</span><strong>…</strong><small>Cotação</small></article>';
+    echo '<article class="mot-card"><span class="mot-card-k">Euro</span><strong>…</strong><small>Cotação</small></article>';
+    echo '</div>';
     echo '</section>';
     echo '<p id="push-estado" class="help">Preparando os avisos deste celular…</p>';
 } else {

@@ -3,7 +3,7 @@
   if (!raiz) return;
   var grade = raiz.querySelector('[data-mot-grade]');
   var relogio = raiz.querySelector('[data-mot-relogio]');
-  var aberto = 'clima';
+  if (!grade) return;
 
   function hora() {
     if (!relogio) return;
@@ -22,6 +22,17 @@
     return Number(valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   }
 
+  function textoClima(codigo) {
+    if (codigo === 0) return { texto: 'Céu limpo', icone: 'sol' };
+    if (codigo <= 2) return { texto: 'Parcialmente nublado', icone: 'sol-nuvem' };
+    if (codigo === 3) return { texto: 'Nublado', icone: 'nuvem' };
+    if (codigo === 45 || codigo === 48) return { texto: 'Neblina', icone: 'neblina' };
+    if (codigo >= 95) return { texto: 'Tempestade', icone: 'tempestade' };
+    if (codigo >= 71 && codigo <= 77) return { texto: 'Frio intenso', icone: 'frio' };
+    if (codigo >= 51) return { texto: 'Chuva', icone: 'chuva' };
+    return { texto: 'Instável', icone: 'nuvem' };
+  }
+
   function icone(nome) {
     var comum = 'viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"';
     if (nome === 'sol') return '<svg ' + comum + '><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>';
@@ -32,52 +43,66 @@
     return '<svg ' + comum + '><path d="M7 16a4 4 0 1 1 .6-8 5 5 0 0 1 9.6 1.5A3.5 3.5 0 1 1 17 16H7z"/></svg>';
   }
 
-  function desenhar(dados) {
-    var agora = dados.agora || {};
-    var dias = Array.isArray(dados.dias) ? dados.dias : [];
-    var cambio = Array.isArray(dados.cambio) ? dados.cambio : [];
-    var diasHtml = dias.map(function (dia, i) {
-      return '<button type="button" class="mot-dia' + (i === 0 ? ' is-on' : '') + '" data-mot-dia="' + i + '">' +
-        '<b>' + dia.rotulo + '</b><span>' + dia.max + '° / ' + dia.min + '°</span></button>';
-    }).join('');
-    var detalheDias = dias.map(function (dia, i) {
-      return '<p class="mot-dia-info' + (i === 0 ? ' is-on' : '') + '" data-mot-info="' + i + '">' +
-        dia.texto + ' · chuva ' + dia.chuva + '%</p>';
-    }).join('');
-    var moedas = cambio.map(function (moeda) {
+  function moedaDe(json, chave, nome, sigla) {
+    var linha = json && json[chave];
+    var compra = linha ? Number(String(linha.bid || '').replace(',', '.')) : NaN;
+    if (!linha || !isFinite(compra) || compra <= 0) return null;
+    var venda = Number(String(linha.ask || linha.bid).replace(',', '.'));
+    var variacao = Number(String(linha.pctChange || '0').replace(',', '.'));
+    var max = Number(String(linha.high || linha.bid).replace(',', '.'));
+    var min = Number(String(linha.low || linha.bid).replace(',', '.'));
+    return { moeda: nome, sigla: sigla, compra: compra, venda: venda, variacao: variacao, max: max, min: min };
+  }
+
+  function desenhar(clima, cambio) {
+    var partes = [];
+    if (clima) {
+      var dias = (clima.dias || []).map(function (dia, i) {
+        return '<button type="button" class="mot-dia' + (i === 0 ? ' is-on' : '') + '" data-mot-dia="' + i + '">' +
+          '<b>' + dia.rotulo + '</b><span>' + dia.max + '° / ' + dia.min + '°</span></button>';
+      }).join('');
+      var infos = (clima.dias || []).map(function (dia, i) {
+        return '<p class="mot-dia-info' + (i === 0 ? ' is-on' : '') + '" data-mot-info="' + i + '">' +
+          dia.texto + ' · chuva ' + dia.chuva + '%</p>';
+      }).join('');
+      partes.push(
+        '<button type="button" class="mot-card mot-card-clima is-aberto" data-mot-card="clima" aria-expanded="true">' +
+          '<span class="mot-card-k">Florianópolis</span>' +
+          '<span class="mot-clima-linha"><span class="mot-ico">' + icone(clima.icone) + '</span><strong>' + clima.temp + '°</strong></span>' +
+          '<small>' + clima.texto + '</small>' +
+          '<span class="mot-dias">' + dias + '</span>' +
+          '<span class="mot-detalhe">' + infos +
+            '<em>Sensação ' + clima.sensacao + '° · umidade ' + clima.umidade + '% · vento ' + clima.vento + ' km/h</em>' +
+          '</span></button>'
+      );
+    }
+    (cambio || []).forEach(function (moeda) {
       var variacao = Number(moeda.variacao || 0);
       var sinal = variacao > 0 ? '+' : '';
       var tom = variacao > 0 ? 'sobe' : (variacao < 0 ? 'desce' : '');
-      return '<button type="button" class="mot-card" data-mot-card="' + moeda.sigla + '" aria-expanded="false">' +
-        '<span class="mot-card-k">' + moeda.moeda + '</span>' +
-        '<strong>' + dinheiro(moeda.compra) + '</strong>' +
-        '<small class="' + tom + '">' + sinal + variacao.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%</small>' +
-        '<span class="mot-detalhe">Compra ' + dinheiro(moeda.compra) + ' · Venda ' + dinheiro(moeda.venda) +
-        '<br>Mín. ' + dinheiro(moeda.min) + ' · Máx. ' + dinheiro(moeda.max) + '</span></button>';
-    }).join('');
-    grade.innerHTML =
-      '<button type="button" class="mot-card mot-card-clima is-aberto" data-mot-card="clima" aria-expanded="true">' +
-        '<span class="mot-card-k">' + (dados.cidade || 'Florianópolis') + '</span>' +
-        '<span class="mot-clima-linha"><span class="mot-ico">' + icone(agora.icone) + '</span><strong>' + agora.temp + '°</strong></span>' +
-        '<small>' + (agora.texto || 'Clima') + '</small>' +
-        '<span class="mot-detalhe">' +
-          '<span class="mot-dias">' + diasHtml + '</span>' + detalheDias +
-          '<em>Sensação ' + agora.sensacao + '° · umidade ' + agora.umidade + '% · vento ' + agora.vento + ' km/h</em>' +
-        '</span></button>' + moedas;
-    var sel = grade.querySelector('[data-mot-card="' + aberto + '"]');
-    grade.querySelectorAll('[data-mot-card]').forEach(function (card) {
-      var ligado = card === sel;
-      card.classList.toggle('is-aberto', ligado);
-      card.setAttribute('aria-expanded', ligado ? 'true' : 'false');
+      partes.push(
+        '<button type="button" class="mot-card mot-card-moeda" data-mot-card="' + moeda.sigla + '" aria-expanded="false">' +
+          '<span class="mot-card-k"><b class="mot-sigla">' + moeda.sigla + '</b> ' + moeda.moeda + '</span>' +
+          '<strong>' + dinheiro(moeda.compra) + '</strong>' +
+          '<small class="' + tom + '">' + sinal + variacao.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '% hoje</small>' +
+          '<span class="mot-detalhe">Compra ' + dinheiro(moeda.compra) + '<br>Venda ' + dinheiro(moeda.venda) +
+            '<br>Mínima ' + dinheiro(moeda.min) + ' · Máxima ' + dinheiro(moeda.max) + '</span></button>'
+      );
     });
+    if (!partes.length) {
+      grade.innerHTML = '<p class="mot-painel-espera">Clima e câmbio indisponíveis agora. Sua agenda continua só com as suas viagens.</p>';
+      return;
+    }
+    grade.innerHTML = partes.join('');
   }
 
   grade.addEventListener('click', function (ev) {
     var dia = ev.target.closest('[data-mot-dia]');
     if (dia) {
-      var card = dia.closest('[data-mot-card]');
+      ev.stopPropagation();
+      var cardDia = dia.closest('[data-mot-card]');
       var indice = dia.getAttribute('data-mot-dia');
-      card.querySelectorAll('[data-mot-dia], [data-mot-info]').forEach(function (el) {
+      cardDia.querySelectorAll('[data-mot-dia], [data-mot-info]').forEach(function (el) {
         var chave = el.getAttribute('data-mot-dia') || el.getAttribute('data-mot-info');
         el.classList.toggle('is-on', chave === indice);
       });
@@ -85,7 +110,6 @@
     }
     var card = ev.target.closest('[data-mot-card]');
     if (!card) return;
-    aberto = card.getAttribute('data-mot-card') || 'clima';
     var vaiAbrir = !card.classList.contains('is-aberto');
     grade.querySelectorAll('[data-mot-card]').forEach(function (outro) {
       var ligado = vaiAbrir && outro === card;
@@ -94,16 +118,40 @@
     });
   });
 
-  fetch('index.php?p=clima', { headers: { Accept: 'application/json' }, credentials: 'same-origin' })
-    .then(function (res) { return res.ok ? res.json() : null; })
-    .then(function (dados) {
-      if (!dados || !dados.ok) {
-        grade.innerHTML = '<p class="mot-painel-espera">Clima e câmbio indisponíveis agora. Sua agenda continua só com as suas viagens.</p>';
-        return;
-      }
-      desenhar(dados);
-    })
-    .catch(function () {
-      grade.innerHTML = '<p class="mot-painel-espera">Clima e câmbio indisponíveis agora. Sua agenda continua só com as suas viagens.</p>';
-    });
+  var climaUrl = 'https://api.open-meteo.com/v1/forecast?latitude=-27.5954&longitude=-48.548&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=America%2FSao_Paulo&forecast_days=3';
+  var cambioUrl = 'https://economia.awesomeapi.com.br/json/last/USD-BRL,EUR-BRL';
+
+  Promise.all([
+    fetch(climaUrl, { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }),
+    fetch(cambioUrl, { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; })
+  ]).then(function (par) {
+    var tempo = par[0];
+    var fx = par[1];
+    var clima = null;
+    if (tempo && tempo.current && tempo.daily && Array.isArray(tempo.daily.time)) {
+      var rotulo = textoClima(Number(tempo.current.weather_code || 0));
+      var nomes = ['Hoje', 'Amanhã', 'Depois'];
+      var dias = tempo.daily.time.slice(0, 3).map(function (data, i) {
+        var dia = textoClima(Number((tempo.daily.weather_code || [])[i] || 0));
+        return {
+          rotulo: nomes[i] || data,
+          min: Math.round(Number((tempo.daily.temperature_2m_min || [])[i] || 0)),
+          max: Math.round(Number((tempo.daily.temperature_2m_max || [])[i] || 0)),
+          chuva: Math.round(Number((tempo.daily.precipitation_probability_max || [])[i] || 0)),
+          texto: dia.texto
+        };
+      });
+      clima = {
+        temp: Math.round(Number(tempo.current.temperature_2m || 0)),
+        sensacao: Math.round(Number(tempo.current.apparent_temperature || 0)),
+        umidade: Math.round(Number(tempo.current.relative_humidity_2m || 0)),
+        vento: Math.round(Number(tempo.current.wind_speed_10m || 0)),
+        texto: rotulo.texto,
+        icone: rotulo.icone,
+        dias: dias
+      };
+    }
+    var cambio = [moedaDe(fx, 'USDBRL', 'Dólar', 'USD'), moedaDe(fx, 'EURBRL', 'Euro', 'EUR')].filter(Boolean);
+    desenhar(clima, cambio);
+  });
 })();
