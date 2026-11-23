@@ -353,54 +353,47 @@
   }
   let navSeq = 0;
   let navCtrl = null;
+  function irParaPagina(url) {
+    location.assign(url);
+  }
   async function abrirSemRecarregar(url, gravar) {
     const seq = ++navSeq;
     navOcupado = true;
     if (navCtrl) navCtrl.abort();
-    if (prefetchCtrl) prefetchCtrl.abort();
-    if (reservaPrefetchCtrl) reservaPrefetchCtrl.abort();
     navCtrl = new AbortController();
-    const prazoNav = window.setTimeout(() => navCtrl.abort(), 20000);
+    const prazoNav = window.setTimeout(() => {
+      if (seq === navSeq) navCtrl.abort();
+    }, 12000);
     const guardado = podeCachear(url) ? cachePaginas.get(chavePagina(url)) : '';
     let mostrou = false;
     if (guardado) {
       try { mostrou = pintarPagina(guardado, url, gravar); } catch (err) { mostrou = false; }
     }
-    let resposta;
     try {
-      resposta = await fetch(url, {
+      const resposta = await fetch(url, {
         credentials: 'same-origin',
         headers: { 'X-Requested-With': 'fetch' },
         signal: navCtrl.signal,
         cache: 'no-store',
       });
-    } catch (err) {
-      if (err?.name !== 'AbortError' && !mostrou) location.href = url;
-      soltarNav(seq);
-      return;
-    } finally {
-      window.clearTimeout(prazoNav);
-    }
-    if (seq !== navSeq) return;
-    const tipo = resposta.headers.get('content-type') || '';
-    if (!resposta.ok || !tipo.includes('text/html')) {
-      if (!mostrou) location.href = url;
-      soltarNav(seq);
-      return;
-    }
-    try {
+      if (seq !== navSeq) return;
+      const tipo = resposta.headers.get('content-type') || '';
+      if (!resposta.ok || !tipo.includes('text/html')) {
+        if (!mostrou) irParaPagina(url);
+        return;
+      }
       const html = await resposta.text();
       if (seq !== navSeq) return;
       guardarPagina(resposta.url || url, html);
-      if (html !== guardado) {
-        if (!pintarPagina(html, resposta.url || url, gravar && !mostrou)) {
-          if (!mostrou) location.href = resposta.url || url;
-        }
+      if (mostrou && html === guardado) return;
+      if (!pintarPagina(html, resposta.url || url, gravar && !mostrou) && !mostrou) {
+        irParaPagina(resposta.url || url);
       }
     } catch (err) {
-      if (err?.name === 'AbortError') return;
-      if (!mostrou) location.href = url;
+      if (seq !== navSeq) return;
+      if (!mostrou) irParaPagina(url);
     } finally {
+      window.clearTimeout(prazoNav);
       soltarNav(seq);
     }
   }
@@ -701,7 +694,6 @@
     if (destino.origin !== location.origin) return;
     if (!destino.pathname.endsWith('index.php') && destino.pathname !== location.pathname) return;
     event.preventDefault();
-    marcarMenu(destino.href);
     abrirSemRecarregar(destino.href, true);
   });
   document.addEventListener('pointerover', (event) => {
@@ -716,7 +708,6 @@
   abrirDialogos(document);
   aplicarTema(document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light', false);
   iniciarPagina();
-  document.querySelectorAll('.sidebar a.nav-link[href]').forEach((link) => pedirPagina(link.href));
   let aoConfirmar = null;
   let passoConfirmacao = 0;
   let textosConfirmacao = [];
