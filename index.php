@@ -519,6 +519,17 @@ if (in_array($current, ['entrar', 'seja-motorista', 'aplicativo'], true) && !pre
             }
         }
     }
+    // Sem intervalo, a lista inteira saía do banco. O padrão passa a ser o mês corrente.
+    if (in_array($modo, ['corridas', 'financeiro'], true) && ($de === '' || $ate === '')) {
+        if ($de === '') {
+            $de = today()->modify('first day of this month')->format('Y-m-d');
+        }
+        if ($ate === '') {
+            $ate = today()->modify('last day of this month')->format('Y-m-d');
+        }
+        $_GET['de'] = $de;
+        $_GET['ate'] = $ate;
+    }
     $db = load_db(false, false, $modo, $de, $ate, $idTrip);
 }
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET' && empty($soltarSessaoAntes)) {
