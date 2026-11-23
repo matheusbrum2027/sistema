@@ -4,9 +4,14 @@ defined('APP') || exit;
 $de = (string) ($_GET['de'] ?? '');
 $ate = (string) ($_GET['ate'] ?? '');
 $q = trim((string) ($_GET['q'] ?? ''));
+$mot = (int) ($_GET['mot'] ?? 0);
+$porTransfer = [];
+foreach ($db['transfers'] as $tripMot) {
+    $porTransfer[(int) ($tripMot['id'] ?? 0)] = (int) ($tripMot['motorista_id'] ?? 0);
+}
 $editId = (int) ($_GET['edit'] ?? 0);
 $edit = null;
-$rows = array_values(array_filter($db['lancamentos'], static function (array $l) use ($de, $ate, $q): bool {
+$rows = array_values(array_filter($db['lancamentos'], static function (array $l) use ($de, $ate, $q, $mot, $porTransfer): bool {
     if (($l['status'] ?? '') === 'cancelado') {
         return false;
     }
@@ -15,6 +20,15 @@ $rows = array_values(array_filter($db['lancamentos'], static function (array $l)
     }
     if ($ate !== '' && $l['data'] > $ate) {
         return false;
+    }
+    if ($mot > 0) {
+        $mid = (int) ($l['motorista_id'] ?? 0);
+        if ($mid <= 0) {
+            $mid = $porTransfer[(int) ($l['transfer_id'] ?? 0)] ?? 0;
+        }
+        if ($mid !== $mot) {
+            return false;
+        }
     }
     if ($q !== '' && !str_contains(mb_strtolower($l['descricao'] . ' ' . ($l['cliente'] ?? '') . ' ' . $l['categoria']), mb_strtolower($q))) {
         return false;
@@ -28,7 +42,9 @@ foreach ($db['lancamentos'] as $l) {
     }
 }
 $pg = slice_page($rows);
-$keep = array_filter(['de' => $de, 'ate' => $ate, 'q' => $q]);
+$keep = array_filter(['de' => $de, 'ate' => $ate, 'q' => $q, 'mot' => $mot ?: null]);
+$motoristasFiltro = $db['motoristas'];
+usort($motoristasFiltro, static fn(array $a, array $b): int => strcasecmp((string) ($a['nome'] ?? ''), (string) ($b['nome'] ?? '')));
 view_head('<a class="btn btn-sm" href="' . e(href('fin-dashboard')) . '">Dashboard</a> <button class="btn btn-primary" type="button" data-open-dialog="dlg-lanc">+ Novo manual</button>', 'Receitas e despesas. Reservas entram automaticamente.');
 ?>
 <form class="filters" method="get" action="index.php">
@@ -36,6 +52,14 @@ view_head('<a class="btn btn-sm" href="' . e(href('fin-dashboard')) . '">Dashboa
   <label>Data (de) <input type="date" name="de" value="<?= e($de) ?>" placeholder="01/10/2026"></label>
   <label>Data (até) <input type="date" name="ate" value="<?= e($ate) ?>" placeholder="31/10/2026"></label>
   <label>Cliente <input name="q" value="<?= e($q) ?>" placeholder="MZ ou Reserva transfer"></label>
+  <label>Motorista
+    <select name="mot">
+      <option value="0">Todos</option>
+      <?php foreach ($motoristasFiltro as $m): ?>
+        <option value="<?= (int) $m['id'] ?>"<?= $mot === (int) $m['id'] ? ' selected' : '' ?>><?= e((string) $m['nome']) ?></option>
+      <?php endforeach; ?>
+    </select>
+  </label>
   <button class="btn btn-sm" type="submit">Filtrar</button>
 </form>
 <section class="card">
