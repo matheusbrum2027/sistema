@@ -39,6 +39,11 @@
     { "src": "/sw.js", "dest": "/sw.js" },
     { "src": "/manifest.json", "dest": "/manifest.json" },
     { "src": "/assets/(.*)", "dest": "/assets/$1" },
+    { "src": "/includes/(.*)", "status": 404 },
+    { "src": "/supabase/(.*)", "status": 404 },
+    { "src": "/scripts/(.*)", "status": 404 },
+    { "src": "/backup/(.*)", "status": 404 },
+    { "src": "/\\.git/(.*)", "status": 404 },
     { "src": "/(.*)", "dest": "/api/index.php" }
   ]
 }

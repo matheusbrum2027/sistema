@@ -316,7 +316,7 @@
     } catch (err) { /* próxima tentativa */ }
   }
 
-  window.setInterval(buscarNovos, ehApk() ? 25000 : 20000);
+  window.setInterval(buscarNovos, 60000);
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') buscarNovos();
   });

@@ -769,6 +769,52 @@ function persistir_acesso_motorista(array $db): array
     return $db;
 }
 
+/** Limite local por sessão. Não consulta o banco. */
+function fln_ritmo(string $acao, int $limite, int $janela): bool
+{
+    $limite = max(1, $limite);
+    $janela = max(1, $janela);
+    $quem = session_id();
+    if ($quem === '') {
+        $quem = (string) ($_SERVER['REMOTE_ADDR'] ?? 'sem');
+    }
+    $dir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'fln-ritmo';
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0700, true);
+    }
+    $path = $dir . DIRECTORY_SEPARATOR . hash('sha256', $acao . '|' . $quem) . '.json';
+    $fp = fopen($path, 'c+');
+    if ($fp === false) {
+        return true;
+    }
+    $ok = true;
+    try {
+        if (!flock($fp, LOCK_EX)) {
+            return true;
+        }
+        $bruto = stream_get_contents($fp);
+        $cortes = json_decode($bruto === false ? '' : $bruto, true);
+        if (!is_array($cortes)) {
+            $cortes = [];
+        }
+        $agora = time();
+        $cortes = array_values(array_filter($cortes, static fn(mixed $t): bool => is_int($t) && $t > $agora - $janela));
+        if (count($cortes) >= $limite) {
+            $ok = false;
+        } else {
+            $cortes[] = $agora;
+            rewind($fp);
+            ftruncate($fp, 0);
+            fwrite($fp, json_encode($cortes) ?: '[]');
+            fflush($fp);
+        }
+    } finally {
+        flock($fp, LOCK_UN);
+        fclose($fp);
+    }
+    return $ok;
+}
+
 function load_db(bool $fresh = false, bool $completo = false, string $modo = '', string $de = '', string $ate = '', int $idTrip = 0): array
 {
     if (!$fresh && $modo === '' && empty($GLOBALS['fln_menu']) && ($cache = db_request_cache()) !== null && (!$completo || db_cache_completo())) {

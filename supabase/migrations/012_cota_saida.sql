@@ -75,6 +75,10 @@ begin
     raise exception 'cota de leitura da lista' using errcode = '53400';
   end if;
 
+  if p_modo = 'uma' and not fln_privado.cota_permite('uma', 120) then
+    raise exception 'cota de leitura da reserva' using errcode = '53400';
+  end if;
+
   if p_modo = 'casca' then
     select (e.dados - 'transfers' - 'lancamentos') #- '{chat,mensagens}'
       into doc

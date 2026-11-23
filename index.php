@@ -13,6 +13,14 @@ set_error_handler(static function (int $severity, string $message, string $file,
 define('APP', true);
 set_time_limit(180);
 
+$uriPedido = (string) ($_SERVER['REQUEST_URI'] ?? '');
+if (preg_match('#/(?:includes|supabase|scripts|backup|\\.git)(?:/|$)#i', $uriPedido) === 1
+    || preg_match('#\\.(?:sql|env|ini|md|lock)(?:\\?|$)#i', $uriPedido) === 1) {
+    http_response_code(404);
+    header('Content-Type: text/plain; charset=utf-8');
+    exit;
+}
+
 $hospede = strtolower((string) preg_replace('/:\d+$/', '', (string) ($_SERVER['HTTP_HOST'] ?? '')));
 if ($hospede === 'driverflntransfer.app') {
     header('Location: https://www.driverflntransfer.app' . (string) ($_SERVER['REQUEST_URI'] ?? '/'), true, 301);
@@ -426,6 +434,29 @@ if ($current === 'entrar' && !empty($_SESSION['auth'])) {
 }
 if ($role === 'motorista' && !in_array($current, ['entrar', 'agenda', 'seja-motorista', 'aplicativo', 'verificar'], true)) {
     redirect(href('agenda'));
+}
+if ((string) ($_GET['baixar'] ?? '') === 'pdf' && !fln_ritmo('pdf', 40, 3600)) {
+    http_response_code(429);
+    header('Content-Type: text/plain; charset=utf-8');
+    header('Retry-After: 60');
+    echo 'Muitos PDFs agora. Espere um pouco e baixe de novo.';
+    exit;
+}
+if ((string) ($_GET['fragment'] ?? '') === 'reserva' && !fln_ritmo('reserva', 80, 600)) {
+    http_response_code(429);
+    header('Content-Type: text/plain; charset=utf-8');
+    header('Retry-After: 30');
+    echo 'Muitas reservas abertas agora. Espere um instante.';
+    exit;
+}
+if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST'
+    && !in_array($current, ['entrar', 'chat', 'comunicador', 'aviso'], true)
+    && !fln_ritmo('gravar', 40, 600)) {
+    http_response_code(429);
+    header('Content-Type: text/plain; charset=utf-8');
+    header('Retry-After: 30');
+    echo 'Muitos envios agora. Espere um instante e tente de novo.';
+    exit;
 }
 
 $route = $routes[$current];
