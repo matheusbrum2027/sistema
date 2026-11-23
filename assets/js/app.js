@@ -66,17 +66,16 @@
   document.addEventListener('cancel', (event) => {
     if (event.target instanceof HTMLDialogElement && event.target.id === 'dlg-confirma') event.preventDefault();
   }, true);
-  document.addEventListener('click', (event) => {
-    const dlg = event.target;
-    if (!(dlg instanceof HTMLDialogElement) || dlg.id === 'dlg-confirma' || !dlg.open) return;
-    dlg.close();
-  });
+
+  function travarCliqueFora(dlg) {
+    if (!(dlg instanceof HTMLDialogElement)) return;
+    dlg.setAttribute('closedby', dlg.id === 'dlg-confirma' ? 'none' : 'closerequest');
+  }
 
   function abrirDialogos(root) {
     root.querySelectorAll('dialog[open]').forEach((dlg) => {
       dlg.removeAttribute('open');
-      if (dlg.id === 'dlg-confirma') dlg.setAttribute('closedby', 'none');
-      else dlg.removeAttribute('closedby');
+      travarCliqueFora(dlg);
       dlg.showModal();
     });
   }
@@ -185,7 +184,7 @@
       const id = deep.getAttribute('data-reserva-deep-link');
       carregarReserva(id, 'dlg-ver-' + id).then((dlg) => {
         if (!dlg || dlg.open) return;
-        dlg.removeAttribute('closedby');
+        travarCliqueFora(dlg);
         dlg.showModal();
       }).catch(() => {});
     }
@@ -486,7 +485,7 @@
     }
     dlg.dataset.pdfUrl = url;
     dlg.dataset.pdfNome = nome;
-    dlg.removeAttribute('closedby');
+    travarCliqueFora(dlg);
     if (!dlg.open) dlg.showModal();
     try {
       const href = await pdfPronto(url);
@@ -606,7 +605,7 @@
         const fichaId = abrir.getAttribute('data-ficha-id');
         const mostrar = (dlg) => {
           if (!dlg) return;
-          if (dlg.id !== 'dlg-confirma') dlg.removeAttribute('closedby');
+          travarCliqueFora(dlg);
           dlg.showModal();
         };
         const dlg = document.getElementById(alvo);

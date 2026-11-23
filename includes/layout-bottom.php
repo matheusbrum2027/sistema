@@ -21,7 +21,7 @@ declare(strict_types=1);
     <button class="btn btn-danger" type="button" id="confirma-sim">Sim</button>
   </footer>
 </dialog>
-<script src="assets/js/app.js?v=42"></script>
+<script src="assets/js/app.js?v=43"></script>
 <?php if (($_SESSION['role'] ?? '') === 'motorista' && !empty($_SESSION['auth'])): ?>
 <script src="assets/js/painel-motorista.js?v=2"></script>
 <?php endif; ?>
