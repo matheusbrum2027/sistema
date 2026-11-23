@@ -53,7 +53,7 @@ function navigation(): array
                     'items' => [
                         nav_item('solicitacoes', 'Solicitações', 'file', 'Registros recebidos via webhook do site.', 'views/solicitacoes.php'),
                         nav_item('reservas', 'Reservas', 'book', 'Reservas de transfer da operação.', 'views/reservas.php'),
-                        nav_item('lixo', 'Lixo', 'trash', 'Reservas excluídas. Dá para restaurar em até 30 dias.', 'views/lixo.php'),
+                        nav_item('lixo', 'Cancelados', 'trash', 'Reservas canceladas. Dá para restaurar em até 30 dias.', 'views/lixo.php'),
                         nav_item('contrato', 'Contrato', 'file', 'Modelo e contratos gerados para as viagens.', 'views/contrato.php'),
                     ],
                 ],

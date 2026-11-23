@@ -212,7 +212,7 @@ view_head('<button class="btn btn-primary" type="button" data-open-dialog="dlg-r
               <a class="btn btn-sm" href="<?= e(href('reservas', ['edit' => $trip['id']] + $keep)) ?>">Editar</a>
               <button class="btn btn-sm" type="button" data-open-dialog="dlg-ver-<?= (int) $trip['id'] ?>" data-reserva-id="<?= (int) $trip['id'] ?>">Ver</button>
               <a class="btn btn-sm" href="index.php?p=agenda&amp;baixar=pdf&amp;id=<?= (int) $trip['id'] ?>" download="<?= e(reserva_arquivo_pdf($trip)) ?>" data-baixar-pdf="<?= e(reserva_arquivo_pdf($trip)) ?>">PDF</a>
-              <form method="post" action="index.php" data-confirm="Enviar a reserva #<?= (int) $trip['id'] ?> de <?= e($trip['cliente']) ?> para o lixo? Ela sai da agenda e do financeiro em aberto, mas pode ser restaurada em até 30 dias."><?= csrf_fields('delete_transfer') ?><input type="hidden" name="id" value="<?= (int) $trip['id'] ?>"><button class="btn btn-sm btn-danger" type="submit">Excluir</button></form>
+              <form method="post" action="index.php" data-confirm="Cancelar a reserva #<?= (int) $trip['id'] ?> de <?= e($trip['cliente']) ?>? Ela sai da agenda e do financeiro em aberto e fica em Cancelados por até 30 dias."><?= csrf_fields('delete_transfer') ?><input type="hidden" name="id" value="<?= (int) $trip['id'] ?>"><button class="btn btn-sm btn-danger" type="submit">Cancelar</button></form>
             </td>
           </tr>
         <?php endforeach; ?>
@@ -580,7 +580,7 @@ $catEdit = in_array($catAtual, $catsOk, true) ? $catAtual : '';
       </label>
       <label class="field">Status da reserva
         <select name="status" data-status-inicial="<?= e((string) ($edit['status'] ?? 'pendente')) ?>">
-          <?php foreach (['pendente' => 'Pendente', 'reserva' => 'Reserva', 'andamento' => 'Em andamento', 'concluida' => 'Concluída', 'cancelada' => 'Cancelada'] as $k => $lab): ?>
+          <?php foreach (['pendente' => 'Pendente', 'reserva' => 'Reserva', 'andamento' => 'Em andamento', 'concluida' => 'Concluída'] as $k => $lab): ?>
             <option value="<?= e($k) ?>"<?= ($edit['status'] ?? 'pendente') === $k ? ' selected' : '' ?>><?= e($lab) ?></option>
           <?php endforeach; ?>
         </select>

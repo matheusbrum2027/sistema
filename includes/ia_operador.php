@@ -27,7 +27,7 @@ function ia_operador_catalogo(): array
         'mudar_status' => 'Mudar o status da reserva',
         'comunicar_reserva' => 'Comunicar a reserva (cliente e motorista atribuído)',
         'faturar_reserva' => 'Marcar reserva como faturada',
-        'excluir_reserva' => 'Enviar reserva para o lixo',
+        'excluir_reserva' => 'Cancelar reserva',
     ];
 }
 
@@ -834,5 +834,5 @@ function ia_operador_excluir(array &$db, array $campos): string
         'transfer' => $trip,
         'lancamentos' => $lancs,
     ];
-    return 'Reserva #' . $id . ' foi para o lixo. Dá para restaurar no painel em até 30 dias.';
+    return 'Reserva #' . $id . ' foi cancelada. Dá para restaurar em Cancelados por até 30 dias.';
 }

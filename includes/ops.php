@@ -1666,7 +1666,7 @@ function ops_dispatch(array &$db, string $action): ?array
                 'transfer' => $trip,
                 'lancamentos' => $lancs,
             ];
-            return [null, 'Reserva #' . $id . ' foi para o lixo. Dá para restaurar em até 30 dias.'];
+            return [null, 'Reserva #' . $id . ' foi cancelada. Dá para restaurar em Cancelados por até 30 dias.'];
 
         case 'restaurar_lixo':
             lixo_reservas_garantir($db);

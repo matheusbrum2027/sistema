@@ -1074,10 +1074,10 @@ function reserva_dialogos(array $db, array $trip, bool $admin, string $contexto 
             <button class="btn btn-sm" type="button" data-open-dialog="dlg-com-<?= $id ?>">Comunicar corrida</button>
           <?php endif; ?>
           <?php if ($contexto === 'reservas'): ?>
-            <form method="post" action="index.php" data-confirm="Enviar a reserva #<?= $id ?> de <?= e((string) $trip['cliente']) ?> para o lixo? Ela sai da agenda e do financeiro em aberto, mas pode ser restaurada em até 30 dias.">
+            <form method="post" action="index.php" data-confirm="Cancelar a reserva #<?= $id ?> de <?= e((string) $trip['cliente']) ?>? Ela sai da agenda e do financeiro em aberto e fica em Cancelados por até 30 dias.">
               <?= csrf_fields('delete_transfer') ?>
               <input type="hidden" name="id" value="<?= $id ?>">
-              <button class="btn btn-sm btn-danger" type="submit">Excluir</button>
+              <button class="btn btn-sm btn-danger" type="submit">Cancelar</button>
             </form>
           <?php else: ?>
           <form method="post" action="index.php" data-confirm="<?= !empty($trip['faturado']) ? 'Tirar o faturamento da reserva #' . $id . '?' : 'Marcar a reserva #' . $id . ' como faturada?' ?>">

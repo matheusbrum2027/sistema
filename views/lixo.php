@@ -7,11 +7,11 @@ $itens = $db['lixo_reservas'];
 usort($itens, static function (array $a, array $b): int {
     return strcmp((string) ($b['excluida_em'] ?? ''), (string) ($a['excluida_em'] ?? ''));
 });
-view_head('', 'Reservas excluídas ficam aqui por 30 dias. Depois o lixo esvazia sozinho.');
+view_head('', 'Reservas canceladas ficam aqui por 30 dias. Depois a lista esvazia sozinha.');
 ?>
 <section class="card">
   <?php if ($itens === []): ?>
-    <?= empty_box('trash', 'Lixo vazio', 'Quando você excluir uma reserva, ela aparece aqui para restaurar em até 30 dias.') ?>
+    <?= empty_box('trash', 'Nenhuma reserva cancelada', 'Quando você cancelar uma reserva, ela aparece aqui para restaurar em até 30 dias.') ?>
   <?php else: ?>
     <div class="table-wrap">
       <table class="table-lista">
@@ -22,7 +22,7 @@ view_head('', 'Reservas excluídas ficam aqui por 30 dias. Depois o lixo esvazia
             <th>Trajeto</th>
             <th>Data</th>
             <th>Valor</th>
-            <th>Excluída em</th>
+            <th>Cancelada em</th>
             <th>Restam</th>
             <th>Ações</th>
           </tr>
@@ -41,7 +41,7 @@ view_head('', 'Reservas excluídas ficam aqui por 30 dias. Depois o lixo esvazia
               <td data-label="Trajeto"><span class="clip" title="<?= e(($trip['origem'] ?? '') . ' → ' . ($trip['destino'] ?? '')) ?>"><?= e(short_place((string) ($trip['origem'] ?? ''))) ?> → <?= e(short_place((string) ($trip['destino'] ?? ''))) ?></span></td>
               <td data-label="Data"><?= e(br_date((string) ($trip['data'] ?? ''))) ?> <span class="hint"><?= e((string) ($trip['hora'] ?? '')) ?></span></td>
               <td data-label="Valor"><?= e(brl((float) ($trip['valor'] ?? 0))) ?></td>
-              <td data-label="Excluída em"><?php
+              <td data-label="Cancelada em"><?php
                 if ($em === '') {
                     echo '—';
                 } else {
