@@ -3070,7 +3070,7 @@ html[data-theme="dark"] .chat-x {
 .mot-painel-topo time {
   font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--orange);
 }
-.mot-painel-grade { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 10px; }
+.mot-painel-grade { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .mot-card {
   position: relative; overflow: hidden;
   display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
@@ -3079,7 +3079,7 @@ html[data-theme="dark"] .chat-x {
   background: #fff; color: #152033;
   box-shadow: 0 8px 20px rgba(16, 19, 24, .08);
 }
-.mot-card-clima { background: #fff; padding-top: 62px; }
+.mot-card-clima { grid-column: 1 / -1; background: #fff; padding: 16px; cursor: default; }
 .mot-ceu {
   position: absolute; inset: 0 0 auto 0; height: 54px; pointer-events: none; overflow: hidden;
 }
@@ -3150,7 +3150,44 @@ html[data-theme="dark"] .chat-x {
 .mot-dia-info { display: none; margin: 0 0 4px; }
 .mot-dia-info.is-on { display: block; }
 .mot-detalhe em { font-style: normal; }
+.mot-clima { display: grid; gap: 14px; width: 100%; }
+.mot-clima-topo, .mot-agora.is-on, .mot-agora-txt { display: flex; align-items: center; gap: 10px; }
+.mot-agora { display: none; width: 100%; margin: 8px 0; }
+.mot-clima-topo { justify-content: space-between; width: 100%; }
+.mot-clima-topo b { display: block; font-size: 14px; }
+.mot-clima-topo small, .mot-agora-txt small { color: #5c6573; font-size: 12px; }
+.mot-agora strong { font-size: 42px; letter-spacing: -0.04em; }
+.mot-agora-txt { flex-direction: column; align-items: flex-start; gap: 0; }
+.mot-agora-txt b { font-size: 16px; }
+.mot-dias { overflow-x: auto; }
+.mot-dia .mot-ico { width: 22px; height: 22px; margin: 2px auto; }
+.mot-dia .mot-ico svg { width: 22px; height: 22px; }
+.mot-extra { display: block; margin-top: 8px; color: #5c6573; font-size: 12px; }
+.mot-curva { display: none; width: 100%; margin-top: 8px; }
+.mot-curva.is-on { display: block; }
+.mot-curva svg { width: 100%; height: 78px; display: block; }
+.mot-horas, .mot-chuvas { display: grid; grid-template-columns: repeat(8, 1fr); gap: 2px; }
+.mot-horas span, .mot-chuvas span { text-align: center; font-size: 11px; color: #5c6573; }
+.mot-chuvas span { color: #2563eb; }
+.mot-clima-lado { display: grid; gap: 8px; align-content: start; }
+.mot-alerta {
+  display: grid; gap: 2px; padding: 10px 12px; border-radius: 14px;
+  background: #eef5ff; color: #152033;
+}
+.mot-alerta strong { font-size: 14px; }
+.mot-alerta small { color: #3b4a63; }
+.mot-alerta-tempestade { background: #fff6e8; }
+.mot-medidas { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.mot-medida {
+  padding: 10px; border-radius: 14px; background: #f6f7fb; color: #152033;
+}
+.mot-medida b { display: block; font-size: 12px; color: #5c6573; font-weight: 700; }
+.mot-medida strong { font-size: 22px; }
+.mot-medida small { color: #5c6573; }
 .mot-painel-espera { margin: 0; color: var(--muted); }
+@media (min-width: 900px) {
+  .mot-clima { grid-template-columns: 1.6fr .9fr; align-items: start; }
+}
 @media (max-width: 720px) {
   .mot-painel-grade { grid-template-columns: 1fr; }
 }

@@ -23,7 +23,7 @@ declare(strict_types=1);
 </dialog>
 <script src="assets/js/app.js?v=45"></script>
 <?php if (($_SESSION['role'] ?? '') === 'motorista' && !empty($_SESSION['auth'])): ?>
-<script src="assets/js/painel-motorista.js?v=3"></script>
+<script src="assets/js/painel-motorista.js?v=4"></script>
 <?php endif; ?>
 <?php if (($_SESSION['role'] ?? '') === 'admin' && !empty($_SESSION['auth']) && empty($bare)): ?>
 <div class="flutuantes-direita" id="flutuantes-direita">
