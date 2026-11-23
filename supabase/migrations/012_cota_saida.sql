@@ -69,10 +69,10 @@ begin
     return jsonb_build_object('versao', versao, 'igual', true);
   end if;
 
-  -- Lista inteira ou o financeiro: teto por hora. Casca, caixa e uma reserva passam.
+  -- Lista inteira ou o financeiro: teto por hora. Recusa em vez de devolver vazio.
   if p_modo in ('corridas', 'financeiro')
-     and not fln_privado.cota_permite('lista', 40) then
-    return jsonb_build_object('versao', versao, 'limite', true);
+     and not fln_privado.cota_permite('lista', 20) then
+    raise exception 'cota de leitura da lista' using errcode = '53400';
   end if;
 
   if p_modo = 'casca' then
