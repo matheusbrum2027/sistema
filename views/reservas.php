@@ -932,7 +932,11 @@ foreach ($db['motoristas'] as $m) {
     form.querySelectorAll('[data-show]').forEach((el) => {
       const ok = el.dataset.show.split(' ').includes(atual);
       const soCriar = el.hasAttribute('data-create-only') && editing;
-      el.hidden = !ok || soCriar;
+      const visivel = ok && !soCriar;
+      el.hidden = !visivel;
+      el.querySelectorAll('input, select, textarea').forEach((campo) => {
+        campo.disabled = !visivel;
+      });
     });
     desenharAlvos();
   }

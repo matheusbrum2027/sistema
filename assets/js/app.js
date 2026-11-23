@@ -812,9 +812,12 @@
     aviso.className = 'flash flash-err';
     aviso.setAttribute('role', 'alert');
     aviso.textContent = rotulo + ': ' + (campo.validationMessage || 'preencha este campo.');
-    document.body.appendChild(aviso);
+    const painel = form.querySelector('.dialog-b, .reserva-scroll') || form;
+    painel.querySelector(':scope > .flash-err')?.remove();
+    painel.prepend(aviso);
     window.setTimeout(() => aviso.remove(), 7000);
-    campo.scrollIntoView({ block: 'center' });
+    const rolagem = campo.closest('.dialog-b, .reserva-scroll');
+    if (rolagem) campo.scrollIntoView({ block: 'center', inline: 'nearest' });
     campo.focus({ preventScroll: true });
   }, true);
   document.addEventListener('submit', (event) => {
