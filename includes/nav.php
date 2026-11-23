@@ -96,6 +96,7 @@ function navigation(): array
                     'items' => [
                         nav_item('configuracoes', 'Configurações', 'sliders', 'Dados da empresa e da operação.', 'views/configuracoes.php'),
                         nav_item('automacoes', 'Automações', 'zap', 'Regras locais disparadas pela mudança de status das viagens.', 'views/automacoes.php'),
+                        nav_item('desenvolvedor', 'Desenvolvedor', 'code', 'Campos que o webhook recebe em ida, ida e volta, trajetos e por hora.', 'views/desenvolvedor.php'),
                         nav_item('comunicador', 'Comunicador', 'monitor', 'Modelos de mensagem e registros gerados neste computador.', 'views/comunicador.php'),
                         nav_item('anotacoes', 'Anotações', 'note', 'Lembretes internos da equipe.', 'views/anotacoes.php'),
                     ],

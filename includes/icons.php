@@ -44,6 +44,7 @@ function icon(string $name): string
         'expand' => '<path d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5"/>',
         'compress' => '<path d="M4 9h5V4M20 9h-5V4M4 15h5v5M20 15h-5v5"/>',
         'trash' => '<path d="M4 7h16"/><path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7"/><path d="M6.5 7l.8 12.2A1.5 1.5 0 0 0 8.8 20.5h6.4a1.5 1.5 0 0 0 1.5-1.3L17.5 7"/><path d="M10 11v6M14 11v6"/>',
+        'code' => '<path d="m8 8-4 4 4 4"/><path d="m16 8 4 4-4 4"/><path d="m14 4-4 16"/>',
     ];
     $inner = $paths[$name] ?? $paths['file'];
     return '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' . $inner . '</svg>';

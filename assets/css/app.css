@@ -397,6 +397,12 @@ td { padding: 12px 10px; border-bottom: 1px solid #eef0f3; vertical-align: middl
 .th-ord.is-on { color: var(--orange); }
 .th-ord.is-on .seta { opacity: 1; }
 .th-ord:hover { color: var(--orange); text-decoration: none; }
+.dev-url, .dev-json {
+  display: block; margin: 10px 0 0; padding: 12px; overflow: auto;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--bg);
+  color: var(--ink); font-size: 12px; line-height: 1.45; white-space: pre-wrap;
+}
+.dev-url { white-space: normal; word-break: break-all; }
 .pro-abre {
   display: inline-flex; align-items: center; gap: 8px;
   border: 0; background: transparent; color: inherit; font: inherit; font-weight: 700;

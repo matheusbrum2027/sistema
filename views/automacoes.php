@@ -9,7 +9,7 @@ foreach ($hooks as $h) {
         $edit = $h;
     }
 }
-view_head('<button class="btn btn-primary" type="button" data-open-dialog="dlg-auto">+ Nova automação</button>', 'Webhooks que criam reservas e cadastros de motorista.');
+view_head('<a class="btn btn-sm" href="' . e(href('desenvolvedor')) . '">Contrato dos dados</a> <button class="btn btn-primary" type="button" data-open-dialog="dlg-auto">+ Nova automação</button>', 'Webhooks que criam reservas e cadastros de motorista.');
 ?>
 <section class="card">
   <header class="card-h"><h2>Automações da plataforma</h2></header>

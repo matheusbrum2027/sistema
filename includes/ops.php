@@ -2200,7 +2200,8 @@ function webhook_dados_limpos(array $data): array
         if (!is_scalar($valor)) {
             continue;
         }
-        $saida[$nome] = clip(trim((string) $valor), 500);
+        $limite = $nome === 'trajetos' ? 8000 : 500;
+        $saida[$nome] = clip(trim((string) $valor), $limite);
     }
     return $saida;
 }
@@ -2282,6 +2283,169 @@ function solicitacao_como_reserva(array $row): array
         'categoria' => $cat,
         'obs' => $obs,
         'cupom' => $pegar($dados, ['cupom', 'coupon']),
+        'volta_embarque' => $pegar($dados, ['volta_embarque', 'volta_origem', 'return_pickup']),
+        'volta_desembarque' => $pegar($dados, ['volta_desembarque', 'volta_destino', 'return_dropoff']),
+        'data_volta' => webhook_data_iso($pegar($dados, ['data_volta', 'return_date'])),
+        'hora_volta' => webhook_hora($pegar($dados, ['hora_volta', 'return_time'])),
+        'pax_volta' => max(0, (int) $pegar($dados, ['pax_volta'])),
+        'obs_volta' => $pegar($dados, ['obs_volta']),
+        'qtd_horas' => $pegar($dados, ['qtd_horas', 'horas']),
+        'trajetos' => webhook_trajetos($dados),
+    ];
+}
+
+/** @return list<array{embarque:string,desembarque:string,data:string,hora:string,pax:int}> */
+function webhook_trajetos(array $dados): array
+{
+    $bruto = $dados['trajetos'] ?? '';
+    if (is_string($bruto)) {
+        $dec = json_decode($bruto, true);
+        $bruto = is_array($dec) ? $dec : [];
+    }
+    if (!is_array($bruto)) {
+        return [];
+    }
+    $saida = [];
+    foreach ($bruto as $trecho) {
+        if (!is_array($trecho) || count($saida) >= 12) {
+            continue;
+        }
+        $embarque = clip(trim((string) ($trecho['embarque'] ?? $trecho['origem'] ?? '')), 180);
+        $desembarque = clip(trim((string) ($trecho['desembarque'] ?? $trecho['destino'] ?? '')), 180);
+        $data = webhook_data_iso((string) ($trecho['data'] ?? ''));
+        if ($embarque === '' || $desembarque === '' || $data === '') {
+            continue;
+        }
+        $saida[] = [
+            'embarque' => $embarque,
+            'desembarque' => $desembarque,
+            'data' => $data,
+            'hora' => webhook_hora((string) ($trecho['hora'] ?? '')) ?: '00:00',
+            'pax' => max(1, min(40, (int) ($trecho['pax'] ?? 1))),
+        ];
+    }
+    return $saida;
+}
+
+/** Contrato público do webhook de reservas: todos os campos de cada categoria. */
+function webhook_contrato(): array
+{
+    $comum = [
+        ['cliente', 'Sim', 'Nome do passageiro ou da empresa. Também aceita nome ou name.'],
+        ['telefone', 'Não', 'WhatsApp ou telefone. Também aceita phone ou whatsapp.'],
+        ['email', 'Não', 'E-mail do contratante.'],
+        ['documento', 'Não', 'CPF ou CNPJ. Também aceita cpf, cnpj ou doc.'],
+        ['tipo', 'Sim', 'ida, ida_volta, trajetos ou hora. Sem este campo o sistema trata como ida.'],
+        ['data', 'Não', 'Data da ida, no formato AAAA-MM-DD ou DD/MM/AAAA. Também aceita date.'],
+        ['hora', 'Não', 'Hora da ida, HH:MM. Também aceita time.'],
+        ['pax', 'Não', 'Passageiros, de 1 a 40. Também aceita passageiros ou pessoas.'],
+        ['valor', 'Não', 'Valor cobrado do cliente, com ponto ou vírgula. Também aceita value.'],
+        ['categoria', 'Não', 'VAN, MIC.VAN, 07LUG., MINIVAN, SED, HAT ou ONIBUS.'],
+        ['obs', 'Não', 'Observação livre. Também aceita mensagem, message ou observacao.'],
+        ['cupom', 'Não', 'Cupom, se houver.'],
+    ];
+    return [
+        'envio' => 'POST com JSON. O domínio do site precisa estar autorizado em Configurações. Abrir a URL no navegador (GET) devolve este contrato, sem gravar nada.',
+        'comum' => $comum,
+        'categorias' => [
+            [
+                'id' => 'ida',
+                'titulo' => 'Ida',
+                'resumo' => 'Um embarque e um desembarque.',
+                'campos' => [
+                    ['origem', 'Sim', 'Endereço completo de embarque. Também aceita pickup.'],
+                    ['destino', 'Sim', 'Endereço completo de desembarque. Também aceita dropoff.'],
+                ],
+                'exemplo' => [
+                    'tipo' => 'ida',
+                    'cliente' => 'Paulo Henrique',
+                    'telefone' => '48988222534',
+                    'email' => 'financeiroflnsc@gmail.com',
+                    'documento' => '00000000000',
+                    'origem' => 'Aeroporto de Florianópolis',
+                    'destino' => 'Hotel Porto Sol',
+                    'data' => '2026-11-22',
+                    'hora' => '14:30',
+                    'pax' => 2,
+                    'valor' => '210.90',
+                    'categoria' => 'SED',
+                    'obs' => 'Voo G3 1234',
+                ],
+            ],
+            [
+                'id' => 'ida_volta',
+                'titulo' => 'Ida e volta',
+                'resumo' => 'A ida usa origem, destino, data e hora. A volta usa os campos próprios.',
+                'campos' => [
+                    ['origem', 'Sim', 'Embarque da ida.'],
+                    ['destino', 'Sim', 'Desembarque da ida.'],
+                    ['volta_embarque', 'Não', 'Embarque da volta. Também aceita return_pickup.'],
+                    ['volta_desembarque', 'Não', 'Desembarque da volta. Também aceita return_dropoff.'],
+                    ['data_volta', 'Não', 'Data da volta. Também aceita return_date.'],
+                    ['hora_volta', 'Não', 'Hora da volta. Também aceita return_time.'],
+                    ['pax_volta', 'Não', 'Passageiros da volta.'],
+                    ['obs_volta', 'Não', 'Observação só da volta.'],
+                ],
+                'exemplo' => [
+                    'tipo' => 'ida_volta',
+                    'cliente' => 'MZ Turismo',
+                    'origem' => 'Aeroporto de Florianópolis',
+                    'destino' => 'Jurerê Beach Village',
+                    'data' => '2026-11-22',
+                    'hora' => '10:00',
+                    'volta_embarque' => 'Jurerê Beach Village',
+                    'volta_desembarque' => 'Aeroporto de Florianópolis',
+                    'data_volta' => '2026-11-28',
+                    'hora_volta' => '16:40',
+                    'pax' => 3,
+                    'pax_volta' => 3,
+                    'valor' => '420.00',
+                    'categoria' => 'VAN',
+                ],
+            ],
+            [
+                'id' => 'trajetos',
+                'titulo' => 'Vários trajetos',
+                'resumo' => 'Pelo menos dois trechos. origem e destino podem ficar de fora: o sistema usa o primeiro trecho.',
+                'campos' => [
+                    ['trajetos', 'Sim', 'Lista. Cada item precisa de embarque, desembarque e data. Hora e pax são opcionais.'],
+                ],
+                'exemplo' => [
+                    'tipo' => 'trajetos',
+                    'cliente' => 'Grupo Serra',
+                    'valor' => '640.00',
+                    'categoria' => 'VAN',
+                    'trajetos' => [
+                        ['embarque' => 'Aeroporto de Florianópolis', 'desembarque' => 'Hotel Porto Sol', 'data' => '2026-11-22', 'hora' => '09:00', 'pax' => 4],
+                        ['embarque' => 'Hotel Porto Sol', 'desembarque' => 'Praia dos Ingleses', 'data' => '2026-11-23', 'hora' => '08:30', 'pax' => 4],
+                    ],
+                ],
+            ],
+            [
+                'id' => 'hora',
+                'titulo' => 'Por hora',
+                'resumo' => 'O início vai em origem (ou inicio). O encerramento vai em destino (ou encerramento).',
+                'campos' => [
+                    ['origem', 'Sim', 'Endereço de início. Também aceita inicio.'],
+                    ['destino', 'Não', 'Endereço de encerramento. Também aceita encerramento. Se vier vazio, repete o início.'],
+                    ['qtd_horas', 'Não', 'Quantidade de horas contratadas. Também aceita horas.'],
+                    ['obs', 'Não', 'Roteiro do dia, paradas e horários.'],
+                ],
+                'exemplo' => [
+                    'tipo' => 'hora',
+                    'cliente' => 'Ana Souza',
+                    'origem' => 'Hotel Maria do Mar',
+                    'destino' => 'Aeroporto de Florianópolis',
+                    'data' => '2026-11-22',
+                    'hora' => '08:00',
+                    'qtd_horas' => '4',
+                    'pax' => 2,
+                    'valor' => '480.00',
+                    'categoria' => 'SED',
+                    'obs' => 'Parada no centro às 10h',
+                ],
+            ],
+        ],
     ];
 }
 
@@ -2403,6 +2567,10 @@ function handle_public_hook(string $secret): never
         http_response_code(204);
         exit;
     }
+    if ($metodo === 'GET') {
+        echo json_encode(['ok' => true, 'contrato' => webhook_contrato()], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+        exit;
+    }
     if ($metodo !== 'POST') {
         http_response_code(405);
         echo json_encode(['ok' => false, 'erro' => 'Envie a solicitação com POST.']);
@@ -2415,12 +2583,30 @@ function handle_public_hook(string $secret): never
     }
     webhook_cors_autorizada();
     $cliente = $pick($data, ['cliente', 'nome', 'name']);
-    $origem = $pick($data, ['origem', 'pickup']);
-    $destino = $pick($data, ['destino', 'dropoff']);
+    $tipoBruto = strtolower($pick($data, ['tipo', 'type']) ?: 'ida');
+    $tipoHookViagem = match ($tipoBruto) {
+        'hora', 'por hora', 'por_hora' => 'hora',
+        'trajetos', 'multi' => 'trajetos',
+        'ida_volta', 'ida e volta', 'idavolta' => 'ida_volta',
+        default => 'ida',
+    };
+    $origem = $pick($data, ['origem', 'pickup', 'inicio']);
+    $destino = $pick($data, ['destino', 'dropoff', 'encerramento']);
+    $trajetosHook = webhook_trajetos(['trajetos' => $data['trajetos'] ?? '']);
+    if ($tipoHookViagem === 'trajetos' && $trajetosHook !== []) {
+        $origem = $origem !== '' ? $origem : $trajetosHook[0]['embarque'];
+        $destino = $destino !== '' ? $destino : $trajetosHook[0]['desembarque'];
+    }
+    if ($tipoHookViagem === 'hora' && $destino === '') {
+        $destino = $origem;
+    }
     if ($cliente === '' || $origem === '' || $destino === '') {
         http_response_code(422);
-        echo json_encode(['ok' => false, 'erro' => 'Informe cliente, origem e destino.']);
+        echo json_encode(['ok' => false, 'erro' => 'Informe cliente, origem e destino. Em trajetos, envie a lista trajetos.']);
         exit;
+    }
+    if (is_array($data['trajetos'] ?? null)) {
+        $data['trajetos'] = json_encode($trajetosHook, JSON_UNESCAPED_UNICODE);
     }
     $registro = [
         'cliente' => $cliente,
@@ -2431,7 +2617,7 @@ function handle_public_hook(string $secret): never
         'data' => $pick($data, ['data', 'date']),
         'hora' => $pick($data, ['hora', 'time']),
         'valor' => (float) str_replace(',', '.', $pick($data, ['valor', 'value'])),
-        'tipo' => $pick($data, ['tipo', 'type']) ?: 'ida',
+        'tipo' => $tipoHookViagem,
         'criado_em' => today()->format('Y-m-d H:i'),
         'dados' => webhook_dados_limpos(is_array($data) ? $data : []),
     ];

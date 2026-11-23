@@ -282,10 +282,18 @@ if ($edit && ($edit['conjunto'] ?? '') === 'trajetos') {
     ]];
 } elseif ($edit && ($edit['tipo'] ?? '') === 'trajetos' && is_array($edit['trajetos'] ?? null) && $edit['trajetos'] !== []) {
     $trechosForm = array_values($edit['trajetos']);
+} elseif (!$edit && is_array($pre['trajetos'] ?? null) && $pre['trajetos'] !== []) {
+    $trechosForm = array_values($pre['trajetos']);
 }
 $voltaUnica = is_array($edit)
     && (string) ($edit['tipo'] ?? '') === 'ida_volta'
     && (string) ($edit['conjunto'] ?? '') !== 'ida_volta';
+$voltaCampo = static function (string $chaveEdit, string $chavePre) use ($edit, $pre, $voltaUnica): string {
+    if ($voltaUnica && is_array($edit)) {
+        return (string) ($edit[$chaveEdit] ?? '');
+    }
+    return (string) ($pre[$chavePre] ?? '');
+};
 $extrasEdit = array_map('intval', is_array($edit) ? ($edit['extras'] ?? []) : []);
 $pernaForm = 'ida';
 $ordemForm = 1;
@@ -428,25 +436,25 @@ $catEdit = in_array($catAtual, $catsOk, true) ? $catAtual : '';
         <strong class="bloco-h">↺ Volta</strong>
         <div class="form-grid">
           <label class="field">Local de Embarque (Volta)
-            <input name="volta_embarque" maxlength="180" value="<?= e($voltaUnica ? (string) ($edit['volta_origem'] ?? '') : '') ?>" placeholder="Endereço completo">
+            <input name="volta_embarque" maxlength="180" value="<?= e($voltaCampo('volta_origem', 'volta_embarque')) ?>" placeholder="Endereço completo">
           </label>
           <label class="field">Local de Desembarque (Volta)
-            <input name="volta_desembarque" maxlength="180" value="<?= e($voltaUnica ? (string) ($edit['volta_destino'] ?? '') : '') ?>" placeholder="Endereço completo">
+            <input name="volta_desembarque" maxlength="180" value="<?= e($voltaCampo('volta_destino', 'volta_desembarque')) ?>" placeholder="Endereço completo">
           </label>
           <label class="field">Data
-            <input type="date" name="data_volta" value="<?= e($voltaUnica ? (string) ($edit['data_volta'] ?? '') : '') ?>" placeholder="dd/mm/aaaa">
+            <input type="date" name="data_volta" value="<?= e($voltaCampo('data_volta', 'data_volta')) ?>" placeholder="dd/mm/aaaa">
           </label>
           <label class="field">Hora
-            <input type="time" name="hora_volta" value="<?= e($voltaUnica ? (string) ($edit['hora_volta'] ?? '') : '') ?>" placeholder="--:--">
+            <input type="time" name="hora_volta" value="<?= e($voltaCampo('hora_volta', 'hora_volta')) ?>" placeholder="--:--">
           </label>
           <label class="field">Passageiros
-            <input type="number" name="pax_volta" min="1" max="40" placeholder="2">
+            <input type="number" name="pax_volta" min="1" max="40" value="<?= (int) ($pre['pax_volta'] ?? 0) > 0 ? (int) $pre['pax_volta'] : '' ?>" placeholder="2">
           </label>
           <label class="field">Cupom
             <input name="cupom_volta" maxlength="40" placeholder="FLN10">
           </label>
           <label class="field full">Mensagem / Observações
-            <textarea name="obs_volta" maxlength="8000" placeholder="Voo de retorno e horário"></textarea>
+            <textarea name="obs_volta" maxlength="8000" placeholder="Voo de retorno e horário"><?= e((string) ($pre['obs_volta'] ?? '')) ?></textarea>
           </label>
         </div>
       </div>
@@ -499,7 +507,7 @@ $catEdit = in_array($catAtual, $catsOk, true) ? $catAtual : '';
             <input type="number" name="pax_hora" min="1" max="40" value="<?= (int) ($tipoForm === 'hora' ? ($campo('pax') !== '' ? $campo('pax') : 1) : 1) ?>" placeholder="2">
           </label>
           <label class="field">Qtd. Horas
-            <input name="qtd_horas" maxlength="10" value="<?= e((string) ($edit['qtd_horas'] ?? '')) ?>" placeholder="4">
+            <input name="qtd_horas" maxlength="10" value="<?= e((string) (is_array($edit) ? ($edit['qtd_horas'] ?? '') : ($pre['qtd_horas'] ?? ''))) ?>" placeholder="4">
           </label>
           <label class="field full">Cupom
             <input name="cupom_hora" maxlength="40" value="<?= e($tipoForm === 'hora' ? $campo('cupom') : '') ?>" placeholder="FLN10">
