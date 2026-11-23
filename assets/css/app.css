@@ -1926,11 +1926,13 @@ html[data-theme="dark"] .nav-scroll::-webkit-scrollbar-thumb { background: #4650
 .cfg-lead { margin: 3px 0 0; color: var(--muted); font-size: 12px; font-weight: 400; line-height: 1.45; max-width: 62ch; }
 .cfg-page .cfg-card fieldset { gap: 12px 14px; }
 .cfg-page .cfg-card fieldset:disabled,
-#form-contrato fieldset:disabled { opacity: 1; }
+#form-contrato fieldset:disabled { opacity: 0.45; }
 .cfg-page .cfg-card fieldset:disabled input,
 .cfg-page .cfg-card fieldset:disabled textarea,
 .cfg-page .cfg-card fieldset:disabled select,
-#form-contrato fieldset:disabled textarea { color: var(--ink); }
+#form-contrato fieldset:disabled textarea { color: var(--muted); }
+.cfg-marca { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+.cfg-marca img { width: 72px; height: 72px; object-fit: contain; background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 6px; }
 .cfg-split { grid-column: 1 / -1; margin: 2px 0 0; padding-top: 10px; border-top: 1px solid var(--line); color: var(--faint); font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
 .cfg-switches { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .cfg-switch { display: flex; align-items: flex-start; gap: 8px; margin: 0; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--ink); font-weight: 600; }

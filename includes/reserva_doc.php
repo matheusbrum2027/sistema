@@ -388,6 +388,59 @@ function reserva_detalhes(array $db, array $trip): void
     echo '</dl>';
 }
 
+function reserva_midia_src(array $s, string $chave): string
+{
+    $src = trim((string) ($s[$chave] ?? ''));
+    if ($src !== '') {
+        return $src;
+    }
+    if (!function_exists('store_midia')) {
+        return '';
+    }
+    try {
+        $src = store_midia($chave);
+    } catch (Throwable) {
+        return '';
+    }
+    return is_string($src) ? trim($src) : '';
+}
+
+/** @return array{jpeg:string,w:int,h:int}|null */
+function reserva_bin_jpeg(string $bin): ?array
+{
+    if (!str_starts_with($bin, "\xFF\xD8")) {
+        return null;
+    }
+    $n = strlen($bin);
+    $p = 2;
+    while ($p + 9 < $n) {
+        if (ord($bin[$p]) !== 0xFF) {
+            $p++;
+            continue;
+        }
+        $marca = ord($bin[$p + 1]);
+        if ($marca === 0xD8 || $marca === 0xD9 || $marca === 0x01 || ($marca >= 0xD0 && $marca <= 0xD7)) {
+            $p += 2;
+            continue;
+        }
+        $tam = (ord($bin[$p + 2]) << 8) + ord($bin[$p + 3]);
+        if ($tam < 2 || $p + 2 + $tam > $n) {
+            return null;
+        }
+        $sof = ($marca >= 0xC0 && $marca <= 0xCF && !in_array($marca, [0xC4, 0xC8, 0xCC], true));
+        if ($sof) {
+            $h = (ord($bin[$p + 5]) << 8) + ord($bin[$p + 6]);
+            $w = (ord($bin[$p + 7]) << 8) + ord($bin[$p + 8]);
+            if ($w < 2 || $h < 2) {
+                return null;
+            }
+            return ['jpeg' => $bin, 'w' => $w, 'h' => $h];
+        }
+        $p += 2 + $tam;
+    }
+    return null;
+}
+
 function reserva_logo(array $s): string
 {
     $logo = trim((string) ($s['logo'] ?? ''));
@@ -675,25 +728,22 @@ function reserva_pdf_disposition(string $arquivo, bool $inline = false): string
 
 function reserva_assinatura_jpeg(array $s): ?array
 {
-    $src = trim((string) ($s['assinatura'] ?? ''));
-    if ($src === '' && function_exists('store_midia')) {
-        try {
-            $src = store_midia('assinatura');
-        } catch (Throwable) {
-            $src = '';
-        }
-    }
+    $src = reserva_midia_src($s, 'assinatura');
     if (!preg_match('#^data:image/[a-z0-9.+-]+;base64,([a-z0-9+/=\r\n]+)$#i', $src, $m)) {
         return null;
     }
     $bin = base64_decode($m[1], true);
-    if (!is_string($bin) || $bin === '' || !function_exists('imagecreatefromstring')) {
+    if (!is_string($bin) || $bin === '') {
         return null;
+    }
+    $original = $bin;
+    if (!function_exists('imagecreatefromstring')) {
+        return reserva_bin_jpeg($original);
     }
     $bin = assinatura_bin_aparada($bin);
     $im = @imagecreatefromstring($bin);
     if (!$im) {
-        return null;
+        return reserva_bin_jpeg($original);
     }
     $w = imagesx($im);
     $h = imagesy($im);
@@ -715,8 +765,8 @@ function reserva_assinatura_jpeg(array $s): ?array
     $jpeg = ob_get_clean();
     imagedestroy($im);
     imagedestroy($flat);
-    if (!is_string($jpeg) || strlen($jpeg) < 32) {
-        return null;
+    if (!is_string($jpeg) || strlen($jpeg) < 32 || !str_starts_with($jpeg, "\xFF\xD8")) {
+        return reserva_bin_jpeg($original);
     }
     return ['jpeg' => $jpeg, 'w' => $w, 'h' => $h];
 }

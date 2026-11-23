@@ -33,8 +33,8 @@ view_head('', 'O contrato abaixo entra no PDF de confirmação da reserva. Toque
         <p>Contratada</p>
         <div class="doc-sign-line"></div>
         <div class="doc-sign-line">
-          <?php if (!empty($s['assinatura'])): ?>
-            <img src="<?= e(assinatura_src_aparada((string) $s['assinatura'])) ?>" alt="Assinatura digital" class="doc-sign-img">
+          <?php if (!empty($s['assinatura']) || !empty($s['tem_assinatura'])): ?>
+            <img src="<?= !empty($s['assinatura']) ? e(assinatura_src_aparada((string) $s['assinatura'])) : e('index.php?p=marca&k=assinatura&v=' . (int) ($s['marca_v'] ?? 1)) ?>" alt="Assinatura digital" class="doc-sign-img">
           <?php endif; ?>
         </div>
         <strong></strong>

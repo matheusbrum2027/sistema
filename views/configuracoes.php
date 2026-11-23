@@ -35,7 +35,14 @@ view_head('', 'Cada bloco salva sozinho. Toque em Editar para liberar os campos.
       <div class="form-actions full"><button class="btn btn-primary" type="submit">Salvar dados</button></div>
     </fieldset>
   </form>
-  <?php if (!empty($s['logo']) || !empty($s['tem_logo'])): ?><p class="hint">Logo atual carregada (também usada no favicon).</p><?php endif; ?>
+  <?php if (!empty($s['logo']) || !empty($s['tem_logo'])): ?>
+    <div class="cfg-marca">
+      <img src="<?= !empty($s['logo']) ? e((string) $s['logo']) : e('index.php?p=marca&k=logo&v=' . (int) ($s['marca_v'] ?? 1)) ?>" alt="Logo da empresa">
+      <p class="hint">Esta logo entra no PDF da reserva e no favicon.</p>
+    </div>
+  <?php else: ?>
+    <p class="hint">Nenhuma logo salva. Toque em Editar, envie a imagem e salve.</p>
+  <?php endif; ?>
 </section>
 
 <section class="card cfg-card">

@@ -476,16 +476,16 @@ final class ReservaPdfFolha
         $razao = trim((string) ($this->settings['razao'] ?? ''));
         $cliente = trim((string) ($this->trip['cliente'] ?? ''));
         $documento = trim((string) ($this->trip['documento'] ?? ''));
-        $this->garantir(118);
+        $this->garantir(136);
         $largura = (self::LARGURA - (self::MARGEM * 2) - 28) / 2;
         $x2 = self::MARGEM + $largura + 28;
         $this->pagina->txt(self::MARGEM, $this->y - 12, 8, 'CONTRATANTE', true, self::MUTED);
         $this->pagina->txt($x2, $this->y - 12, 8, 'CONTRATADA', true, self::MUTED);
-        $linhaY = $this->y - 62;
+        $linhaY = $this->y - 78;
         $jpeg = reserva_assinatura_jpeg($this->settings);
         if ($jpeg !== null) {
             $this->imagens['ImAss'] = $jpeg;
-            $escala = min(160 / max(1, $jpeg['w']), 36 / max(1, $jpeg['h']));
+            $escala = min(190 / max(1, $jpeg['w']), 52 / max(1, $jpeg['h']));
             $iw = $jpeg['w'] * $escala;
             $ih = $jpeg['h'] * $escala;
             $this->pagina->imagemNome('ImAss', $x2 + (($largura - $iw) / 2), $linhaY + 2, $iw, $ih);
@@ -524,23 +524,9 @@ final class ReservaPdfFolha
     /** @return array{jpeg:string,w:int,h:int}|null */
     private function logo(): ?array
     {
-        $src = trim((string) ($this->settings['logo'] ?? ''));
-        if ($src === '' && !empty($this->settings['tem_logo']) && function_exists('store_midia')) {
-            try {
-                $src = store_midia('logo');
-            } catch (Throwable) {
-                $src = '';
-            }
-        }
+        $src = reserva_midia_src($this->settings, 'logo');
         if ($src === '') {
-            $src = trim((string) ($this->settings['logo_lateral'] ?? ''));
-        }
-        if ($src === '' && !empty($this->settings['tem_logo_lateral']) && function_exists('store_midia')) {
-            try {
-                $src = store_midia('logo_lateral');
-            } catch (Throwable) {
-                $src = '';
-            }
+            $src = reserva_midia_src($this->settings, 'logo_lateral');
         }
         return reserva_pdf_jpeg($src);
     }
@@ -572,11 +558,11 @@ final class ReservaPdfFolha
         $recursosImg = '';
         foreach ($this->imagens as $nome => $imagem) {
             $id = $next++;
-            $fluxo = $imagem['jpeg'] . "\n";
+            $jpeg = $imagem['jpeg'];
             $objs[$id] = '<< /Type /XObject /Subtype /Image /Width ' . $imagem['w']
                 . ' /Height ' . $imagem['h']
-                . ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ' . strlen($fluxo)
-                . " >>\nstream\n" . $fluxo . 'endstream';
+                . ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ' . strlen($jpeg)
+                . " >>\nstream\n" . $jpeg . "\nendstream";
             $recursosImg .= '/' . $nome . ' ' . $id . ' 0 R ';
         }
         $kids = [];
@@ -709,12 +695,19 @@ function reserva_pdf_jpeg(string $src): ?array
         return null;
     }
     $bin = base64_decode($m[1], true);
-    if (!is_string($bin) || $bin === '' || !function_exists('imagecreatefromstring')) {
+    if (!is_string($bin) || $bin === '') {
+        return null;
+    }
+    $direto = reserva_bin_jpeg($bin);
+    if ($direto !== null) {
+        return $direto;
+    }
+    if (!function_exists('imagecreatefromstring')) {
         return null;
     }
     $im = @imagecreatefromstring($bin);
     if (!$im) {
-        return null;
+        return reserva_bin_jpeg($bin);
     }
     $w = imagesx($im);
     $h = imagesy($im);
@@ -736,8 +729,8 @@ function reserva_pdf_jpeg(string $src): ?array
     $jpeg = ob_get_clean();
     imagedestroy($im);
     imagedestroy($flat);
-    if (!is_string($jpeg) || strlen($jpeg) < 32) {
-        return null;
+    if (!is_string($jpeg) || strlen($jpeg) < 32 || !str_starts_with($jpeg, "\xFF\xD8")) {
+        return reserva_bin_jpeg($bin);
     }
     return ['jpeg' => $jpeg, 'w' => $w, 'h' => $h];
 }
