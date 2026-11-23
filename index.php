@@ -469,6 +469,16 @@ if (in_array($current, ['entrar', 'seja-motorista', 'aplicativo'], true) && !pre
         $modo = 'corridas';
     } elseif (in_array($current, $comCorridas, true) || ($current === 'mot-cadastros' && (int) ($_GET['id'] ?? 0) > 0)) {
         $modo = 'corridas';
+        if (in_array($current, ['reservas', 'faturado', 'viagens'], true)) {
+            $dePedido = (string) ($_GET['de'] ?? '');
+            $atePedido = (string) ($_GET['ate'] ?? '');
+            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $dePedido) === 1) {
+                $de = $dePedido;
+            }
+            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $atePedido) === 1) {
+                $ate = $atePedido;
+            }
+        }
     }
     $db = load_db(false, false, $modo, $de, $ate, $idTrip);
 }

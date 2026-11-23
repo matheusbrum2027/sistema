@@ -253,10 +253,18 @@ function trip_com_obs(array $trip): array
         }
         return $trip;
     }
-    try {
-        $par = store_rpc('fln_anotacao_par', ['p_id' => $id, 'p_base' => store_base()], 8);
-    } catch (Throwable) {
-        $par = null;
+    static $cache = [];
+    if (isset($cache[$id]) && is_array($cache[$id])) {
+        $par = $cache[$id];
+    } else {
+        try {
+            $par = store_rpc('fln_anotacao_par', ['p_id' => $id, 'p_base' => store_base()], 8);
+        } catch (Throwable) {
+            $par = null;
+        }
+        if (is_array($par)) {
+            $cache[$id] = $par;
+        }
     }
     if (!is_array($par)) {
         if (!$temObs) {

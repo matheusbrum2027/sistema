@@ -163,7 +163,7 @@
     pageTimer = 0;
     const tick = document.getElementById('tick');
     if (tick && document.body.dataset.autorefresh === '1') {
-      let s = 60;
+      let s = 600;
       pageTimer = window.setInterval(() => {
         s -= 1;
         tick.textContent = String(Math.max(0, s));
@@ -698,9 +698,12 @@
   });
   document.addEventListener('pointerover', (event) => {
     const link = event.target.closest?.('.sidebar a[href]');
-    if (link) pedirPagina(link.href);
-    const reserva = event.target.closest?.('[data-reserva-id]');
-    if (reserva) preaquecerReserva(reserva.getAttribute('data-reserva-id'));
+    if (!link) return;
+    let destino;
+    try { destino = new URL(link.href, location.href); } catch (err) { return; }
+    const pagina = destino.searchParams.get('p') || '';
+    if (pagina === 'reservas' || pagina === 'faturado' || pagina === 'metricas' || pagina === 'viagens' || pagina === 'agenda') return;
+    pedirPagina(link.href);
   });
   window.addEventListener('popstate', () => {
     abrirSemRecarregar(location.href, false);
