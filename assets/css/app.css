@@ -40,8 +40,6 @@ html, body { margin: 0; padding: 0; touch-action: pan-x pan-y; }
 html, body, body * {
   text-transform: uppercase !important;
 }
-body.is-nav .content { opacity: .55; pointer-events: none; transition: opacity .12s ease; }
-body.is-nav .nav-link { cursor: progress; }
 body {
   background: var(--bg);
   color: var(--ink);

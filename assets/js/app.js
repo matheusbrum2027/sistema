@@ -366,7 +366,6 @@
     if (guardado) {
       try { mostrou = pintarPagina(guardado, url, gravar); } catch (err) { mostrou = false; }
     }
-    if (!mostrou) document.body.classList.add('is-nav');
     let resposta;
     try {
       resposta = await fetch(url, {
@@ -407,7 +406,6 @@
   }
   function soltarNav(seq) {
     if (seq !== navSeq) return;
-    document.body.classList.remove('is-nav');
     navOcupado = false;
     bombearPrefetch();
   }
@@ -550,7 +548,7 @@
     const atualizarCorridas = event.target.closest('[data-atualizar-corridas]');
     if (atualizarCorridas) {
       event.preventDefault();
-      if (!document.body.classList.contains('is-nav')) abrirSemRecarregar(location.href, false);
+      if (!navOcupado) abrirSemRecarregar(location.href, false);
       return;
     }
     const abrirDia = event.target.closest('.cal-abrir');
@@ -703,6 +701,7 @@
     if (destino.origin !== location.origin) return;
     if (!destino.pathname.endsWith('index.php') && destino.pathname !== location.pathname) return;
     event.preventDefault();
+    marcarMenu(destino.href);
     abrirSemRecarregar(destino.href, true);
   });
   document.addEventListener('pointerover', (event) => {
@@ -717,6 +716,7 @@
   abrirDialogos(document);
   aplicarTema(document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light', false);
   iniciarPagina();
+  document.querySelectorAll('.sidebar a.nav-link[href]').forEach((link) => pedirPagina(link.href));
   let aoConfirmar = null;
   let passoConfirmacao = 0;
   let textosConfirmacao = [];
