@@ -657,7 +657,7 @@ function reserva_pdf_disposition(string $arquivo, bool $inline = false): string
 function reserva_assinatura_jpeg(array $s): ?array
 {
     $src = trim((string) ($s['assinatura'] ?? ''));
-    if ($src === '' && !empty($s['tem_assinatura']) && function_exists('store_midia')) {
+    if ($src === '' && function_exists('store_midia')) {
         try {
             $src = store_midia('assinatura');
         } catch (Throwable) {

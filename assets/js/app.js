@@ -488,14 +488,20 @@
     dlg.dataset.pdfNome = nome;
     dlg.removeAttribute('closedby');
     if (!dlg.open) dlg.showModal();
-    const previa = new URL(url, location.href);
-    previa.searchParams.set('ver', '1');
-    if (frame) {
-      frame.src = previa.href;
-      frame.hidden = false;
+    try {
+      const href = await pdfPronto(url);
+      if (dlg.dataset.pdfUrl !== url || !dlg.open) return;
+      if (frame) {
+        frame.src = href;
+        frame.hidden = false;
+      }
+      if (estado) estado.hidden = true;
+    } catch (err) {
+      if (estado) {
+        estado.hidden = false;
+        estado.textContent = 'A pré-visualização não carregou. Toque em Baixar PDF para salvar o arquivo.';
+      }
     }
-    if (estado) estado.hidden = true;
-    pdfPronto(url).catch(() => {});
   }
   async function salvarPdfDireto(url, nome, botao) {
     const rotulo = botao ? botao.textContent : '';

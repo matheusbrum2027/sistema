@@ -74,7 +74,10 @@ view_head('', 'Cada bloco salva sozinho. Toque em Editar para liberar os campos.
       <div class="form-actions full"><button class="btn btn-primary" type="submit">Salvar assinatura</button></div>
     </fieldset>
   </form>
-  <?php if (!empty($s['assinatura']) || !empty($s['tem_assinatura'])): ?><p class="hint">Assinatura ativa no contrato e no PDF da reserva.</p><?php endif; ?>
+  <?php if (!empty($s['assinatura']) || !empty($s['tem_assinatura'])): ?>
+    <p class="hint">Assinatura ativa no contrato e no PDF da reserva.</p>
+    <img class="doc-sign-img" src="<?= !empty($s['assinatura']) ? e(assinatura_src_aparada((string) $s['assinatura'])) : e('index.php?p=marca&k=assinatura&v=' . (int) ($s['marca_v'] ?? 1)) ?>" alt="Assinatura cadastrada">
+  <?php endif; ?>
 </section>
 
 <section class="card cfg-card">

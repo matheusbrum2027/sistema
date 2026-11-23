@@ -1169,7 +1169,8 @@ function save_image_setting(array &$db, string $fileKey, string $settingKey): ?s
     if ($size <= 0 || $size > 400000) {
         return 'A imagem precisa ter até 400 KB.';
     }
-    $mime = (string) mime_content_type((string) $_FILES[$fileKey]['tmp_name']);
+    $info = @getimagesize((string) $_FILES[$fileKey]['tmp_name']);
+    $mime = is_array($info) ? (string) ($info['mime'] ?? '') : '';
     if (!in_array($mime, ['image/png', 'image/jpeg', 'image/webp', 'image/gif'], true)) {
         return 'Envie uma imagem PNG, JPG, WEBP ou GIF.';
     }
