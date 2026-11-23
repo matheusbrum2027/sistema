@@ -995,6 +995,13 @@ button.cal-day-top { appearance: none; border: 0; background: transparent; color
 .filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin-bottom: 10px; }
 .filters label { display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: #4b5568; font-weight: 650; }
 .filters input, .filters select { border: 1px solid var(--line-strong); border-radius: 4px; padding: 5px 7px; background: #fff; font-weight: 400; min-width: 140px; }
+.filters input[type="date"],
+.field input[type="date"] { color-scheme: light; }
+html[data-theme="dark"] .filters input[type="date"],
+html[data-theme="dark"] .field input[type="date"],
+html[data-theme="dark"] .range-datas input[type="date"] { color-scheme: dark; }
+input[type="date"]::-webkit-calendar-picker-indicator { cursor: pointer; opacity: 1; }
+html[data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); }
 .pager { display: flex; justify-content: space-between; gap: 8px; align-items: center; padding: 8px 2px 0; color: var(--muted); font-size: 12px; }
 .pager-nav { display: flex; gap: 6px; }
 .pager [aria-disabled="true"] { opacity: .45; pointer-events: none; }

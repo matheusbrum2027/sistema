@@ -8,7 +8,7 @@ $estado = (string) ($_GET['estado'] ?? '');
 $mot = (int) ($_GET['motorista'] ?? 0);
 $fat = (string) ($_GET['faturado'] ?? '');
 $q = trim((string) ($_GET['q'] ?? ''));
-$ordens = ['id', 'cliente', 'contato', 'tipo', 'categoria', 'motorista', 'valor', 'pgto', 'status'];
+$ordens = ['id', 'cliente', 'contato', 'tipo', 'categoria', 'data', 'motorista', 'valor', 'pgto', 'status'];
 $ord = (string) ($_GET['ord'] ?? '');
 if (!in_array($ord, $ordens, true)) {
     $ord = '';
@@ -61,13 +61,14 @@ usort($rows, static function (array $a, array $b) use ($ord, $dir, $db, $textoOr
     if ($ord === '') {
         return ((int) $b['id']) <=> ((int) $a['id']);
     }
-    $chave = static function (array $t) use ($ord, $db, $textoOrd): int|string {
+    $chave = static function (array $t) use ($ord, $db, $textoOrd): int|float|string {
         return match ($ord) {
             'id' => (int) $t['id'],
             'cliente' => $textoOrd((string) ($t['cliente'] ?? '')),
             'contato' => $textoOrd(trim((string) ($t['telefone'] ?? '')) !== '' ? (string) $t['telefone'] : (string) ($t['email'] ?? '')),
             'tipo' => $textoOrd(trim(preg_replace('/\s+/u', ' ', strip_tags(tipo_badges($t))) ?? '')),
             'categoria' => $textoOrd((string) ($t['categoria'] ?? '')),
+            'data' => trim((string) ($t['data'] ?? '')) === '' ? '' : ((string) $t['data'] . ' ' . substr((string) ($t['hora'] ?? ''), 0, 5)),
             'motorista' => $textoOrd(nome_motorista($db, $t['motorista_id'] ?? 0)),
             'valor' => (float) ($t['valor'] ?? 0),
             'pgto' => $textoOrd(rotulo_forma_pgto($t)),
@@ -186,7 +187,7 @@ view_head('<button class="btn btn-primary" type="button" data-open-dialog="dlg-r
         <th><?= $thOrd('tipo', 'Tipo') ?></th>
         <th><?= $thOrd('categoria', 'Categoria') ?></th>
         <th class="sem-ordem">Trajeto</th>
-        <th class="col-quando sem-ordem">Data</th>
+        <th class="col-quando"><?= $thOrd('data', 'Data') ?></th>
         <th><?= $thOrd('motorista', 'Motorista') ?></th>
         <th><?= $thOrd('valor', 'Valor') ?></th>
         <th class="col-pgto" title="Forma de pagamento"><?= $thOrd('pgto', 'Forma pgto') ?></th>
