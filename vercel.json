@@ -6,10 +6,18 @@
   },
   "headers": [
     {
-      "source": "/assets/app/(.*)\\.apk",
+      "source": "/assets/app/fln-transfer.apk",
       "headers": [
         { "key": "Content-Type", "value": "application/vnd.android.package-archive" },
         { "key": "Content-Disposition", "value": "attachment; filename=\"fln-transfer.apk\"" },
+        { "key": "Cache-Control", "value": "no-cache" }
+      ]
+    },
+    {
+      "source": "/assets/app/fln-painel.apk",
+      "headers": [
+        { "key": "Content-Type", "value": "application/vnd.android.package-archive" },
+        { "key": "Content-Disposition", "value": "attachment; filename=\"fln-painel.apk\"" },
         { "key": "Cache-Control", "value": "no-cache" }
       ]
     },

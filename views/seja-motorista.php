@@ -14,7 +14,7 @@ $faixa = ['Aeroporto Hercílio Luz', 'Jurerê', 'Lagoa da Conceição', 'Campech
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#090b10">
-  <meta name="description" content="Cadastre-se como motorista da FLN Transfer Executivo em Florianópolis. Baixe o app, registre seus dados e marque a reunião de integração.">
+  <meta name="description" content="Página de quem já conhece a FLN Transfer. Motorista cadastrado baixa o aplicativo. Quem ainda vai entrar na frota faz a inscrição.">
   <title>Seja motorista · <?= e($marca) ?></title>
   <?php [$faviconHref, $faviconMime] = brand_favicon($db); ?>
   <link rel="icon" href="<?= e($faviconHref) ?>" type="<?= e($faviconMime) ?>">
@@ -22,7 +22,7 @@ $faixa = ['Aeroporto Hercílio Luz', 'Jurerê', 'Lagoa da Conceição', 'Campech
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Syne:wght@700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/css/site-motorista.css?v=4">
+  <link rel="stylesheet" href="assets/css/site-motorista.css?v=5">
   <script>
   (function () {
     var ua = navigator.userAgent || '';
@@ -43,23 +43,21 @@ $faixa = ['Aeroporto Hercílio Luz', 'Jurerê', 'Lagoa da Conceição', 'Campech
       </a>
       <nav class="sm-nav" aria-label="Principal">
         <a href="#inicio">Início</a>
-        <a href="#como-funciona">Como funciona</a>
-        <a href="#processo">Processo</a>
-        <a href="#parcerias">Parcerias</a>
-        <a href="#faq">FAQ</a>
+        <a href="<?= e(href('aplicativo')) ?>">Já sou motorista</a>
+        <a href="#no-app">No aplicativo</a>
+        <a href="#inscricao">Inscrição</a>
       </nav>
-      <a class="sm-btn sm-header-cta" href="#inscricao">Quero me candidatar</a>
+      <a class="sm-btn sm-header-cta" href="<?= e(href('aplicativo')) ?>">Baixar o app</a>
       <button class="sm-menu-btn" type="button" id="sm-menu" aria-label="Abrir menu" aria-expanded="false">
         <span></span><span></span><span></span>
       </button>
     </div>
     <nav class="sm-nav-mobile sm-wrap" id="sm-nav-mobile" hidden>
       <a href="#inicio">Início</a>
-      <a href="#como-funciona">Como funciona</a>
-      <a href="#processo">Processo</a>
-      <a href="#parcerias">Parcerias</a>
-      <a href="#faq">FAQ</a>
-      <a class="sm-btn" href="#inscricao">Quero me candidatar</a>
+      <a href="<?= e(href('aplicativo')) ?>">Já sou motorista</a>
+      <a href="#no-app">No aplicativo</a>
+      <a href="#inscricao">Inscrição</a>
+      <a class="sm-btn" href="<?= e(href('aplicativo')) ?>">Baixar o app</a>
     </nav>
   </header>
 
@@ -74,25 +72,25 @@ $faixa = ['Aeroporto Hercílio Luz', 'Jurerê', 'Lagoa da Conceição', 'Campech
       <div class="sm-aurora" aria-hidden="true"><span></span><span></span><span></span></div>
       <div class="sm-wrap sm-hero-grid">
         <div class="sm-hero-copy">
-          <div class="sm-kicker sm-rise"><i></i> Florianópolis · transfer executivo</div>
-          <h1 class="sm-rise sm-d1">Dirija a ilha.<br><em>A rota chega no app.</em></h1>
-          <p class="sm-hero-lead sm-rise sm-d2">A operação cresceu e a entrada de motoristas passou para esta página. Você baixa o aplicativo, envia seus dados e do veículo, e marca a reunião com o Matheus para atendimento, terceirização e repasse.</p>
+          <div class="sm-kicker sm-rise"><i></i> Para quem já conhece a operação</div>
+          <h1 class="sm-rise sm-d1">O aplicativo da casa.<br><em>O acesso você já tem.</em></h1>
+          <p class="sm-hero-lead sm-rise sm-d2">Esta página é o canal da FLN Transfer. Quem já está cadastrado baixa o aplicativo e entra com o mesmo usuário. Quem ainda vai entrar na frota deixa a inscrição no final da página.</p>
           <div class="sm-hero-actions sm-rise sm-d3">
-            <a class="sm-btn" href="#inscricao">Fazer inscrição</a>
-            <a class="sm-btn sm-btn-ghost" href="#como-funciona">Ver como funciona</a>
+            <a class="sm-btn" href="<?= e(href('aplicativo')) ?>">Já sou motorista</a>
+            <a class="sm-btn sm-btn-ghost" href="#inscricao">Ainda vou me cadastrar</a>
           </div>
           <p class="sm-ja ja-instalado">Este celular já tem o FLN Transfer. Não adicione outro ícone.</p>
           <div class="sm-store-row sm-rise sm-d4 so-instalar">
-            <a class="sm-store so-android" href="assets/app/fln-transfer.apk?v=3" data-apk>
+            <a class="sm-store so-android" href="<?= e(href('aplicativo')) ?>">
               <b aria-hidden="true">▶</b>
-              <span><small>Android · um arquivo</small><strong>Baixar APK</strong></span>
+              <span><small>Android · versão 1.3</small><strong>Página do aplicativo</strong></span>
             </a>
             <a class="sm-store so-ios" href="#app">
               <b aria-hidden="true"></b>
               <span><small>iPhone · um atalho</small><strong>Adicionar uma vez</strong></span>
             </a>
           </div>
-          <p class="sm-hero-note">Um celular, um aplicativo. Android instala só o APK. iPhone adiciona o painel uma vez no Safari. Se o Chrome oferecer “Instalar aplicativo”, cancele.</p>
+          <p class="sm-hero-note">Um celular, um aplicativo. A instalação nova entra por cima da anterior e mantém o login. Se o Chrome oferecer “Instalar aplicativo”, cancele: isso cria um segundo ícone.</p>
         </div>
         <div class="sm-stage" aria-hidden="true">
           <div class="sm-pill sm-pill-1"><span class="sm-dot"></span><span>Agenda ao vivo<small>só as suas corridas</small></span></div>
@@ -128,96 +126,63 @@ $faixa = ['Aeroporto Hercílio Luz', 'Jurerê', 'Lagoa da Conceição', 'Campech
       </div>
     </div>
 
-    <section class="sm-section" id="como-funciona">
-      <div class="sm-wrap sm-split">
-        <div class="sm-panel" data-reveal>
-          <strong>FLN</strong>
-          <p>Transfer executivo e turismo em Florianópolis e região. A reserva nasce na operação e chega no celular de quem vai fazer a corrida.</p>
-        </div>
-        <div data-reveal>
-          <div class="sm-label">O projeto</div>
-          <h2>Reservas na mesa. Motorista na ponta.</h2>
-          <p class="sm-section-lead">O administrador cria e atribui. Você vê no aplicativo só o que é da sua agenda. Esta página acelera a entrada quando o volume sobe, sem depender só de cadastro manual.</p>
-          <a class="sm-btn" href="#inscricao">Começar cadastro</a>
-          <div class="sm-stats">
-            <div class="sm-stat"><strong>Agenda</strong><span>no celular</span></div>
-            <div class="sm-stat"><strong>Frota</strong><span>própria ou parceira</span></div>
-            <div class="sm-stat"><strong>Reunião</strong><span>com o Matheus</span></div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="sm-section" id="processo">
+    <section class="sm-section" id="no-app">
       <div class="sm-wrap">
         <div class="sm-head" data-reveal>
-          <div class="sm-label">Inscrição</div>
-          <h2>Do formulário à primeira corrida</h2>
-          <p class="sm-section-lead">Tudo começa aqui. Depois da reunião e da aprovação, o acesso entra no sistema da empresa.</p>
+          <div class="sm-label">Dois caminhos</div>
+          <h2>Quem já dirige e quem ainda vai entrar</h2>
+          <p class="sm-section-lead">A maior parte de quem abre esta página já trabalha com a FLN. O download fica numa página só de motorista cadastrado. A inscrição continua aqui, no final.</p>
         </div>
-        <div class="sm-steps">
-          <article class="sm-step" data-reveal><b>01</b><div><h3>Abra o aplicativo</h3><p>Android recebe um único APK. iPhone ganha um único atalho no Safari. O login chega depois da aprovação.</p></div></article>
-          <article class="sm-step is-hot" data-reveal><b>02</b><div><h3>Cadastre seus dados</h3><p>Nome, WhatsApp, CPF, CNH e cidade. É a ficha que a operação usa na frota.</p></div></article>
-          <article class="sm-step" data-reveal><b>03</b><div><h3>Informe o veículo</h3><p>Modelo, placa, ano, cor e lugares. Com a aprovação, o carro pode entrar na frota.</p></div></article>
-          <article class="sm-step" data-reveal><b>04</b><div><h3>Escolha a parceria</h3><p>Veículo próprio, terceirizado ou os dois. As regras ficam claras na reunião.</p></div></article>
-          <article class="sm-step" data-reveal><b>05</b><div><h3>Marque a conversa</h3><p>Dia e horário de preferência. Atendimento, terceirização e repasse de parada extra.</p></div></article>
-          <article class="sm-step" data-reveal><b>06</b><div><h3>Entre na escala</h3><p>Aprovado, você recebe o login e passa a ver somente as reservas atribuídas a você.</p></div></article>
-        </div>
-      </div>
-    </section>
-
-    <section class="sm-section" id="experiencia">
-      <div class="sm-wrap sm-exp">
-        <div data-reveal>
-          <div class="sm-label">No aplicativo</div>
-          <h2>O dia a dia cabe numa tela</h2>
-          <p class="sm-section-lead">Horário, rota e status. A reunião cobre o restante, inclusive quando há mais de um embarque ou desembarque.</p>
-        </div>
-        <div class="sm-meter" data-reveal>
-          <div><span>Agenda só das suas corridas <small>100%</small></span><div class="sm-track"><i class="sm-fill" style="--w:100%"></i></div></div>
-          <div><span>Status em um toque <small>no app</small></span><div class="sm-track"><i class="sm-fill" style="--w:86%"></i></div></div>
-          <div><span>Repasse explicado na reunião <small>com exemplos</small></span><div class="sm-track"><i class="sm-fill" style="--w:94%"></i></div></div>
+        <div class="sm-paths">
+          <article class="sm-path is-featured" data-reveal>
+            <span>Já cadastrado</span>
+            <h3>Baixar o aplicativo</h3>
+            <p>Use o usuário que a operação já entregou. A versão 1.3 instala por cima da anterior, abre o sistema atual e mantém a sessão.</p>
+            <a class="sm-btn" href="<?= e(href('aplicativo')) ?>">Ir para o download</a>
+          </article>
+          <article class="sm-path" data-reveal>
+            <span>Ainda sem acesso</span>
+            <h3>Deixar a inscrição</h3>
+            <p>Nome, contato, veículo e o horário em que consegue conversar com o Matheus. A escala só começa depois da aprovação.</p>
+            <a class="sm-btn sm-btn-ghost" href="#inscricao">Ir para a inscrição</a>
+          </article>
         </div>
       </div>
     </section>
 
-    <section class="sm-section" id="parcerias">
+    <section class="sm-section">
       <div class="sm-wrap">
         <div class="sm-head" data-reveal>
-          <div class="sm-label">Parcerias</div>
-          <h2>Três jeitos de entrar</h2>
-          <p class="sm-section-lead">O detalhe comercial fica na reunião com o Matheus. O formulário já registra o caminho que você prefere.</p>
+          <div class="sm-label">No celular</div>
+          <h2>O que o motorista encontra depois de entrar</h2>
         </div>
         <div class="sm-plans">
           <article class="sm-plan" data-reveal>
-            <h3>Veículo próprio</h3>
-            <div class="sm-plan-price">Frota <small>sua</small></div>
+            <h3>Agenda só sua</h3>
+            <div class="sm-plan-price">Corridas <small>atribuídas</small></div>
             <ul>
-              <li>O carro é cadastrado nesta página</li>
-              <li>As corridas chegam atribuídas no app</li>
-              <li>Padrão executivo alinhado com a marca</li>
+              <li>Horário, embarque e desembarque</li>
+              <li>Ida, volta, trajetos e por hora</li>
+              <li>Nada da agenda dos outros motoristas</li>
             </ul>
-            <a class="sm-btn sm-btn-ghost" href="#inscricao">Candidatar</a>
           </article>
           <article class="sm-plan is-featured" data-reveal>
-            <h3>Terceirizado</h3>
-            <div class="sm-plan-price">Parceiro <small>FLN</small></div>
+            <h3>Aviso no aparelho</h3>
+            <div class="sm-plan-price">Na hora <small>da escala</small></div>
             <ul>
-              <li>O modelo é explicado na reunião</li>
-              <li>Atendimento e apresentação combinados</li>
-              <li>Repasse claro em rota e parada extra</li>
+              <li>Viagem atribuída</li>
+              <li>Mudança de status</li>
+              <li>Cancelamento</li>
             </ul>
-            <a class="sm-btn sm-btn-light" href="#inscricao">Candidatar</a>
           </article>
           <article class="sm-plan" data-reveal>
-            <h3>Misto</h3>
-            <div class="sm-plan-price">Flex <small>dois</small></div>
+            <h3>Rota para o dia</h3>
+            <div class="sm-plan-price">PDF <small>da viagem</small></div>
             <ul>
-              <li>Dias com carro próprio e dias parceiros</li>
-              <li>O mesmo aplicativo e a mesma operação</li>
-              <li>Combinado caso a caso com o Matheus</li>
+              <li>O arquivo vai para Downloads</li>
+              <li>A observação visível ao motorista sai no PDF</li>
+              <li>O login continua depois de sair da tela</li>
             </ul>
-            <a class="sm-btn sm-btn-ghost" href="#inscricao">Candidatar</a>
           </article>
         </div>
       </div>
@@ -226,51 +191,26 @@ $faixa = ['Aeroporto Hercílio Luz', 'Jurerê', 'Lagoa da Conceição', 'Campech
     <section class="sm-section" id="faq">
       <div class="sm-wrap sm-faq">
         <div data-reveal>
-          <div class="sm-label">Dúvidas</div>
-          <h2>Antes da reunião</h2>
-          <p class="sm-section-lead">O essencial sobre o modelo da FLN Transfer. O restante a gente alinha pessoalmente.</p>
+          <div class="sm-label">Uso</div>
+          <h2>O que costuma travar na instalação</h2>
         </div>
         <div class="sm-acc" data-reveal>
           <details class="sm-acc-item" open>
-            <summary>Quem cria as reservas?</summary>
-            <p>O administrador. O motorista não inventa demanda: recebe no app o que foi atribuído pela operação.</p>
+            <summary>Já tenho o aplicativo. Preciso apagar?</summary>
+            <p>Não. Baixe a versão 1.3 e confirme a atualização. O Android troca o arquivo e o usuário permanece.</p>
           </details>
           <details class="sm-acc-item">
-            <summary>Preciso ter carro próprio?</summary>
-            <p>Não necessariamente. Dá para atuar com veículo próprio, em regime terceirizado ou nos dois formatos. Isso fica alinhado na reunião.</p>
+            <summary>O Chrome ofereceu instalar o site. Aceito?</summary>
+            <p>Não. Esse aviso cria um segundo ícone. No Android use só o APK. No iPhone, um único atalho pelo Safari.</p>
           </details>
           <details class="sm-acc-item">
-            <summary>E se houver mais de um embarque ou desembarque?</summary>
-            <p>Há regra de repasse para paradas extras. O Matheus explica o critério na conversa de integração, com exemplos do dia a dia.</p>
+            <summary>Qual usuário eu uso?</summary>
+            <p>O mesmo que a operação cadastrou. A página de download não cria senha e não substitui o acesso que você já tem.</p>
           </details>
           <details class="sm-acc-item">
-            <summary>Quando recebo o login?</summary>
-            <p>Depois da reunião e da aprovação no painel. Aí o cadastro entra em Motoristas e, se houver placa válida, o veículo pode ir para a frota.</p>
+            <summary>A inscrição desta página já me coloca na escala?</summary>
+            <p>Não. Ela avisa a operação. O login e as corridas entram depois da aprovação.</p>
           </details>
-          <details class="sm-acc-item">
-            <summary>A inscrição já me coloca na escala?</summary>
-            <p>Não. Ela abre a candidatura. A escala só começa após aprovação e atribuição de reservas pela operação.</p>
-          </details>
-        </div>
-      </div>
-    </section>
-
-    <section class="sm-section" id="app">
-      <div class="sm-wrap">
-        <p class="sm-ja ja-instalado" data-reveal>O FLN Transfer já está neste celular. Abra o ícone que já existe e apague o outro, se tiver sobrado dois.</p>
-        <div class="sm-duo so-instalar">
-          <article class="so-android" data-reveal>
-            <span>Android</span>
-            <h3>Só o APK</h3>
-            <p>Toque uma vez em baixar, abra o arquivo e permita a instalação. Não use o aviso do Chrome que oferece instalar o site: esse segundo ícone é o aplicativo duplicado. Depois entre e ative os avisos.</p>
-            <a class="sm-btn" href="assets/app/fln-transfer.apk?v=3" data-apk>Baixar o aplicativo</a>
-          </article>
-          <article class="so-ios" data-reveal>
-            <span>iPhone</span>
-            <h3>Um atalho, no Safari</h3>
-            <p>Abra o painel no Safari, toque em Compartilhar e escolha Adicionar à Tela de Início uma única vez. Não repita o passo. Se ficaram dois ícones, apague um e fique com o FLN Transfer.</p>
-            <a class="sm-btn sm-btn-ghost" href="<?= e(href('entrar')) ?>">Abrir o painel no Safari</a>
-          </article>
         </div>
       </div>
     </section>
@@ -336,23 +276,22 @@ $faixa = ['Aeroporto Hercílio Luz', 'Jurerê', 'Lagoa da Conceição', 'Campech
           <img src="assets/brand/logo-fln.jpg" width="46" height="46" alt="">
           <span>FLN Transfer</span>
         </a>
-        <p>Transporte executivo e turismo em Florianópolis. Canal oficial de inscrição de motoristas na operação.</p>
+        <p>Canal de quem já conhece a operação. Motorista cadastrado baixa o aplicativo. Nova entrada deixa a inscrição nesta página.</p>
       </div>
       <div>
         <h4>Navegação</h4>
         <ul>
           <li><a href="#inicio">Início</a></li>
-          <li><a href="#como-funciona">Como funciona</a></li>
-          <li><a href="#processo">Processo</a></li>
+          <li><a href="<?= e(href('aplicativo')) ?>">Aplicativo do motorista</a></li>
           <li><a href="#inscricao">Inscrição</a></li>
         </ul>
       </div>
       <div>
         <h4>Operação</h4>
         <ul>
-          <li><a href="<?= e(href('entrar')) ?>">Entrar no app</a></li>
-          <li><a href="#parcerias">Parcerias</a></li>
-          <li><a href="#faq">FAQ</a></li>
+          <li><a href="<?= e(href('entrar')) ?>">Entrar no painel</a></li>
+          <li><a href="<?= e(href('aplicativo')) ?>">Download do APK</a></li>
+          <li><a href="#faq">Dúvidas de instalação</a></li>
         </ul>
       </div>
       <div>
@@ -366,7 +305,7 @@ $faixa = ['Aeroporto Hercílio Luz', 'Jurerê', 'Lagoa da Conceição', 'Campech
     </div>
     <div class="sm-wrap sm-footer-bottom">
       <span>© <?= $ano ?> <?= e($marca) ?></span>
-      <span>Transfer executivo · inscrição de motoristas</span>
+      <span>Aplicativo 1.3 para quem já está na operação</span>
     </div>
   </footer>
   <script src="assets/js/site-motorista.js?v=2"></script>

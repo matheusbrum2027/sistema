@@ -417,14 +417,14 @@ if (!isset($routes[$current]) || $current === 'abrangencia') {
     $current = 'agenda';
 }
 $role = (string) ($_SESSION['role'] ?? 'admin');
-$paginasPublicas = ['entrar', 'seja-motorista', 'verificar'];
+$paginasPublicas = ['entrar', 'seja-motorista', 'aplicativo', 'verificar'];
 if (!in_array($current, $paginasPublicas, true) && empty($_SESSION['auth'])) {
     redirect(href('entrar'));
 }
 if ($current === 'entrar' && !empty($_SESSION['auth'])) {
     redirect(href('agenda'));
 }
-if ($role === 'motorista' && !in_array($current, ['entrar', 'agenda', 'seja-motorista', 'verificar'], true)) {
+if ($role === 'motorista' && !in_array($current, ['entrar', 'agenda', 'seja-motorista', 'aplicativo', 'verificar'], true)) {
     redirect(href('agenda'));
 }
 
@@ -439,7 +439,7 @@ if ($soltarSessaoAntes) {
     sessao_preparar_get($current, []);
     session_write_close();
 }
-if (in_array($current, ['entrar', 'seja-motorista'], true) && !preg_match('/^[a-f0-9]{32}$/', $acessoLogin)) {
+if (in_array($current, ['entrar', 'seja-motorista', 'aplicativo'], true) && !preg_match('/^[a-f0-9]{32}$/', $acessoLogin)) {
     $db = [
         'settings' => ['nome' => 'Transfer FLN'],
         'motoristas' => [],

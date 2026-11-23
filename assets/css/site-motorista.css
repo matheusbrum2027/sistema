@@ -617,7 +617,52 @@ html[data-so="ios"] .so-android { display: none; }
 .sm-steps [data-reveal]:nth-child(5) { transition-delay: 0.24s; }
 .sm-steps [data-reveal]:nth-child(6) { transition-delay: 0.3s; }
 
+.sm-paths { display: grid; gap: 1rem; }
+.sm-path {
+  padding: 1.4rem 1.3rem 1.3rem;
+  border: 1px solid var(--sm-line);
+  border-radius: 22px;
+  background: var(--sm-card);
+  display: grid;
+  gap: 0.75rem;
+  align-content: start;
+}
+.sm-path span {
+  color: var(--sm-orange-2);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.sm-path h3 { font-size: 1.7rem; }
+.sm-path p { color: var(--sm-muted); }
+.sm-path.is-featured { border-color: rgba(242, 107, 26, 0.55); }
+.sm-version {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 0.75rem;
+  border-radius: 999px;
+  background: rgba(242, 107, 26, 0.16);
+  color: #ffd7bf;
+  font-weight: 800;
+  font-size: 0.82rem;
+}
+.sm-download {
+  display: grid;
+  gap: 1.2rem;
+  padding: 1.3rem;
+  border-radius: 28px;
+  border: 1px solid rgba(242, 107, 26, 0.4);
+  background:
+    radial-gradient(420px 180px at 100% 0%, rgba(242, 107, 26, 0.2), transparent 60%),
+    var(--sm-card);
+}
+.sm-download h1 { font-size: clamp(2rem, 4vw, 3.2rem); }
+.sm-download p { color: var(--sm-muted); max-width: 38rem; }
+
 @media (min-width: 760px) {
+  .sm-paths { grid-template-columns: 1.15fr 0.85fr; }
   .sm-steps { grid-template-columns: 1fr 1fr; }
   .sm-plans { grid-template-columns: repeat(3, 1fr); align-items: stretch; }
   .sm-duo { grid-template-columns: 1fr 1fr; }

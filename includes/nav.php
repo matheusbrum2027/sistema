@@ -149,5 +149,16 @@ function route_map(): array
         'bare' => true,
         'site' => true,
     ];
+    $map['aplicativo'] = [
+        'id' => 'aplicativo',
+        'title' => 'Aplicativo do motorista',
+        'icon' => 'users',
+        'subtitle' => '',
+        'view' => 'views/aplicativo.php',
+        'filters' => false,
+        'group' => '',
+        'bare' => true,
+        'site' => true,
+    ];
     return $map;
 }
