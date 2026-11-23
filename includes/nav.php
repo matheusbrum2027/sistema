@@ -95,6 +95,7 @@ function navigation(): array
                     'icon' => 'gear',
                     'items' => [
                         nav_item('configuracoes', 'Configurações', 'sliders', 'Dados da empresa e da operação.', 'views/configuracoes.php'),
+                        nav_item('funcionarios', 'Funcionários', 'users', 'Acessos ao painel. O administrador master não pode ser removido.', 'views/funcionarios.php'),
                         nav_item('automacoes', 'Automações', 'zap', 'Regras locais disparadas pela mudança de status das viagens.', 'views/automacoes.php'),
                         nav_item('desenvolvedor', 'Desenvolvedor', 'code', 'Campos que o webhook recebe em ida, ida e volta, trajetos e por hora.', 'views/desenvolvedor.php'),
                         nav_item('comunicador', 'Comunicador', 'monitor', 'Modelos de mensagem e registros gerados neste computador.', 'views/comunicador.php'),
@@ -104,6 +105,45 @@ function navigation(): array
             ],
         ],
     ];
+}
+
+function nav_para_sessao(array $nav): array
+{
+    $financeiro = function_exists('paginas_financeiras') ? paginas_financeiras() : [];
+    $master = function_exists('paginas_somente_master') ? paginas_somente_master() : [];
+    $veFinanceiro = !function_exists('pode_ver_financeiro') || pode_ver_financeiro();
+    $eMaster = !function_exists('eh_master') || eh_master();
+    $saida = [];
+    foreach ($nav as $section) {
+        $grupos = [];
+        foreach ($section['groups'] as $group) {
+            if (!$veFinanceiro && ($group['id'] ?? '') === 'financeiro') {
+                continue;
+            }
+            $itens = [];
+            foreach ($group['items'] as $item) {
+                $id = (string) ($item['id'] ?? '');
+                if (!$veFinanceiro && in_array($id, $financeiro, true)) {
+                    continue;
+                }
+                if (!$eMaster && in_array($id, $master, true)) {
+                    continue;
+                }
+                $itens[] = $item;
+            }
+            if ($itens === []) {
+                continue;
+            }
+            $group['items'] = $itens;
+            $grupos[] = $group;
+        }
+        if ($grupos === []) {
+            continue;
+        }
+        $section['groups'] = $grupos;
+        $saida[] = $section;
+    }
+    return $saida;
 }
 
 function route_map(): array

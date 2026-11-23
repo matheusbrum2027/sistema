@@ -435,6 +435,14 @@ if ($current === 'entrar' && !empty($_SESSION['auth'])) {
 if ($role === 'motorista' && !in_array($current, ['entrar', 'agenda', 'seja-motorista', 'aplicativo', 'verificar'], true)) {
     redirect(href('agenda'));
 }
+if (!eh_master() && in_array($current, paginas_somente_master(), true)) {
+    flash('Só o administrador master acessa esta tela.', 'err');
+    redirect(href('agenda'));
+}
+if (!pode_ver_financeiro() && in_array($current, paginas_financeiras(), true)) {
+    flash('A parte financeira não está liberada para este acesso.', 'err');
+    redirect(href('agenda'));
+}
 if ((string) ($_GET['baixar'] ?? '') === 'pdf' && !fln_ritmo('pdf', 40, 3600)) {
     http_response_code(429);
     header('Content-Type: text/plain; charset=utf-8');

@@ -1079,7 +1079,7 @@ function reserva_dialogos(array $db, array $trip, bool $admin, string $contexto 
               <input type="hidden" name="id" value="<?= $id ?>">
               <button class="btn btn-sm btn-danger" type="submit">Cancelar</button>
             </form>
-          <?php else: ?>
+          <?php elseif (pode_ver_financeiro()): ?>
           <form method="post" action="index.php" data-confirm="<?= !empty($trip['faturado']) ? 'Tirar o faturamento da reserva #' . $id . '?' : 'Marcar a reserva #' . $id . ' como faturada?' ?>">
             <?= csrf_fields('faturar_transfer') ?>
             <input type="hidden" name="id" value="<?= $id ?>">

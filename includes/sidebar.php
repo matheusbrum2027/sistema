@@ -19,7 +19,7 @@ declare(strict_types=1);
         </a>
       </div>
     <?php else: ?>
-    <?php foreach (navigation() as $section): ?>
+    <?php foreach (nav_para_sessao(navigation()) as $section): ?>
       <?php if (!empty($section['label'])): ?>
         <div class="nav-section"><?= e($section['label']) ?></div>
       <?php endif; ?>

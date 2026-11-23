@@ -524,7 +524,7 @@ $catEdit = in_array($catAtual, $catsOk, true) ? $catAtual : '';
       <p class="hint" id="hint-parceiro" hidden>Parceiro não tem vínculo com motorista da plataforma.</p>
       <div id="bloco-motorista">
         <input type="hidden" name="equipe_modo" value="1">
-        <input type="hidden" name="repasse" id="repasse-hidden" value="<?= e($edit ? number_format((float) ($edit['repasse'] ?? 0), 2, ',', '') : '0,00') ?>">
+        <input type="hidden" name="repasse" id="repasse-hidden" value="<?= e(pode_ver_financeiro() && $edit ? number_format((float) ($edit['repasse'] ?? 0), 2, ',', '') : '0,00') ?>">
         <p class="hint" id="engate-passo">Digite o nome e toque no motorista. Se houver mais de um trecho, toque em seguida no trecho. O repasse fica em cada nome colocado.</p>
         <div class="engate">
           <div class="engate-pool" id="engate-pool">
@@ -546,6 +546,7 @@ $catEdit = in_array($catAtual, $catsOk, true) ? $catAtual : '';
         <div class="box box-warn" id="aviso-conflito" role="alert" hidden></div>
       </div>
 
+      <?php if (pode_ver_financeiro()): ?>
       <h3 class="sec-title">Valor da reserva</h3>
       <label class="field">Definir valor total manualmente
         <input name="valor_manual" id="valor-manual" inputmode="decimal" placeholder="0,00" value="<?= e($manualEdit) ?>">
@@ -578,6 +579,9 @@ $catEdit = in_array($catAtual, $catsOk, true) ? $catAtual : '';
         <input type="checkbox" name="esconder" value="1"<?= !empty($edit['esconder_valores']) ? ' checked' : '' ?>>
         <span><strong>Esconder valores</strong><small>O PDF de confirmação nunca leva o repasse do motorista. Com esta opção, o valor cobrado do cliente também sai do PDF e do painel do motorista.</small></span>
       </label>
+      <?php else: ?>
+      <p class="hint">Os valores e o faturamento ficam com o administrador. Esta alteração não mexe neles.</p>
+      <?php endif; ?>
       <label class="field">Status da reserva
         <select name="status" data-status-inicial="<?= e((string) ($edit['status'] ?? 'pendente')) ?>">
           <?php foreach (['pendente' => 'Pendente', 'reserva' => 'Reserva', 'andamento' => 'Em andamento', 'concluida' => 'Concluída'] as $k => $lab): ?>
@@ -609,7 +613,7 @@ foreach ($db['motoristas'] as $m) {
     $nomesMot[(int) $m['id']] = (string) $m['nome'];
 }
 ?>
-<script type="application/json" id="ocupacao-motoristas"><?= json_encode(['intervalo' => intervalo_motorista($db), 'editando' => (int) ($edit['id'] ?? 0), 'nomes' => $nomesMot, 'ocupacao' => $ocupacao, 'perna' => $pernaForm, 'ordem' => $ordemForm, 'time' => $timeEdit, 'repasse' => $edit ? number_format((float) ($edit['repasse'] ?? 0), 2, ',', '') : '0,00'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) ?></script>
+<script type="application/json" id="ocupacao-motoristas"><?= json_encode(['intervalo' => intervalo_motorista($db), 'editando' => (int) ($edit['id'] ?? 0), 'nomes' => $nomesMot, 'ocupacao' => $ocupacao, 'perna' => $pernaForm, 'ordem' => $ordemForm, 'time' => $timeEdit, 'repasse' => pode_ver_financeiro() && $edit ? number_format((float) ($edit['repasse'] ?? 0), 2, ',', '') : '0,00'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) ?></script>
 <?php if (is_array($draft)): ?>
 <script type="application/json" id="reserva-rascunho"><?= json_encode($draft, JSON_HEX_TAG | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) ?></script>
 <?php endif; ?>

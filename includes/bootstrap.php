@@ -33,6 +33,7 @@ require_once __DIR__ . '/painel_clima.php';
 require_once __DIR__ . '/analise.php';
 require_once __DIR__ . '/supabase.php';
 require_once __DIR__ . '/store.php';
+require_once __DIR__ . '/funcionarios.php';
 require_once __DIR__ . '/integridade.php';
 require_once __DIR__ . '/sheets.php';
 require_once __DIR__ . '/drive.php';
@@ -163,6 +164,9 @@ function post_money(string $key): float
 
 function brl(float $n): string
 {
+    if (function_exists('funcionario_sem_financeiro') && funcionario_sem_financeiro()) {
+        return '—';
+    }
     return 'R$ ' . number_format($n, 2, ',', '.');
 }
 
@@ -297,11 +301,13 @@ function render_flash(): string
     return '<div class="flash flash-' . e($type) . '" role="status">' . e((string) $message) . '</div>';
 }
 
-function login_aplicar_sessao(string $role, int $motoristaId = 0): void
+function login_aplicar_sessao(string $role, int $motoristaId = 0, int $funcionarioId = 0, bool $verFinanceiro = true): void
 {
     $_SESSION['auth'] = true;
     $_SESSION['role'] = $role;
     $_SESSION['motorista_id'] = $motoristaId;
+    $_SESSION['funcionario_id'] = $role === 'admin' ? $funcionarioId : 0;
+    $_SESSION['ver_financeiro'] = $role === 'admin' && $funcionarioId <= 0 ? true : $verFinanceiro;
     unset($_SESSION['pending_2fa']);
     login_liberar();
     session_regenerate_id(true);
@@ -1782,6 +1788,18 @@ function handle_post(): void
             $motoristaId = 0;
             $entrou = true;
         }
+        if (!$entrou && $usuario !== '' && $senha !== '' && $usuario !== $adminUser) {
+            $func = funcionario_entrar($usuario, $senha);
+            if (is_array($func)) {
+                $role = 'admin';
+                $motoristaId = 0;
+                $entrou = true;
+                $_SESSION['funcionario_login'] = [
+                    'id' => (int) ($func['id'] ?? 0),
+                    'ver_financeiro' => !empty($func['ver_financeiro']),
+                ];
+            }
+        }
         if (!$entrou && $usuario !== '' && $senha !== '') {
             foreach ($db['motoristas'] as $mot) {
                 if ((string) ($mot['status'] ?? '') !== 'ativo') {
@@ -1805,7 +1823,11 @@ function handle_post(): void
             $entrou = true;
         }
         if ($entrou) {
-            if ($role === 'admin' && autenticacao_2fa_pronta($db)) {
+            $funcLogin = $_SESSION['funcionario_login'] ?? null;
+            unset($_SESSION['funcionario_login']);
+            $funcId = is_array($funcLogin) ? (int) ($funcLogin['id'] ?? 0) : 0;
+            $verFinanceiro = !is_array($funcLogin) || !empty($funcLogin['ver_financeiro']);
+            if ($role === 'admin' && $funcId <= 0 && autenticacao_2fa_pronta($db)) {
                 $_SESSION['auth'] = false;
                 $_SESSION['role'] = '';
                 $_SESSION['motorista_id'] = 0;
@@ -1817,7 +1839,7 @@ function handle_post(): void
                 session_regenerate_id(true);
                 redirect(href('entrar', ['etapa' => '2fa']));
             }
-            login_aplicar_sessao($role !== '' ? $role : 'admin', $motoristaId);
+            login_aplicar_sessao($role !== '' ? $role : 'admin', $motoristaId, $funcId, $verFinanceiro);
             redirect(href('agenda'));
         }
         login_falhou();
@@ -1834,6 +1856,9 @@ function handle_post(): void
         $_SESSION['auth'] = false;
         $_SESSION['role'] = '';
         $_SESSION['motorista_id'] = 0;
+        $_SESSION['funcionario_id'] = 0;
+        $_SESSION['ver_financeiro'] = false;
+        unset($_SESSION['funcionario_login']);
         flash('Você saiu do painel.');
         redirect(href('entrar'));
     }
@@ -1905,6 +1930,70 @@ function handle_post(): void
 
     $falha = null;
     $msg = 'Ação concluída com sucesso.';
+    if (in_array($action, ['funcionario_salvar', 'funcionario_apagar'], true)) {
+        if (!eh_master()) {
+            flash('Só o administrador master gerencia funcionários.', 'err');
+            redirect(href('agenda'));
+        }
+        try {
+            $casca = load_db(false, false, 'casca');
+            $master = mb_strtolower((string) ($casca['settings']['usuario'] ?? 'admin'));
+            if ($action === 'funcionario_apagar') {
+                if (post('confirmar') !== 'sim') {
+                    flash('A exclusão só é concluída depois do Sim.', 'err');
+                    redirect(href('funcionarios'));
+                }
+                funcionario_apagar((int) post('id'));
+                flash('Funcionário removido. O administrador master continua intacto.');
+                redirect(href('funcionarios'));
+            }
+            $idFunc = (int) post('id');
+            $usuarioFunc = mb_strtolower(slug_usuario(clip(post('usuario'), 40)));
+            $erroUsuario = funcionario_usuario_erro($usuarioFunc, $master);
+            if ($erroUsuario !== '') {
+                flash($erroUsuario, 'err');
+                redirect(href('funcionarios'));
+            }
+            foreach ($casca['motoristas'] ?? [] as $mot) {
+                if (!is_array($mot)) {
+                    continue;
+                }
+                if (mb_strtolower((string) ($mot['usuario'] ?? '')) === $usuarioFunc) {
+                    flash('Este usuário já pertence a um motorista.', 'err');
+                    redirect(href('funcionarios'));
+                }
+            }
+            $nomeFunc = clip(post('nome'), 80);
+            if (mb_strlen($nomeFunc) < 2) {
+                flash('Informe o nome do funcionário.', 'err');
+                redirect(href('funcionarios'));
+            }
+            $senhaFunc = clip(post('senha'), 80);
+            if ($idFunc <= 0 && $senhaFunc === '') {
+                flash('Defina uma senha de pelo menos 10 caracteres.', 'err');
+                redirect(href('funcionarios'));
+            }
+            $erroSenhaFunc = senha_nova_erro($senhaFunc, 'funcionario');
+            if ($erroSenhaFunc !== '') {
+                flash(str_replace('do administrador', 'do funcionário', $erroSenhaFunc), 'err');
+                redirect(href('funcionarios'));
+            }
+            $hashFunc = $senhaFunc === '' ? '' : senha_proteger($senhaFunc);
+            funcionario_salvar(
+                $idFunc,
+                $usuarioFunc,
+                $nomeFunc,
+                $hashFunc,
+                post('ativo') === '1',
+                post('ver_financeiro') === '1'
+            );
+            flash($idFunc > 0 ? 'Funcionário atualizado.' : 'Funcionário criado. Ele entra com o usuário e a senha definidos aqui.');
+        } catch (Throwable $e) {
+            $texto = $e->getMessage();
+            flash(str_contains($texto, 'usuario') ? 'Já existe um funcionário com este usuário.' : 'Não foi possível gravar o funcionário.', 'err');
+        }
+        redirect(href('funcionarios'));
+    }
     $precisaRascunho = in_array($action, ['add_transfer', 'update_transfer'], true);
     $postSnap = $precisaRascunho ? $_POST : null;
     // Libera o lock da sessão durante a gravação longa no banco (evita travar outras abas).
@@ -1957,6 +2046,12 @@ function handle_post(): void
 
 function executar_acao(array &$db, string $action): array
 {
+    if (!eh_master() && acao_somente_master($action)) {
+        return ['Só o administrador master pode fazer isso.', ''];
+    }
+    if (!pode_ver_financeiro() && acao_financeira($action)) {
+        return ['A parte financeira não está liberada para este acesso.', ''];
+    }
     $ops = ops_dispatch($db, $action);
     if (is_array($ops)) {
         return [$ops[0], $ops[1]];

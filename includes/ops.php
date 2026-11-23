@@ -829,17 +829,23 @@ function montar_reservas(array &$db, ?array $current): array
     $categoria = one_of(post('categoria'), array_merge(array_keys(categorias_veiculo()), ['']), '');
     $pagamentos = [];
     $soma = 0.0;
-    foreach (meios_pagamento() as $chave => $rotulo) {
-        if (post('pag_' . $chave) === '1') {
-            $parte = max(0, post_money('pag_valor_' . $chave));
-            $pagamentos[$chave] = $parte;
-            $soma += $parte;
+    $guardaValor = function_exists('funcionario_sem_financeiro') && funcionario_sem_financeiro();
+    if ($guardaValor) {
+        $pagamentos = is_array($current) && is_array($current['pagamentos'] ?? null) ? $current['pagamentos'] : [];
+        $valor = is_array($current) ? (float) ($current['valor'] ?? 0) : 0.0;
+    } else {
+        foreach (meios_pagamento() as $chave => $rotulo) {
+            if (post('pag_' . $chave) === '1') {
+                $parte = max(0, post_money('pag_valor_' . $chave));
+                $pagamentos[$chave] = $parte;
+                $soma += $parte;
+            }
         }
-    }
-    $manual = max(0, post_money('valor_manual'));
-    $valor = $manual > 0 ? $manual : $soma;
-    if ($valor <= 0) {
-        return ['Informe o valor total ou o valor de cada meio de pagamento.', []];
+        $manual = max(0, post_money('valor_manual'));
+        $valor = $manual > 0 ? $manual : $soma;
+        if ($valor <= 0) {
+            return ['Informe o valor total ou o valor de cada meio de pagamento.', []];
+        }
     }
     $quem = one_of(post('quem'), ['motorista', 'parceiro'], 'motorista');
     $mid = (int) post('motorista_id');
@@ -854,8 +860,8 @@ function montar_reservas(array &$db, ?array $current): array
         }
     }
     $status = one_of(post('status'), ['pendente', 'reserva', 'andamento', 'concluida', 'cancelada'], (string) ($current['status'] ?? 'pendente'));
-    $repasse = max(0, post_money('repasse'));
-    $faturado = post('faturado') === 'sim';
+    $repasse = $guardaValor && is_array($current) ? (float) ($current['repasse'] ?? 0) : max(0, post_money('repasse'));
+    $faturado = $guardaValor && is_array($current) ? !empty($current['faturado']) : post('faturado') === 'sim';
     $pax = max(1, min(40, (int) post('pax') ?: 1));
     $base = $current ?? blank_trip(0);
     $base['cliente_id'] = $clienteId;
@@ -879,7 +885,7 @@ function montar_reservas(array &$db, ?array $current): array
     $base['obs'] = $obsPublica;
     $base['obs_interna'] = $obsInterna;
     $base['obs_tocada'] = true;
-    $base['esconder_valores'] = post('esconder') === '1';
+    $base['esconder_valores'] = $guardaValor && is_array($current) ? !empty($current['esconder_valores']) : post('esconder') === '1';
     $usaEquipe = post('equipe_modo') === '1';
     if ($usaEquipe) {
         $base['motorista_id'] = null;
