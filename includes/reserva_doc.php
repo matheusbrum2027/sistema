@@ -86,7 +86,7 @@ function reserva_rota_motorista(array $db, array $trip, string $trecho = ''): ar
     if (function_exists('trip_com_obs')) {
         $trip = trip_com_obs($trip);
     }
-    $obsPublica = trim((string) ($trip['obs'] ?? ''));
+    $obsPublica = obs_so_publica((string) ($trip['obs'] ?? ''), (string) ($trip['obs_interna'] ?? ''));
     if ($obsPublica !== '') {
         $linhas['Observações'] = $obsPublica;
     }
@@ -314,6 +314,26 @@ function reserva_irma_ida_volta(array $db, array $trip): ?array
     return function_exists('trip_com_obs') ? trip_com_obs($perto) : $perto;
 }
 
+/** Tira a anotação interna do texto que motorista, cliente e PDF podem ver. */
+function obs_so_publica(string $publica, string $interna): string
+{
+    $publica = trim($publica);
+    $interna = trim($interna);
+    if ($publica === '' || $interna === '') {
+        return $publica;
+    }
+    if ($publica === $interna) {
+        return '';
+    }
+    if (mb_strlen($interna) < 8 || !str_contains($publica, $interna)) {
+        return $publica;
+    }
+    $limpo = str_replace($interna, "\n", $publica);
+    $limpo = preg_replace("/[ \t]*\n[ \t]*/", "\n", $limpo) ?? $limpo;
+    $limpo = preg_replace("/\n{2,}/", "\n", $limpo) ?? $limpo;
+    return trim($limpo);
+}
+
 /** @return list<array{aviso:string,texto:string}> */
 function reserva_obs_itens(array $db, array $trip): array
 {
@@ -325,10 +345,12 @@ function reserva_obs_itens(array $db, array $trip): array
     if (function_exists('trip_com_obs')) {
         $trip = trip_com_obs($trip);
     }
-    $propria = trim((string) ($trip['obs'] ?? ''));
+    $propria = obs_so_publica((string) ($trip['obs'] ?? ''), (string) ($trip['obs_interna'] ?? ''));
     $de = (string) ($trip['obs_de'] ?? '');
     $irma = reserva_irma_ida_volta($db, $trip);
-    $textoIrma = $irma !== null ? trim((string) ($irma['obs'] ?? '')) : '';
+    $textoIrma = $irma !== null
+        ? obs_so_publica((string) ($irma['obs'] ?? ''), (string) ($irma['obs_interna'] ?? ''))
+        : '';
     $pernaIrma = $irma !== null && (string) ($irma['tipo'] ?? '') === 'volta' ? 'volta' : 'ida';
     $itens = [];
     if ($propria !== '' && $de === '') {

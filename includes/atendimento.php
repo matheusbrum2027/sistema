@@ -376,7 +376,7 @@ function atendimento_montar_ficha(array $db, array $trip, string $papel, bool $c
         if ((string) ($trip['quem'] ?? '') !== 'parceiro') {
             $linhas['Motorista'] = nome_motorista($db, $trip['motorista_id'] ?? 0);
         }
-        $obs = trim((string) ($trip['obs'] ?? ''));
+        $obs = obs_so_publica((string) ($trip['obs'] ?? ''), (string) ($trip['obs_interna'] ?? ''));
         if ($obs !== '') {
             $linhas['Observações'] = mb_substr($obs, 0, 400);
         }
@@ -698,7 +698,7 @@ function atendimento_pdf_bytes(array $db, array $trip, string $papel): string
             'Passageiros' => (string) ($trip['pax'] ?? ''),
             'Status' => status_label((string) ($trip['status'] ?? '')),
         ];
-        $obs = trim((string) ($trip['obs'] ?? ''));
+        $obs = obs_so_publica((string) ($trip['obs'] ?? ''), (string) ($trip['obs_interna'] ?? ''));
         if ($obs !== '') {
             $linhas['Observações'] = $obs;
         }
