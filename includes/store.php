@@ -104,33 +104,231 @@ function store_base(): int
     return env_valor('FLN_BASE', '1') === '2' ? 2 : 1;
 }
 
-function store_ler(bool $completo = true, string $modo = '', string $de = '', string $ate = '', int $idTrip = 0): ?array
+function store_leitura_dir(): string
 {
+    $dir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'fln-leitura';
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0700, true);
+    }
+    return $dir;
+}
+
+function store_cota_local(string $chave, int $limite): bool
+{
+    $hora = gmdate('Y-m-d-H');
+    if (($GLOBALS['fln_cota_hora'] ?? '') !== $hora) {
+        $GLOBALS['fln_cota_hora'] = $hora;
+        $GLOBALS['fln_cota'] = [];
+    }
+    $n = (int) ($GLOBALS['fln_cota'][$chave] ?? 0) + 1;
+    $GLOBALS['fln_cota'][$chave] = $n;
+    return $n <= $limite;
+}
+
+/** Cópia local da última leitura. A mesma versão não volta a sair do banco. */
+function store_copia_chave(bool $completo, string $modo, string $de, string $ate, int $idTrip): string
+{
+    return hash('sha256', store_base() . '|' . ($completo ? '1' : '0') . '|' . $modo . '|' . $de . '|' . $ate . '|' . $idTrip);
+}
+
+function store_copia_mem(): array
+{
+    if (!isset($GLOBALS['fln_copia']) || !is_array($GLOBALS['fln_copia'])) {
+        $GLOBALS['fln_copia'] = [];
+    }
+    return $GLOBALS['fln_copia'];
+}
+
+function store_copia_ler(string $chave): ?array
+{
+    $mem = store_copia_mem();
+    if (isset($mem[$chave]) && is_array($mem[$chave]['dados'] ?? null)) {
+        return $mem[$chave];
+    }
+    $path = store_leitura_dir() . DIRECTORY_SEPARATOR . $chave . '.json';
+    if (!is_file($path)) {
+        return null;
+    }
+    $json = json_decode((string) file_get_contents($path), true);
+    if (!is_array($json) || !is_array($json['dados'] ?? null) || (int) ($json['versao'] ?? 0) <= 0) {
+        return null;
+    }
+    if (count($GLOBALS['fln_copia']) > 8) {
+        array_shift($GLOBALS['fln_copia']);
+    }
+    $GLOBALS['fln_copia'][$chave] = $json;
+    return $json;
+}
+
+function store_copia_gravar(string $chave, int $versao, array $dados): void
+{
+    if ($versao <= 0) {
+        return;
+    }
+    $pacote = ['versao' => $versao, 'dados' => $dados];
+    if (count(store_copia_mem()) > 8) {
+        array_shift($GLOBALS['fln_copia']);
+    }
+    $GLOBALS['fln_copia'][$chave] = $pacote;
+    $json = json_encode($pacote, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+    if ($json === false) {
+        return;
+    }
+    $path = store_leitura_dir() . DIRECTORY_SEPARATOR . $chave . '.json';
+    $tmp = $path . '.' . getmypid() . '.tmp';
+    if (file_put_contents($tmp, $json, LOCK_EX) === false) {
+        return;
+    }
+    if (!@rename($tmp, $path)) {
+        @unlink($tmp);
+    }
+}
+
+function store_notas_alinhar(int $versao): void
+{
+    if ($versao <= 0) {
+        return;
+    }
+    $dir = store_leitura_dir() . DIRECTORY_SEPARATOR . 'notas';
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0700, true);
+    }
+    $marca = $dir . DIRECTORY_SEPARATOR . 'versao';
+    $gravada = is_file($marca) ? (int) file_get_contents($marca) : 0;
+    if ($gravada === $versao) {
+        return;
+    }
+    foreach (glob($dir . DIRECTORY_SEPARATOR . '*.json') ?: [] as $arq) {
+        if (is_string($arq)) {
+            @unlink($arq);
+        }
+    }
+    $GLOBALS['fln_notas'] = [];
+    @file_put_contents($marca, (string) $versao, LOCK_EX);
+}
+
+function store_nota_ler(int $id): ?array
+{
+    if ($id <= 0) {
+        return null;
+    }
+    if (!isset($GLOBALS['fln_notas']) || !is_array($GLOBALS['fln_notas'])) {
+        $GLOBALS['fln_notas'] = [];
+    }
+    if (isset($GLOBALS['fln_notas'][$id]) && is_array($GLOBALS['fln_notas'][$id])) {
+        return $GLOBALS['fln_notas'][$id];
+    }
+    $path = store_leitura_dir() . DIRECTORY_SEPARATOR . 'notas' . DIRECTORY_SEPARATOR . $id . '.json';
+    if (!is_file($path)) {
+        return null;
+    }
+    $json = json_decode((string) file_get_contents($path), true);
+    if (!is_array($json) || !is_string($json['obs'] ?? null)) {
+        return null;
+    }
+    if (!is_string($json['interna'] ?? null)) {
+        $json['interna'] = '';
+    }
+    $GLOBALS['fln_notas'][$id] = $json;
+    return $json;
+}
+
+function store_nota_gravar(int $id, ?string $obs, ?string $interna): void
+{
+    if ($id <= 0) {
+        return;
+    }
+    if (!isset($GLOBALS['fln_notas']) || !is_array($GLOBALS['fln_notas'])) {
+        $GLOBALS['fln_notas'] = [];
+    }
+    $atual = store_nota_ler($id) ?? ['obs' => '', 'interna' => ''];
+    if ($obs !== null) {
+        $atual['obs'] = $obs;
+    }
+    if ($interna !== null) {
+        $atual['interna'] = $interna;
+        $atual['completa'] = true;
+    }
+    $GLOBALS['fln_notas'][$id] = $atual;
+    $dir = store_leitura_dir() . DIRECTORY_SEPARATOR . 'notas';
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0700, true);
+    }
+    $json = json_encode($atual, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+    if ($json === false) {
+        return;
+    }
+    @file_put_contents($dir . DIRECTORY_SEPARATOR . $id . '.json', $json, LOCK_EX);
+}
+
+function store_ler(bool $completo = true, string $modo = '', string $de = '', string $ate = '', int $idTrip = 0, bool $usarVista = true): ?array
+{
+    $chave = store_copia_chave($completo, $modo, $de, $ate, $idTrip);
+    $copia = $usarVista ? store_copia_ler($chave) : null;
+    $vista = (int) ($copia['versao'] ?? 0);
+    $pesada = !$completo && in_array($modo, ['corridas', 'financeiro'], true);
+    if ($pesada && $vista <= 0 && !store_cota_local('lista', 40)) {
+        throw new BancoIndisponivel('Muitas leituras da lista nesta hora.');
+    }
     if ($completo || $modo === '') {
         $r = store_rpc($completo ? 'fln_ler' : 'fln_ler_leve', ['p_base' => store_base()], 40);
     } else {
+        $args = [
+            'p_base' => store_base(),
+            'p_modo' => $modo,
+            'p_de' => $de,
+            'p_ate' => $ate,
+            'p_id' => $idTrip,
+        ];
+        if ($vista > 0) {
+            $args['p_vista'] = $vista;
+        }
         try {
-            $r = store_rpc('fln_ler_menu', [
-                'p_base' => store_base(),
-                'p_modo' => $modo,
-                'p_de' => $de,
-                'p_ate' => $ate,
-                'p_id' => $idTrip,
-            ], 25);
+            $r = store_rpc('fln_ler_menu', $args, 25);
         } catch (BancoIndisponivel $e) {
             $msg = $e->getMessage();
+            $vistaRecusada = $vista > 0 && (str_contains($msg, 'p_vista') || str_contains($msg, 'PGRST202'));
             $ausente = str_contains($msg, 'fln_ler_menu') || str_contains($msg, 'PGRST202') || str_contains($msg, 'schema cache');
-            if (!$ausente) {
+            if ($vistaRecusada) {
+                unset($args['p_vista']);
+                $r = store_rpc('fln_ler_menu', $args, 25);
+            } elseif (!$ausente) {
                 throw $e;
+            } else {
+                $r = store_rpc('fln_ler_leve', ['p_base' => store_base()], 40);
             }
-            $r = store_rpc('fln_ler_leve', ['p_base' => store_base()], 40);
         }
     }
     if (!is_array($r)) {
         throw new BancoIndisponivel('Resposta inválida do banco de dados.');
     }
-    store_versao((int) ($r['versao'] ?? 0));
-    return is_array($r['dados'] ?? null) ? $r['dados'] : null;
+    if (!empty($r['igual'])) {
+        if (is_array($copia['dados'] ?? null)) {
+            $versao = (int) ($r['versao'] ?? $vista);
+            store_versao($versao);
+            store_notas_alinhar($versao);
+            return $copia['dados'];
+        }
+        if ($usarVista) {
+            return store_ler($completo, $modo, $de, $ate, $idTrip, false);
+        }
+        throw new BancoIndisponivel('Muitas leituras da lista nesta hora.');
+    }
+    if (!empty($r['limite'])) {
+        if (is_array($copia['dados'] ?? null)) {
+            store_versao((int) $copia['versao']);
+            return $copia['dados'];
+        }
+        throw new BancoIndisponivel('Muitas leituras da lista nesta hora.');
+    }
+    $versao = (int) ($r['versao'] ?? 0);
+    store_versao($versao);
+    store_notas_alinhar($versao);
+    $dados = is_array($r['dados'] ?? null) ? $r['dados'] : null;
+    if ($dados !== null && $versao > 0 && $modo !== '') {
+        store_copia_gravar($chave, $versao, $dados);
+    }
+    return $dados;
 }
 
 /** O banco manda as reservas em colunas para não repetir o nome de cada campo. */
@@ -222,18 +420,43 @@ function store_anotacoes(array $ids): array
     if ($ids === [] || !store_remoto()) {
         return [];
     }
+    $saida = [];
+    $faltam = [];
+    foreach ($ids as $id) {
+        $nota = store_nota_ler($id);
+        if ($nota !== null) {
+            if (trim($nota['obs']) !== '') {
+                $saida[$id] = $nota['obs'];
+            }
+            continue;
+        }
+        $faltam[] = $id;
+    }
+    if ($faltam === []) {
+        return $saida;
+    }
     try {
-        $r = store_rpc('fln_anotacoes', ['p_ids' => $ids, 'p_base' => store_base()], 8);
+        $r = store_rpc('fln_anotacoes', ['p_ids' => $faltam, 'p_base' => store_base()], 8);
     } catch (Throwable) {
-        return [];
+        return $saida;
     }
     if (!is_array($r)) {
-        return [];
+        return $saida;
     }
-    $saida = [];
+    $vieram = [];
     foreach ($r as $id => $texto) {
-        if (is_string($texto) && trim($texto) !== '') {
+        if (!is_string($texto)) {
+            continue;
+        }
+        $vieram[(int) $id] = true;
+        store_nota_gravar((int) $id, $texto, null);
+        if (trim($texto) !== '') {
             $saida[(int) $id] = $texto;
+        }
+    }
+    foreach ($faltam as $id) {
+        if (!isset($vieram[$id])) {
+            store_nota_gravar($id, '', null);
         }
     }
     return $saida;
@@ -253,17 +476,15 @@ function trip_com_obs(array $trip): array
         }
         return $trip;
     }
-    static $cache = [];
-    if (isset($cache[$id]) && is_array($cache[$id])) {
-        $par = $cache[$id];
-    } else {
+    $par = store_nota_ler($id);
+    if ($par === null || empty($par['completa'])) {
         try {
             $par = store_rpc('fln_anotacao_par', ['p_id' => $id, 'p_base' => store_base()], 8);
         } catch (Throwable) {
             $par = null;
         }
-        if (is_array($par)) {
-            $cache[$id] = $par;
+        if (is_array($par) && empty($par['limite'])) {
+            store_nota_gravar($id, (string) ($par['obs'] ?? ''), (string) ($par['interna'] ?? ''));
         }
     }
     if (!is_array($par)) {
