@@ -103,8 +103,8 @@ final class ReservaPdfFolha
         $this->paginas[] = $this->pagina;
         $this->pagina->ret(0, 0, self::LARGURA, self::ALTURA, self::BRANCO);
         $this->faixa();
-        $this->cabecalho();
         $this->empresa();
+        $this->cabecalho();
     }
 
     private function continuar(): void
@@ -155,7 +155,7 @@ final class ReservaPdfFolha
         $this->pagina->txt(self::MARGEM, $this->y - 10, 8, mb_strtoupper($this->kicker), true, self::ORANGE);
         $linhas = $this->quebrar($this->titulo, 360, 16, true);
         $this->pagina->txt(self::MARGEM, $this->y - 30, 16, $linhas[0] ?? $this->titulo, true, self::INK);
-        $emitido = 'Emitido em ' . today()->format('d/m/Y');
+        $emitido = reserva_emitido_texto();
         $largura = $this->medida($emitido, 9, false);
         $this->pagina->txt(self::LARGURA - self::MARGEM - $largura, $this->y - 12, 9, $emitido, false, self::MUTED);
         $this->y -= 46;
@@ -163,39 +163,48 @@ final class ReservaPdfFolha
 
     private function empresa(): void
     {
-        $itens = [];
+        $curtos = [];
+        $endereco = '';
         foreach ([
             'CNPJ' => (string) ($this->settings['cnpj'] ?? ''),
             'Telefone' => (string) ($this->settings['telefone'] ?? ''),
             'WhatsApp' => (string) ($this->settings['whatsapp'] ?? ''),
             'E-mail' => (string) ($this->settings['email'] ?? ''),
             'Representante' => (string) ($this->settings['rep_legal'] ?? ''),
-            'Endereço' => (string) ($this->settings['endereco'] ?? ''),
         ] as $rotulo => $valor) {
             $valor = trim($valor);
             if ($valor !== '') {
-                $itens[] = [$rotulo, $valor];
+                $curtos[] = [$rotulo, $valor];
             }
         }
-        if ($itens === []) {
+        $endereco = trim((string) ($this->settings['endereco'] ?? ''));
+        if ($curtos === [] && $endereco === '') {
             return;
         }
         $colunas = 3;
         $largura = self::LARGURA - (self::MARGEM * 2);
         $colW = $largura / $colunas;
-        $linhas = (int) ceil(count($itens) / $colunas);
-        $altura = 14 + ($linhas * 28);
+        $linhasCurtas = $curtos === [] ? 0 : (int) ceil(count($curtos) / $colunas);
+        $linhasEndereco = $endereco === '' ? [] : $this->quebrar($endereco, $largura - 24, 9, true);
+        $altura = 16 + ($linhasCurtas * 28) + ($linhasEndereco === [] ? 0 : 16 + (count($linhasEndereco) * 12));
         $this->garantir($altura + 8);
         $baixo = $this->y - $altura;
         $this->pagina->ret(self::MARGEM, $baixo, $largura, $altura, self::GELO);
         $this->pagina->ret(self::MARGEM, $baixo, 4, $altura, self::ORANGE);
-        foreach ($itens as $i => [$rotulo, $valor]) {
+        foreach ($curtos as $i => [$rotulo, $valor]) {
             $col = $i % $colunas;
             $lin = intdiv($i, $colunas);
             $x = self::MARGEM + 12 + ($col * $colW);
             $y = $this->y - 16 - ($lin * 28);
             $this->pagina->txt($x, $y, 7, mb_strtoupper($rotulo), true, self::ORANGE);
             $this->pagina->txt($x, $y - 12, 9, $this->umaLinha($valor, $colW - 16, 9, true), true, self::INK);
+        }
+        if ($linhasEndereco !== []) {
+            $y = $this->y - 16 - ($linhasCurtas * 28);
+            $this->pagina->txt(self::MARGEM + 12, $y, 7, 'ENDEREÇO', true, self::ORANGE);
+            foreach ($linhasEndereco as $i => $linha) {
+                $this->pagina->txt(self::MARGEM + 12, $y - 12 - ($i * 12), 9, $linha, true, self::INK);
+            }
         }
         $this->y = $baixo - 12;
     }

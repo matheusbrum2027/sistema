@@ -1241,6 +1241,8 @@ html[data-theme="dark"] .com-card-mark { background: #1b2028; border-color: #3d4
   -webkit-print-color-adjust: exact; print-color-adjust: exact;
 }
 .doc-company-meta li { min-width: 0; }
+.doc-company-meta li.is-endereco { grid-column: 1 / -1; }
+.doc-company-meta li.is-endereco strong { white-space: normal; overflow: visible; text-overflow: clip; }
 .doc-company-meta span {
   display: block; font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
   text-transform: uppercase; color: var(--doc-orange); margin-bottom: 2px;

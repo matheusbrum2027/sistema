@@ -459,6 +459,12 @@ function reserva_logo(array $s): string
     return '<img src="' . e($logo) . '" alt="Logo da empresa" class="sheet-logo">';
 }
 
+function reserva_emitido_texto(): string
+{
+    $agora = new DateTimeImmutable('now');
+    return 'Emitido em ' . $agora->format('d/m/Y') . ' às ' . $agora->format('H:i');
+}
+
 function reserva_cidade_uf(array $s): string
 {
     $cidade = trim((string) ($s['cidade'] ?? ''));
@@ -508,11 +514,6 @@ function reserva_cabecalho_empresa(array $s, string $titulo, string $kicker = 'D
     }
     echo '</div></div></header>';
 
-    echo '<div class="doc-title-row">';
-    echo '<div><p class="doc-title-kicker">' . e(mb_strtoupper($kicker)) . '</p><h3 class="doc-title">' . e($titulo) . '</h3></div>';
-    echo '<em class="doc-emitido">Emitido em ' . e(today()->format('d/m/Y')) . '</em>';
-    echo '</div>';
-
     echo '<ul class="doc-company-meta">';
     foreach ([
         'CNPJ' => (string) ($s['cnpj'] ?? ''),
@@ -525,9 +526,15 @@ function reserva_cabecalho_empresa(array $s, string $titulo, string $kicker = 'D
         if (trim($valor) === '') {
             continue;
         }
-        echo '<li><span>' . e($rotulo) . '</span><strong>' . e($valor) . '</strong></li>';
+        $largo = $rotulo === 'Endereço' ? ' class="is-endereco"' : '';
+        echo '<li' . $largo . '><span>' . e($rotulo) . '</span><strong>' . e($valor) . '</strong></li>';
     }
     echo '</ul>';
+
+    echo '<div class="doc-title-row">';
+    echo '<div><p class="doc-title-kicker">' . e(mb_strtoupper($kicker)) . '</p><h3 class="doc-title">' . e($titulo) . '</h3></div>';
+    echo '<em class="doc-emitido">' . e(reserva_emitido_texto()) . '</em>';
+    echo '</div>';
 }
 
 function reserva_destaques(array $db, array $trip): void
