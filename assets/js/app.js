@@ -653,7 +653,16 @@
       const flag = card?.querySelector('input[name="editando"]');
       if (fieldset) fieldset.disabled = false;
       if (flag) flag.value = '1';
-      editarCfg.hidden = true;
+      card?.classList.add('is-editando');
+      card?.querySelectorAll('[data-cfg-edit]').forEach((btn) => { btn.hidden = true; });
+      card?.querySelectorAll('[data-cfg-save]').forEach((btn) => { btn.disabled = false; });
+      const estado = card?.querySelector('[data-contrato-estado]');
+      if (estado) estado.textContent = 'Editando. Altere os textos e toque em Salvar contrato.';
+      const nome = editarCfg.getAttribute('data-cfg-focus') || '';
+      const alvo = nome ? card?.querySelector('[name="' + nome + '"]') : null;
+      const bloco = alvo?.closest('.contrato-campo');
+      if (bloco) bloco.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      if (alvo) window.setTimeout(() => alvo.focus(), 280);
       return;
     }
     const tema = event.target.closest('[data-theme-toggle]');
