@@ -84,7 +84,7 @@ function mapa_geocode_google(string $texto): ?array
     ];
 }
 
-function mapa_resolver_ponto(string $texto): ?array
+function mapa_resolver_ponto(string $texto, bool $remoto = false): ?array
 {
     $t = mb_strtolower(trim($texto));
     if ($t === '') {
@@ -102,6 +102,9 @@ function mapa_resolver_ponto(string $texto): ?array
                 ];
             }
         }
+    }
+    if (!$remoto) {
+        return null;
     }
     return mapa_geocode_google($texto);
 }

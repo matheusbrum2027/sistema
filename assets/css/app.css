@@ -2401,8 +2401,8 @@ body.analise-full-on { overflow: hidden; }
 .mapa-painel,
 .mapa-painel * { text-transform: none !important; letter-spacing: 0 !important; }
 .mapa-painel {
-  position: fixed; z-index: 47; top: 0; right: 0; bottom: 0;
-  width: min(920px, 100vw);
+  position: fixed; z-index: 60; top: 0; right: 0; bottom: 0;
+  width: min(640px, calc(100vw - 64px));
   display: flex; flex-direction: column;
   background: var(--bg); color: var(--ink); border: 0; border-left: 1px solid var(--line-strong); border-radius: 0; overflow: hidden;
   box-shadow: none;
@@ -2411,15 +2411,19 @@ body.analise-full-on { overflow: hidden; }
 .mapa-painel[hidden] { display: none; }
 body.mapa-full-on { overflow: hidden; }
 .mapa-h {
-  display: flex; align-items: center; gap: 8px; min-height: 52px; padding: 8px 12px;
-  background: var(--nav-strong); border-bottom: 1px solid var(--nav-strong); color: #fff;
+  display: flex; align-items: center; gap: 8px; min-height: 56px; padding: 8px 12px; flex: 0 0 auto;
+  background: #152033; border-bottom: 1px solid #152033; color: #fff;
 }
 .mapa-h-titulo { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .mapa-h-titulo strong { font-size: 15px; color: #fff; }
 .mapa-h-titulo small { color: rgba(255,255,255,.72); font-size: 11px; }
 .mapa-x, .mapa-ico-btn {
-  border: 1px solid rgba(255,255,255,.28); background: transparent; color: #fff; width: 34px; height: 34px;
-  font-size: 22px; line-height: 1; border-radius: 0; display: grid; place-items: center; padding: 0;
+  border: 0; background: transparent; color: #fff; width: 34px; height: 34px;
+  font-size: 22px; line-height: 1; border-radius: 8px; display: grid; place-items: center; padding: 0;
+}
+.mapa-x {
+  width: auto; min-width: 84px; height: 36px; padding: 0 14px;
+  background: #f26b1a; color: #fff; font-size: 13px; font-weight: 750;
 }
 .mapa-ico-btn .ico { width: 16px; height: 16px; }
 .mapa-x:hover, .mapa-ico-btn:hover { background: var(--orange); border-color: var(--orange); color: #fff; }
@@ -2446,13 +2450,13 @@ body.mapa-full-on { overflow: hidden; }
 .mapa-kpi:last-child { border-right: 0; }
 .mapa-kpi span { display: block; font-size: 18px; font-weight: 750; color: var(--orange); }
 .mapa-kpi small { color: var(--muted); font-size: 10px; }
-.mapa-stage-wrap { flex: 1; min-height: 360px; padding: 0; display: flex; }
+.mapa-stage-wrap { flex: 1 1 auto; min-height: 0; padding: 0; display: flex; }
 .mapa-stage {
-  position: relative; flex: 1; height: min(58vh, 640px); min-height: 360px; border-radius: 0; overflow: hidden;
+  position: relative; flex: 1; height: 100%; min-height: 240px; border-radius: 0; overflow: hidden;
   border: 0; border-bottom: 1px solid var(--line); background: #d5dbe3; z-index: 1;
 }
 .mapa-stage .leaflet-container {
-  position: absolute; inset: 0; width: auto; height: auto;
+  position: absolute; inset: 0; width: 100%; height: 100%;
   background: #d5dbe3; font: 12px/1.4 Poppins, "Segoe UI", sans-serif;
 }
 .leaflet-container,
@@ -2602,9 +2606,11 @@ body.camp-full-on { overflow: hidden; }
   .camp-painel.is-detalhe .camp-lado { display: none; }
 }
 
+.chat-painel,
+.chat-painel * { text-transform: none !important; letter-spacing: 0 !important; }
 .chat-painel {
-  position: fixed; z-index: 45; top: 0; right: 0; bottom: 0;
-  width: min(1080px, 100vw);
+  position: fixed; z-index: 60; top: 0; right: 0; bottom: 0;
+  width: min(860px, calc(100vw - 64px));
   display: grid; grid-template-columns: 340px minmax(0, 1fr);
   background: var(--bg); color: var(--ink); border: 0; border-left: 1px solid var(--line-strong); border-radius: 0; overflow: hidden;
   box-shadow: none;
@@ -2680,8 +2686,12 @@ body.chat-full-on { overflow: hidden; }
 .chat-lista-titulo strong { font-size: 15px; color: #fff; }
 .chat-lista-titulo small { color: rgba(255,255,255,.72); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chat-x, .chat-voltar, .chat-ico-btn {
-  border: 1px solid rgba(255,255,255,.28); background: transparent; color: #fff; width: 34px; height: 34px;
-  font-size: 22px; line-height: 1; border-radius: 0; display: grid; place-items: center; padding: 0;
+  border: 0; background: transparent; color: #fff; width: 34px; height: 34px;
+  font-size: 22px; line-height: 1; border-radius: 8px; display: grid; place-items: center; padding: 0;
+}
+.chat-x {
+  width: auto; min-width: 84px; height: 36px; padding: 0 14px;
+  background: #f26b1a; color: #fff; font-size: 13px; font-weight: 750;
 }
 .chat-ico-btn .ico { width: 16px; height: 16px; }
 .chat-x:hover, .chat-voltar:hover, .chat-ico-btn:hover { background: var(--orange); border-color: var(--orange); color: #fff; }
@@ -2996,6 +3006,32 @@ dialog.dlg-ficha.dlg-dossie:modal { width: min(560px, 100vw) !important; }
   .kanban-cards { max-height: none; overflow: visible; }
   .lista-cards { grid-template-columns: 1fr; }
   .agenda-card { min-height: 44px; }
+}
+html[data-theme="dark"] .mapa-h,
+html[data-theme="dark"] .chat-lista-h,
+html[data-theme="dark"] .chat-fio-h,
+html[data-theme="dark"] .chat-cfg-h {
+  background: #152033 !important;
+  color: #fff !important;
+  border-color: #152033 !important;
+}
+html[data-theme="dark"] .mapa-h strong,
+html[data-theme="dark"] .mapa-h small,
+html[data-theme="dark"] .chat-lista-h strong,
+html[data-theme="dark"] .chat-lista-h small,
+html[data-theme="dark"] .chat-fio-h strong,
+html[data-theme="dark"] .chat-fio-h small,
+html[data-theme="dark"] .chat-cfg-h strong,
+html[data-theme="dark"] .mapa-ico-btn,
+html[data-theme="dark"] .chat-ico-btn,
+html[data-theme="dark"] .chat-voltar {
+  color: #fff !important;
+}
+html[data-theme="dark"] .mapa-x,
+html[data-theme="dark"] .chat-x {
+  background: #f26b1a !important;
+  color: #fff !important;
+  border: 0 !important;
 }
 .mot-painel,
 .mot-painel * { text-transform: none !important; letter-spacing: 0 !important; }

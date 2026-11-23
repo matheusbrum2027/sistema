@@ -222,6 +222,7 @@
   }, { passive: false });
   abrir.addEventListener('click', (event) => {
     event.preventDefault();
+    event.stopPropagation();
     if (toqueAba) return;
     travarZoomMobile();
     abrirPainel();

@@ -245,12 +245,13 @@ if ((string) ($_GET['p'] ?? '') === 'mapa') {
     $status = (string) ($_GET['status'] ?? 'todas');
     try {
         $viagens = store_mapa();
+        $saida = mapa_viagens(['transfers' => is_array($viagens) ? $viagens : []], $filtro, $status);
     } catch (Throwable) {
         http_response_code(503);
-        echo '{"ok":false}';
+        echo '{"ok":false,"erro":"Mapa indisponível agora."}';
         exit;
     }
-    echo json_encode(mapa_viagens(['transfers' => $viagens], $filtro, $status), JSON_UNESCAPED_UNICODE);
+    echo json_encode($saida, JSON_UNESCAPED_UNICODE);
     exit;
 }
 
@@ -334,6 +335,7 @@ if ((string) ($_GET['p'] ?? '') === 'chat') {
     } else {
         $dbChat = load_db(false, true);
     }
+    try {
     chat_store_garantir($dbChat);
     $settings = $dbChat['settings'] ?? [];
     if ($acao === 'enviar') {
@@ -402,6 +404,10 @@ if ((string) ($_GET['p'] ?? '') === 'chat') {
         exit;
     }
     echo json_encode(chat_lista($dbChat), JSON_UNESCAPED_UNICODE);
+    } catch (Throwable) {
+        http_response_code(503);
+        echo '{"ok":false,"erro":"WhatsApp indisponível agora."}';
+    }
     exit;
 }
 

@@ -532,6 +532,7 @@
     abrirPreviaPdf(url.href, nome);
   }
   document.addEventListener('click', (event) => {
+    if (event.target.closest('#flutuantes-direita, #mapa-painel, #chat-painel, .leaflet-container')) return;
     const salvarPdf = event.target.closest('[data-pdf-salvar]');
     if (salvarPdf) {
       event.preventDefault();

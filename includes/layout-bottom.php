@@ -21,7 +21,7 @@ declare(strict_types=1);
     <button class="btn btn-danger" type="button" id="confirma-sim">Sim</button>
   </footer>
 </dialog>
-<script src="assets/js/app.js?v=41"></script>
+<script src="assets/js/app.js?v=42"></script>
 <?php if (($_SESSION['role'] ?? '') === 'motorista' && !empty($_SESSION['auth'])): ?>
 <script src="assets/js/painel-motorista.js?v=1"></script>
 <?php endif; ?>
@@ -49,7 +49,7 @@ declare(strict_types=1);
       <small id="mapa-status-linha">Viagens na Grande Florianópolis</small>
     </div>
     <button class="mapa-ico-btn" type="button" id="mapa-full" title="Tela cheia" aria-label="Tela cheia" aria-pressed="false"><?= icon('expand') ?></button>
-    <button class="mapa-x" type="button" data-mapa-fechar aria-label="Fechar">×</button>
+    <button class="mapa-x" type="button" data-mapa-fechar aria-label="Fechar mapa">Fechar</button>
   </header>
   <div class="mapa-filtros">
     <div class="mapa-seg" id="mapa-filtro-periodo" role="tablist">
@@ -92,7 +92,7 @@ declare(strict_types=1);
       <button class="chat-ico-btn" type="button" id="chat-cfg" title="Configurações" aria-label="Configurações"><?= icon('gear') ?></button>
       <button class="chat-ico-btn" type="button" id="chat-sync" title="Sincronizar" aria-label="Sincronizar"><?= icon('refresh') ?></button>
       <button class="chat-ico-btn" type="button" id="chat-full" title="Tela cheia" aria-label="Tela cheia" aria-pressed="false"><?= icon('expand') ?></button>
-      <button class="chat-x" type="button" data-chat-fechar aria-label="Fechar chat">×</button>
+      <button class="chat-x" type="button" data-chat-fechar aria-label="Fechar chat">Fechar</button>
     </header>
     <div class="chat-busca"><input id="chat-busca" type="search" placeholder="Buscar conversa" autocomplete="off"></div>
     <div class="chat-rolagem" id="chat-conversas"></div>
@@ -107,7 +107,7 @@ declare(strict_types=1);
       </div>
       <button class="chat-btn-ia" type="button" id="chat-pausar-ia" hidden title="Pausar ou retomar a automação desta conversa">Pausar IA</button>
       <button class="chat-ico-btn chat-full-fio" type="button" id="chat-full-2" title="Tela cheia" aria-label="Tela cheia"><?= icon('expand') ?></button>
-      <button class="chat-x" type="button" data-chat-fechar aria-label="Fechar chat">×</button>
+      <button class="chat-x" type="button" data-chat-fechar aria-label="Fechar chat">Fechar</button>
     </header>
     <div class="chat-msgs" id="chat-msgs">
       <p class="chat-vazio">Escolha uma conversa à esquerda.</p>
@@ -121,7 +121,7 @@ declare(strict_types=1);
     <header class="chat-cfg-h">
       <button class="chat-voltar" type="button" id="chat-cfg-voltar" aria-label="Voltar">‹</button>
       <strong>Configurações</strong>
-      <button class="chat-x" type="button" data-chat-fechar aria-label="Fechar chat">×</button>
+      <button class="chat-x" type="button" data-chat-fechar aria-label="Fechar chat">Fechar</button>
     </header>
     <form class="chat-cfg-form" id="chat-cfg-form">
       <p class="chat-cfg-lead">O chat do painel é para acompanhar. Depois de comunicar uma reserva, a IA do FLN responde só sobre aquela reserva.</p>
@@ -235,8 +235,8 @@ declare(strict_types=1);
 </aside>
 <link rel="stylesheet" href="assets/vendor/leaflet/leaflet.css?v=2">
 <script src="assets/vendor/leaflet/leaflet.js?v=2"></script>
-<script src="assets/js/chat.js?v=17"></script>
-<script src="assets/js/mapa.js?v=5"></script>
+<script src="assets/js/chat.js?v=18"></script>
+<script src="assets/js/mapa.js?v=6"></script>
 <script src="assets/js/push.js?v=8"></script>
 <?php endif; ?>
 <?php endif; ?>

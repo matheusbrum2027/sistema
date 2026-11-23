@@ -208,7 +208,10 @@
       const r = await fetch('index.php?p=mapa&filtro=' + encodeURIComponent(filtro) + '&status=' + encodeURIComponent(status), {
         credentials: 'same-origin',
         cache: 'no-store',
+        headers: { Accept: 'application/json' },
       });
+      const tipo = r.headers.get('content-type') || '';
+      if (!tipo.includes('application/json')) throw new Error('O mapa não respondeu. A agenda continua disponível.');
       const j = await r.json();
       if (!j.ok) throw new Error(j.erro || 'Falha');
       dados = j;
@@ -248,7 +251,9 @@
     clearInterval(poll);
   }
 
-  abrir.addEventListener('click', () => {
+  abrir.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
     if (aberta) fecharPainel();
     else abrirPainel();
   });
