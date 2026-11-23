@@ -174,7 +174,7 @@ $cartaoAgenda = static function (array $leg, bool $admin, array $obsPorId): void
     $de = trim((string) ($leg['de'] ?? ''));
     $para = trim((string) ($leg['para'] ?? ''));
     ?>
-    <button type="button" class="agenda-card agenda-card-<?= e((string) ($leg['kind'] ?? 'ida')) ?><?= !empty($leg['passou']) ? ' passou' : '' ?>" data-open-dialog="dlg-ver-<?= (int) $leg['id'] ?>" data-reserva-id="<?= (int) $leg['id'] ?>">
+    <button type="button" class="agenda-card agenda-card-<?= e((string) ($leg['kind'] ?? 'ida')) ?><?= (string) ($leg['status'] ?? '') === 'cancelada' ? ' is-cancelada' : '' ?><?= !empty($leg['passou']) ? ' passou' : '' ?>" data-open-dialog="dlg-ver-<?= (int) $leg['id'] ?>" data-reserva-id="<?= (int) $leg['id'] ?>">
       <span class="agenda-card-topo">
         <span class="agenda-card-hora"><?= e($horaLeg) ?></span>
         <span class="chip-id <?= $idCls ?>">#<?= (int) $leg['id'] ?></span>
@@ -372,7 +372,7 @@ if (!$admin) {
             $frotaLbl = (string) ($leg['frota_label'] ?? '');
             $obsChip = $admin ? trim((string) ($obsPorId[(int) $leg['id']] ?? '')) : '';
           ?>
-          <button type="button" class="chip chip-<?= e($leg['kind']) ?><?= !empty($leg['passou']) ? ' chip-passou' : '' ?>" data-dia="<?= e($key) ?>" data-open-dialog="dlg-ver-<?= (int) $leg['id'] ?>" data-reserva-id="<?= (int) $leg['id'] ?>" aria-label="Reserva #<?= (int) $leg['id'] ?>, <?= e($leg['label']) ?><?= $frotaLbl !== '' ? ' ' . e($frotaLbl) : '' ?> <?= e($horaLeg) ?>, <?= e($leg['place']) ?><?= $obsChip !== '' ? '. ' . e($obsChip) : '' ?>">
+          <button type="button" class="chip chip-<?= e($leg['kind']) ?><?= (string) ($leg['status'] ?? '') === 'cancelada' ? ' chip-cancelada' : '' ?><?= !empty($leg['passou']) ? ' chip-passou' : '' ?>" data-dia="<?= e($key) ?>" data-open-dialog="dlg-ver-<?= (int) $leg['id'] ?>" data-reserva-id="<?= (int) $leg['id'] ?>" aria-label="Reserva #<?= (int) $leg['id'] ?>, <?= e($leg['label']) ?><?= $frotaLbl !== '' ? ' ' . e($frotaLbl) : '' ?> <?= e($horaLeg) ?>, <?= e($leg['place']) ?><?= $obsChip !== '' ? '. ' . e($obsChip) : '' ?>">
             <span class="chip-id <?= $idCls ?>">#<?= (int) $leg['id'] ?></span>
             <?php if ($frotaLbl !== ''): ?><span class="chip-frota frota-<?= e(($leg['frota'] ?? '') !== '' ? $leg['frota'] : 'carro') ?>"><?= e($frotaLbl) ?></span><?php endif; ?>
             <span class="chip-tipo"><?= e($leg['label']) ?></span>

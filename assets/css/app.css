@@ -906,7 +906,7 @@ button.cal-day-top { appearance: none; border: 0; background: transparent; color
   border: 0; cursor: pointer; width: 100%; text-align: left; font-family: inherit;
   color: #fff; margin: 0;
 }
-.cal-day .chip-ida { background: #8d2433; }
+.cal-day .chip-ida { background: #1d4e89; }
 .cal-day .chip-volta { background: #1c7a3c; }
 .cal-day .chip:hover { text-decoration: none; filter: brightness(1.12); }
 .cal-day .chip-id {
@@ -929,9 +929,9 @@ button.cal-day-top { appearance: none; border: 0; background: transparent; color
   background: #f26b1a; color: #fff;
   box-shadow: inset 0 -1px 0 rgba(0, 0, 0, .12);
 }
-.cal-day .chip-frota.frota-van { background: #e85d04; }
+.cal-day .chip-frota.frota-van { background: #0f766e; }
 .cal-day .chip-frota.frota-mini { background: #f48c06; color: #1a1200; }
-.cal-day .chip-frota.frota-lugares { background: #dc2f02; }
+.cal-day .chip-frota.frota-lugares { background: #4f46e5; }
 .cal-day .chip-frota.frota-carro { background: #f26b1a; }
 .cal-day .chip-place {
   min-width: 0; flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis;
@@ -948,7 +948,7 @@ button.cal-day-top { appearance: none; border: 0; background: transparent; color
   padding: 0 4px; letter-spacing: 0.01em;
 }
 .chip-late, .cal-day .chip-id.chip-late {
-  color: #fff !important; font-weight: 900; background: #ff3b55; border-radius: 3px;
+  color: #fff !important; font-weight: 900; background: #b45309; border-radius: 3px;
   padding: 0 4px; letter-spacing: 0.01em;
 }
 .cal-day .chip-id.chip-run {
@@ -1674,7 +1674,7 @@ html[data-theme="dark"] td { border-bottom-color: #343b48; }
 html[data-theme="dark"] .cal-day { background: #171c26; border-color: #2c3442; }
 html[data-theme="dark"] .cal-day.out { background: #12161e; color: var(--ink); }
 html[data-theme="dark"] .cal-day.out .cal-day-top > b { color: #667084; }
-html[data-theme="dark"] .cal-day .chip-ida { background: #8d2433; color: #fff; }
+html[data-theme="dark"] .cal-day .chip-ida { background: #1d4e89; color: #fff; }
 html[data-theme="dark"] .cal-day .chip-volta { background: #1c7a3c; color: #fff; }
 html[data-theme="dark"] .cal-day .chip:hover,
 html[data-theme="dark"] .cal-day .chip-ida:hover,
@@ -1685,7 +1685,7 @@ html[data-theme="dark"] .cal-day .chip-frota { background: #f26b1a; color: #fff;
 html[data-theme="dark"] .chip-ok,
 html[data-theme="dark"] .cal-day .chip-id.chip-ok { color: #fff !important; background: #12b35a; }
 html[data-theme="dark"] .chip-late,
-html[data-theme="dark"] .cal-day .chip-id.chip-late { color: #fff !important; background: #ff3b55; }
+html[data-theme="dark"] .cal-day .chip-id.chip-late { color: #fff !important; background: #b45309; }
 html[data-theme="dark"] .cal-qtd { background: #f26b1a; color: #fff; }
 html[data-theme="dark"] .cal-itens::-webkit-scrollbar-thumb { background: #465064; }
 html[data-theme="dark"] .reserva-folha,
@@ -1907,16 +1907,16 @@ html[data-theme="dark"] .nav-scroll::-webkit-scrollbar-thumb { background: #4650
     box-sizing: border-box; white-space: normal; overflow: hidden;
     padding: 10px; border-radius: 10px; font-size: 13px; text-align: left;
   }
-  .cal-foco .chip-ida { background: #8d2433; color: #fff; }
+  .cal-foco .chip-ida { background: #1d4e89; color: #fff; }
   .cal-foco .chip-volta { background: #1c7a3c; color: #fff; }
   .cal-foco .chip-id, .cal-foco .chip-tipo, .cal-foco .chip-frota, .cal-foco .chip-hora { min-width: 0; }
   .cal-foco .chip-id, .cal-foco .chip-tipo, .cal-foco .chip-frota { padding: 0 4px; border-radius: 3px; font-size: 11px; font-weight: 800; line-height: 1.45; }
   .cal-foco .chip-tipo { background: rgba(255, 255, 255, .18); color: #fff; }
   .cal-foco .chip-hora { font-weight: 800; color: #fff; font-variant-numeric: tabular-nums; }
   .cal-foco .chip-frota { background: #f26b1a; color: #fff; }
-  .cal-foco .chip-frota.frota-van { background: #e85d04; }
+  .cal-foco .chip-frota.frota-van { background: #0f766e; }
   .cal-foco .chip-frota.frota-mini { background: #f48c06; color: #1a1200; }
-  .cal-foco .chip-frota.frota-lugares { background: #dc2f02; }
+  .cal-foco .chip-frota.frota-lugares { background: #4f46e5; }
   .cal-foco .chip-frota.frota-carro { background: #f26b1a; }
   .cal-foco .chip-place, .cal-foco .chip-obs {
     grid-column: 1 / -1; display: block; min-width: 0; max-width: 100%;
@@ -2953,11 +2953,14 @@ dialog.dlg-ficha.dlg-dossie:modal { width: min(560px, 100vw) !important; }
   border: 1px solid var(--line); border-left-width: 4px; border-radius: 8px;
   background: var(--card); color: var(--ink); padding: 8px 8px 8px 10px; font: inherit;
 }
-.agenda-card-ida { border-left-color: #8d2433; }
+.agenda-card-ida { border-left-color: #1d4e89; }
 .agenda-card-volta { border-left-color: #1c7a3c; }
+.agenda-card.is-cancelada,
+.agenda-card.is-cancelada:hover { border-left-color: #b42318; }
+.cal-day .chip-cancelada { background: #8d2433; }
 .agenda-card.passou { opacity: .62; }
 .agenda-card:hover { border-color: #c9a07a; border-left-color: inherit; }
-.agenda-card-ida:hover { border-left-color: #8d2433; }
+.agenda-card-ida:hover { border-left-color: #1d4e89; }
 .agenda-card-volta:hover { border-left-color: #1c7a3c; }
 .agenda-card-topo { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
 .agenda-card-hora { font-weight: 800; font-variant-numeric: tabular-nums; }
@@ -2968,9 +2971,9 @@ dialog.dlg-ficha.dlg-dossie:modal { width: min(560px, 100vw) !important; }
 }
 .agenda-card .chip-tipo { background: var(--hover); color: var(--ink); }
 .agenda-card .chip-frota { background: #f26b1a; color: #fff; }
-.agenda-card .chip-frota.frota-van { background: #e85d04; }
+.agenda-card .chip-frota.frota-van { background: #0f766e; }
 .agenda-card .chip-frota.frota-mini { background: #f48c06; color: #1a1200; }
-.agenda-card .chip-frota.frota-lugares { background: #dc2f02; }
+.agenda-card .chip-frota.frota-lugares { background: #4f46e5; }
 .agenda-card .chip-frota.frota-carro { background: #f26b1a; }
 .agenda-card .badge { margin-left: auto; }
 .agenda-card-rota,
