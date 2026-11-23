@@ -1210,10 +1210,10 @@ html[data-theme="dark"] .com-card-mark { background: #1b2028; border-color: #3d4
 .reserva-folha pre { white-space: pre-wrap; word-break: break-word; font: 12.5px/1.55 Poppins, "Segoe UI", sans-serif; margin: 0; }
 .doc-banner {
   background: var(--doc-navy); color: #fff; border-bottom: 3px solid var(--doc-orange);
-  padding: 14px 16px; margin: 0;
+  padding: 14px 16px 12px; margin: 0;
   -webkit-print-color-adjust: exact; print-color-adjust: exact;
 }
-.doc-banner-inner { display: flex; gap: 14px; align-items: center; }
+.doc-banner-inner { display: flex; gap: 14px; align-items: flex-start; }
 .doc-logo-box {
   flex: 0 0 auto; width: 86px; height: 86px; background: #fff; border-radius: 8px;
   display: grid; place-items: center; overflow: hidden; padding: 6px;
@@ -1233,16 +1233,20 @@ html[data-theme="dark"] .com-card-mark { background: #1b2028; border-color: #3d4
 }
 .doc-title-kicker { margin: 0; font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--doc-orange); }
 .doc-title { margin: 2px 0 0; font-size: 22px; line-height: 1.2; color: var(--doc-ink); font-weight: 750; }
+.doc-banner .doc-emitido { margin-left: auto; color: #c5ccd6; padding-top: 2px; text-align: right; }
 .doc-emitido { font-style: normal; font-size: 12px; color: var(--doc-muted); white-space: nowrap; padding-top: 4px; }
-.doc-company-meta {
-  list-style: none; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 12px;
-  margin: 0 16px 12px; padding: 12px 14px; background: #f3f5f8; border-radius: 10px;
-  border-left: 4px solid var(--doc-orange);
-  -webkit-print-color-adjust: exact; print-color-adjust: exact;
+.doc-banner .doc-company-meta {
+  list-style: none; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 14px;
+  margin: 12px 0 0; padding: 12px 0 0; background: transparent; border: 0; border-radius: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.16);
 }
-.doc-company-meta li { min-width: 0; }
-.doc-company-meta li.is-endereco { grid-column: 1 / -1; }
-.doc-company-meta li.is-endereco strong { white-space: normal; overflow: visible; text-overflow: clip; }
+.doc-banner .doc-company-meta li { min-width: 0; }
+.doc-banner .doc-company-meta li.is-endereco { grid-column: 1 / -1; }
+.doc-banner .doc-company-meta span {
+  display: block; font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--doc-orange); margin-bottom: 2px;
+}
+.doc-banner .doc-company-meta strong { display: block; font-size: 12.5px; font-weight: 600; line-height: 1.35; color: #fff; white-space: normal; }
 .doc-company-meta span {
   display: block; font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
   text-transform: uppercase; color: var(--doc-orange); margin-bottom: 2px;
@@ -1635,8 +1639,8 @@ html[data-theme="dark"] .reserva-folha .doc-clause-item,
 html[data-theme="dark"] .paper { background: #fff; color: #1c1c1c; }
 html[data-theme="dark"] .reserva-folha .doc-banner { background: #1a2332; color: #fff; }
 html[data-theme="dark"] .reserva-folha .doc-banner-copy h2 { color: #fff; }
-html[data-theme="dark"] .reserva-folha .doc-company-meta { background: #f3f5f8; }
-html[data-theme="dark"] .reserva-folha .doc-company-meta strong,
+html[data-theme="dark"] .reserva-folha .doc-banner .doc-company-meta,
+html[data-theme="dark"] .reserva-folha .doc-banner .doc-company-meta strong { background: transparent; color: #fff; }
 html[data-theme="dark"] .reserva-folha .doc-title,
 html[data-theme="dark"] .reserva-folha .doc-fact strong { color: #1c1c1c; }
 html[data-theme="dark"] body { background: #101318; }
@@ -2036,13 +2040,13 @@ body.printing #print-root {
   body.printing .doc-title-row { display: flex !important; flex-direction: row !important; justify-content: space-between !important; align-items: flex-start !important; }
   body.printing .doc-title-kicker { color: #f26b1a !important; }
   body.printing .doc-title { color: #1c2430 !important; font-size: 22px !important; }
-  body.printing .doc-company-meta {
+  body.printing .doc-banner .doc-company-meta {
     display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-    background: #f3f5f8 !important; border-left: 4px solid #f26b1a !important;
-    -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;
+    background: transparent !important; border: 0 !important; border-top: 1px solid rgba(255,255,255,.2) !important;
   }
-  body.printing .doc-company-meta span { color: #f26b1a !important; }
-  body.printing .doc-company-meta strong { color: #1c2430 !important; }
+  body.printing .doc-banner .doc-company-meta span { color: #f26b1a !important; }
+  body.printing .doc-banner .doc-company-meta strong,
+  body.printing .doc-banner .doc-emitido { color: #fff !important; }
   body.printing .doc-facts { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 10px !important; }
   body.printing .doc-fact { border: 1px solid #e3e7ee !important; border-radius: 10px !important; }
   body.printing .doc-fact span,

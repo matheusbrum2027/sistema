@@ -512,8 +512,9 @@ function reserva_cabecalho_empresa(array $s, string $titulo, string $kicker = 'D
     if ($local !== '') {
         echo '<p class="doc-local">' . e($local) . '</p>';
     }
-    echo '</div></div></header>';
-
+    echo '</div>';
+    echo '<em class="doc-emitido">' . e(reserva_emitido_texto()) . '</em>';
+    echo '</div>';
     echo '<ul class="doc-company-meta">';
     foreach ([
         'CNPJ' => (string) ($s['cnpj'] ?? ''),
@@ -529,11 +530,10 @@ function reserva_cabecalho_empresa(array $s, string $titulo, string $kicker = 'D
         $largo = $rotulo === 'Endereço' ? ' class="is-endereco"' : '';
         echo '<li' . $largo . '><span>' . e($rotulo) . '</span><strong>' . e($valor) . '</strong></li>';
     }
-    echo '</ul>';
+    echo '</ul></header>';
 
     echo '<div class="doc-title-row">';
     echo '<div><p class="doc-title-kicker">' . e(mb_strtoupper($kicker)) . '</p><h3 class="doc-title">' . e($titulo) . '</h3></div>';
-    echo '<em class="doc-emitido">' . e(reserva_emitido_texto()) . '</em>';
     echo '</div>';
 }
 

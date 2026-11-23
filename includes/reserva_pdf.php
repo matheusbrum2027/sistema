@@ -103,7 +103,6 @@ final class ReservaPdfFolha
         $this->paginas[] = $this->pagina;
         $this->pagina->ret(0, 0, self::LARGURA, self::ALTURA, self::BRANCO);
         $this->faixa();
-        $this->empresa();
         $this->cabecalho();
     }
 
@@ -114,57 +113,7 @@ final class ReservaPdfFolha
 
     private function faixa(): void
     {
-        $altura = 86.0;
-        $topo = self::ALTURA;
-        $this->pagina->ret(0, $topo - $altura, self::LARGURA, $altura, self::NAVY);
-        $this->pagina->ret(0, $topo - $altura - 3, self::LARGURA, 3, self::ORANGE);
-
-        $caixa = 58.0;
-        $x = self::MARGEM;
-        $y = $topo - 14 - $caixa;
-        $this->pagina->ret($x, $y, $caixa, $caixa, self::BRANCO);
-        $logo = $this->logo();
-        if ($logo !== null) {
-            $this->desenharImagem('ImLogo', $logo, $x + 4, $y + 4, $caixa - 8, $caixa - 8);
-        } else {
-            $marca = trim((string) ($this->settings['nome'] ?? '')) ?: 'FLN';
-            $sigla = mb_strtoupper(mb_substr($marca, 0, 3));
-            $this->pagina->ret($x + 6, $y + 6, $caixa - 12, $caixa - 12, self::ORANGE);
-            $this->pagina->txt($x + 14, $y + 24, 12, $sigla, true, self::BRANCO);
-        }
-
-        $textoX = $x + $caixa + 14;
-        $textoL = self::LARGURA - $textoX - self::MARGEM;
-        $marca = mb_strtoupper(trim((string) ($this->settings['nome'] ?? '')) ?: 'TRANSFER FLN');
-        $razao = trim((string) ($this->settings['razao'] ?? '')) ?: 'Fln Transfer Executivo e Turismo';
-        $local = reserva_cidade_uf($this->settings);
-        $this->pagina->txt($textoX, $topo - 28, 8, $this->umaLinha($marca, $textoL, 8, true), true, self::ORANGE);
-        $linhasRazao = $this->quebrar($razao, $textoL, 13, true);
-        $base = $topo - 46;
-        foreach (array_slice($linhasRazao, 0, 2) as $i => $linha) {
-            $this->pagina->txt($textoX, $base - ($i * 15), 13, $linha, true, self::BRANCO);
-        }
-        if ($local !== '') {
-            $this->pagina->txt($textoX, $topo - 74, 9, $this->umaLinha($local, $textoL, 9, false), false, self::LOCAL);
-        }
-        $this->y = $topo - $altura - 16;
-    }
-
-    private function cabecalho(): void
-    {
-        $this->pagina->txt(self::MARGEM, $this->y - 10, 8, mb_strtoupper($this->kicker), true, self::ORANGE);
-        $linhas = $this->quebrar($this->titulo, 360, 16, true);
-        $this->pagina->txt(self::MARGEM, $this->y - 30, 16, $linhas[0] ?? $this->titulo, true, self::INK);
-        $emitido = reserva_emitido_texto();
-        $largura = $this->medida($emitido, 9, false);
-        $this->pagina->txt(self::LARGURA - self::MARGEM - $largura, $this->y - 12, 9, $emitido, false, self::MUTED);
-        $this->y -= 46;
-    }
-
-    private function empresa(): void
-    {
         $curtos = [];
-        $endereco = '';
         foreach ([
             'CNPJ' => (string) ($this->settings['cnpj'] ?? ''),
             'Telefone' => (string) ($this->settings['telefone'] ?? ''),
@@ -178,35 +127,73 @@ final class ReservaPdfFolha
             }
         }
         $endereco = trim((string) ($this->settings['endereco'] ?? ''));
-        if ($curtos === [] && $endereco === '') {
-            return;
-        }
-        $colunas = 3;
         $largura = self::LARGURA - (self::MARGEM * 2);
-        $colW = $largura / $colunas;
-        $linhasCurtas = $curtos === [] ? 0 : (int) ceil(count($curtos) / $colunas);
-        $linhasEndereco = $endereco === '' ? [] : $this->quebrar($endereco, $largura - 24, 9, true);
-        $altura = 16 + ($linhasCurtas * 28) + ($linhasEndereco === [] ? 0 : 16 + (count($linhasEndereco) * 12));
-        $this->garantir($altura + 8);
-        $baixo = $this->y - $altura;
-        $this->pagina->ret(self::MARGEM, $baixo, $largura, $altura, self::GELO);
-        $this->pagina->ret(self::MARGEM, $baixo, 4, $altura, self::ORANGE);
-        foreach ($curtos as $i => [$rotulo, $valor]) {
-            $col = $i % $colunas;
-            $lin = intdiv($i, $colunas);
-            $x = self::MARGEM + 12 + ($col * $colW);
-            $y = $this->y - 16 - ($lin * 28);
-            $this->pagina->txt($x, $y, 7, mb_strtoupper($rotulo), true, self::ORANGE);
-            $this->pagina->txt($x, $y - 12, 9, $this->umaLinha($valor, $colW - 16, 9, true), true, self::INK);
+        $colW = $largura / 3;
+        $linhasCurtas = $curtos === [] ? 0 : (int) ceil(count($curtos) / 3);
+        $linhasEndereco = $endereco === '' ? [] : $this->quebrar($endereco, $largura, 8.5, false);
+        $blocoDados = ($linhasCurtas * 22) + ($linhasEndereco === [] ? 0 : 16 + (count($linhasEndereco) * 11));
+        $altura = 18 + 62 + ($blocoDados > 0 ? 12 + $blocoDados : 0) + 12;
+        $topo = self::ALTURA;
+        $this->pagina->ret(0, $topo - $altura, self::LARGURA, $altura, self::NAVY);
+        $this->pagina->ret(0, $topo - $altura - 3, self::LARGURA, 3, self::ORANGE);
+
+        $caixa = 56.0;
+        $x = self::MARGEM;
+        $logoY = $topo - 14 - $caixa;
+        $this->pagina->ret($x, $logoY, $caixa, $caixa, self::BRANCO);
+        $logo = $this->logo();
+        if ($logo !== null) {
+            $this->desenharImagem('ImLogo', $logo, $x + 3, $logoY + 3, $caixa - 6, $caixa - 6);
+        } else {
+            $marcaVazia = trim((string) ($this->settings['nome'] ?? '')) ?: 'FLN';
+            $sigla = mb_strtoupper(mb_substr($marcaVazia, 0, 3));
+            $this->pagina->ret($x + 6, $logoY + 6, $caixa - 12, $caixa - 12, self::ORANGE);
+            $this->pagina->txt($x + 14, $logoY + 22, 11, $sigla, true, self::BRANCO);
         }
-        if ($linhasEndereco !== []) {
-            $y = $this->y - 16 - ($linhasCurtas * 28);
-            $this->pagina->txt(self::MARGEM + 12, $y, 7, 'ENDEREÇO', true, self::ORANGE);
-            foreach ($linhasEndereco as $i => $linha) {
-                $this->pagina->txt(self::MARGEM + 12, $y - 12 - ($i * 12), 9, $linha, true, self::INK);
+
+        $emitido = reserva_emitido_texto();
+        $larguraEmitido = $this->medida($emitido, 8, false);
+        $this->pagina->txt(self::LARGURA - self::MARGEM - $larguraEmitido, $topo - 20, 8, $emitido, false, self::LOCAL);
+
+        $textoX = $x + $caixa + 12;
+        $textoL = self::LARGURA - $textoX - self::MARGEM - $larguraEmitido - 12;
+        $marca = mb_strtoupper(trim((string) ($this->settings['nome'] ?? '')) ?: 'TRANSFER FLN');
+        $razao = trim((string) ($this->settings['razao'] ?? '')) ?: 'Fln Transfer Executivo e Turismo';
+        $local = reserva_cidade_uf($this->settings);
+        $this->pagina->txt($textoX, $topo - 24, 8, $this->umaLinha($marca, $textoL, 8, true), true, self::ORANGE);
+        $this->pagina->txt($textoX, $topo - 40, 12, $this->umaLinha($razao, self::LARGURA - $textoX - self::MARGEM, 12, true), true, self::BRANCO);
+        if ($local !== '') {
+            $this->pagina->txt($textoX, $topo - 56, 8.5, $this->umaLinha($local, $textoL, 8.5, false), false, self::LOCAL);
+        }
+
+        if ($blocoDados > 0) {
+            $linha = $topo - 14 - 62 - 4;
+            $this->pagina->linha(self::MARGEM, $linha, self::LARGURA - self::MARGEM, $linha, [0.28, 0.34, 0.42]);
+            foreach ($curtos as $i => [$rotulo, $valor]) {
+                $col = $i % 3;
+                $lin = intdiv($i, 3);
+                $px = self::MARGEM + ($col * $colW);
+                $py = $linha - 14 - ($lin * 22);
+                $this->pagina->txt($px, $py, 6.5, mb_strtoupper($rotulo), true, self::ORANGE);
+                $this->pagina->txt($px, $py - 10, 8.5, $this->umaLinha($valor, $colW - 10, 8.5, false), false, self::BRANCO);
+            }
+            if ($linhasEndereco !== []) {
+                $py = $linha - 14 - ($linhasCurtas * 22);
+                $this->pagina->txt(self::MARGEM, $py, 6.5, 'ENDEREÇO', true, self::ORANGE);
+                foreach ($linhasEndereco as $i => $trecho) {
+                    $this->pagina->txt(self::MARGEM, $py - 11 - ($i * 11), 8.5, $trecho, false, self::BRANCO);
+                }
             }
         }
-        $this->y = $baixo - 12;
+        $this->y = $topo - $altura - 14;
+    }
+
+    private function cabecalho(): void
+    {
+        $this->pagina->txt(self::MARGEM, $this->y - 10, 8, mb_strtoupper($this->kicker), true, self::ORANGE);
+        $linhas = $this->quebrar($this->titulo, 360, 16, true);
+        $this->pagina->txt(self::MARGEM, $this->y - 30, 16, $linhas[0] ?? $this->titulo, true, self::INK);
+        $this->y -= 46;
     }
 
     private function destaques(): void
