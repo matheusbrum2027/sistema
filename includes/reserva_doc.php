@@ -173,6 +173,7 @@ function reserva_linhas(array $db, array $trip): array
             $linhas['Faturado']
         );
         if (!$esconde) {
+            $linhas['Valor'] = brl((float) ($trip['valor'] ?? 0));
             $linhas['Seu repasse'] = brl((float) ($trip['repasse'] ?? 0));
         }
     } elseif (!$esconde) {
@@ -352,7 +353,15 @@ function reserva_detalhes(array $db, array $trip): void
 {
     $obsItens = reserva_obs_itens($db, $trip);
     if (usuario_e_motorista()) {
+        $esconde = !empty($trip['esconder_valores']);
+        $valorCobrado = $trip['valor'] ?? 0;
+        $pagamentos = $trip['pagamentos'] ?? [];
         $trip = trip_sem_dados_cliente($trip);
+        if (!$esconde) {
+            $trip['valor'] = $valorCobrado;
+            $trip['pagamentos'] = is_array($pagamentos) ? $pagamentos : [];
+            $trip['esconder_valores'] = false;
+        }
     }
     echo '<dl class="detalhe-lista">';
     foreach (reserva_linhas($db, $trip) as $rotulo => $valor) {
@@ -623,6 +632,16 @@ function reserva_nome_pdf(array $trip): string
         $cliente = 'Cliente';
     }
     return $cliente . ' - Reserva ' . (int) ($trip['id'] ?? 0);
+}
+
+/** PDF de confirmação: nunca leva o repasse. O valor do cliente sai só com "Esconder valores". */
+function reserva_linhas_confirmacao(array $linhas, array $trip): array
+{
+    unset($linhas['Repasse do motorista'], $linhas['Seu repasse'], $linhas['Faturado']);
+    if (!empty($trip['esconder_valores'])) {
+        unset($linhas['Valor'], $linhas['Pagamento']);
+    }
+    return $linhas;
 }
 
 function reserva_arquivo_pdf(array $trip): string
@@ -901,16 +920,7 @@ function reserva_folha(array $db, array $trip): void
     reserva_cabecalho_empresa($s, 'Reserva #' . $id, 'Documento');
     reserva_destaques($db, $trip);
     echo '<h3 class="doc-sec-title">Dados da reserva</h3>';
-    $linhas = reserva_linhas($db, $trip);
-    // PDF de confirmação: sem valores financeiros (como o modelo oficial).
-    unset(
-        $linhas['Repasse do motorista'],
-        $linhas['Seu repasse'],
-        $linhas['Faturado'],
-        $linhas['Valor'],
-        $linhas['Pagamento']
-    );
-    reserva_tabela($linhas);
+    reserva_tabela(reserva_linhas_confirmacao(reserva_linhas($db, $trip), $trip));
     if ((string) ($trip['tipo'] ?? '') === 'trajetos' && is_array($trip['trajetos'] ?? null) && $trip['trajetos'] !== []) {
         echo '<h3 class="doc-sec-title">Trajetos</h3><ol class="doc-stops">';
         foreach ($trip['trajetos'] as $trecho) {

@@ -60,15 +60,7 @@ final class ReservaPdfFolha
         $this->abrir('Documento', 'Reserva #' . $this->reservaId);
         $this->destaques();
         $this->secao('Dados da reserva');
-        $linhas = reserva_linhas($this->db, $this->trip);
-        unset(
-            $linhas['Repasse do motorista'],
-            $linhas['Seu repasse'],
-            $linhas['Faturado'],
-            $linhas['Valor'],
-            $linhas['Pagamento']
-        );
-        $this->tabela($linhas);
+        $this->tabela(reserva_linhas_confirmacao(reserva_linhas($this->db, $this->trip), $this->trip));
         $this->trajetos();
         $nota = trim((string) ($this->settings['comp_rodape'] ?? ''));
         if ($nota !== '') {
