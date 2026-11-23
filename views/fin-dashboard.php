@@ -106,8 +106,14 @@ view_head();
       <tbody>
         <?php foreach ($prolabore as $linha): ?>
           <?php if ($motFiltro > 0 && (int) $linha['id'] !== $motFiltro) continue; ?>
+          <?php $painel = 'pro-mot-' . (int) $linha['id']; ?>
           <tr>
-            <td><?= e($linha['nome']) ?></td>
+            <td>
+              <button class="pro-abre" type="button" data-pro-abre aria-expanded="false" aria-controls="<?= e($painel) ?>">
+                <i class="pro-seta is-baixo" aria-hidden="true"></i>
+                <?= e($linha['nome']) ?>
+              </button>
+            </td>
             <td><?= (int) $linha['viagens'] ?></td>
             <td><?= (int) $linha['concluidas'] ?></td>
             <td><?= e(brl($linha['valor'])) ?></td>
@@ -116,6 +122,34 @@ view_head();
             <td><?= e(brl($linha['prolabore'])) ?></td>
             <td><?= e(brl($linha['prolabore_pago'])) ?></td>
             <td><?= e(brl($linha['prolabore_aberto'])) ?></td>
+          </tr>
+          <tr class="pro-painel" id="<?= e($painel) ?>" hidden>
+            <td colspan="9">
+              <table class="pro-lista">
+                <thead><tr><th>Nº</th><th>Data</th><th>Cliente</th><th>Status</th><th>Valor</th><th>Conta</th><th>Pro-labore</th></tr></thead>
+                <tbody>
+                  <?php foreach ($linha['itens'] as $item): ?>
+                    <tr>
+                      <td><a href="<?= e(href('agenda', ['ver' => $item['id'], 'mes' => substr((string) $item['data'], 0, 7)])) ?>">#<?= (int) $item['id'] ?></a></td>
+                      <td><?= e(br_date((string) $item['data'])) ?></td>
+                      <td><?= e((string) $item['cliente']) ?></td>
+                      <td><?= status_badge((string) $item['status']) ?></td>
+                      <td><?= e(brl((float) $item['valor'])) ?></td>
+                      <td><?= e($item['caixa'] === 'recebido' ? 'Recebido' : ($item['caixa'] === 'boleto' ? 'Boleto' : 'Na hora')) ?></td>
+                      <td><?php if ((string) $item['status'] !== 'concluida'): ?>—<?php else: ?><?= e(brl((float) $item['repasse'])) ?> · <?= !empty($item['repasse_pago']) ? 'Pago' : 'Em aberto' ?><?php endif; ?></td>
+                    </tr>
+                  <?php endforeach; ?>
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <td colspan="4">Soma das <?= (int) $linha['viagens'] ?> reservas</td>
+                    <td><?= e(brl($linha['valor'])) ?></td>
+                    <td>Na hora <?= e(brl($linha['vista'])) ?> · Boleto <?= e(brl($linha['boleto'])) ?></td>
+                    <td><?= e(brl($linha['prolabore'])) ?> · Pago <?= e(brl($linha['prolabore_pago'])) ?> · Aberto <?= e(brl($linha['prolabore_aberto'])) ?></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </td>
           </tr>
         <?php endforeach; ?>
       </tbody>

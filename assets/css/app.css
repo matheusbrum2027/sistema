@@ -397,6 +397,22 @@ td { padding: 12px 10px; border-bottom: 1px solid #eef0f3; vertical-align: middl
 .th-ord.is-on { color: var(--orange); }
 .th-ord.is-on .seta { opacity: 1; }
 .th-ord:hover { color: var(--orange); text-decoration: none; }
+.pro-abre {
+  display: inline-flex; align-items: center; gap: 8px;
+  border: 0; background: transparent; color: inherit; font: inherit; font-weight: 700;
+  padding: 0; cursor: pointer; text-align: left;
+}
+.pro-abre .pro-seta {
+  width: 0; height: 0; flex: 0 0 auto;
+  border-left: 4px solid transparent; border-right: 4px solid transparent;
+  border-bottom: 6px solid currentColor;
+}
+.pro-abre .pro-seta.is-baixo { border-bottom: 0; border-top: 6px solid currentColor; }
+.pro-abre[aria-expanded="true"] { color: var(--orange); }
+.pro-painel > td { background: var(--bg); padding: 8px 10px 12px; }
+.pro-lista { width: 100%; font-size: 12.5px; }
+.pro-lista th { background: transparent; font-size: 11px; }
+.pro-lista tfoot td { font-weight: 700; border-top: 1px solid var(--line); }
 .table-reservas .col-fixo,
 .table-reservas .col-fixo .tag,
 .table-reservas .col-fixo .badge { white-space: nowrap; }

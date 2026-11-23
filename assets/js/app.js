@@ -646,6 +646,15 @@
       abas[Math.min(abas.length - 1, atual + 1)]?.click();
       return;
     }
+    const proAbre = event.target.closest('[data-pro-abre]');
+    if (proAbre) {
+      const painel = document.getElementById(proAbre.getAttribute('aria-controls') || '');
+      const aberto = proAbre.getAttribute('aria-expanded') === 'true';
+      proAbre.setAttribute('aria-expanded', aberto ? 'false' : 'true');
+      if (painel) painel.hidden = aberto;
+      proAbre.querySelector('.pro-seta')?.classList.toggle('is-baixo', aberto);
+      return;
+    }
     const editarCfg = event.target.closest('[data-cfg-edit]');
     if (editarCfg) {
       const card = editarCfg.closest('.cfg-card');

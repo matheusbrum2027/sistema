@@ -416,29 +416,52 @@ function resumo_prolabore(array $db, string $de, string $ate): array
                 'prolabore' => 0.0,
                 'prolabore_pago' => 0.0,
                 'prolabore_aberto' => 0.0,
+                'itens' => [],
             ];
         }
         $valor = (float) ($t['valor'] ?? 0);
         $por[$mid]['viagens']++;
         $por[$mid]['valor'] += $valor;
+        $caixa = 'vista';
         if (!empty($t['pago'])) {
             $por[$mid]['recebido'] += $valor;
+            $caixa = 'recebido';
         } elseif (!empty($t['faturado'])) {
             $por[$mid]['boleto'] += $valor;
+            $caixa = 'boleto';
         } else {
             $por[$mid]['vista'] += $valor;
         }
+        $repasse = 0.0;
+        $repassePago = false;
         if ((string) ($t['status'] ?? '') === 'concluida') {
             $repasse = (float) ($t['repasse'] ?? 0);
             $por[$mid]['concluidas']++;
             $por[$mid]['prolabore'] += $repasse;
-            if (repasse_esta_pago($db, (int) $t['id'])) {
+            $repassePago = repasse_esta_pago($db, (int) $t['id']);
+            if ($repassePago) {
                 $por[$mid]['prolabore_pago'] += $repasse;
             } else {
                 $por[$mid]['prolabore_aberto'] += $repasse;
             }
         }
+        $por[$mid]['itens'][] = [
+            'id' => (int) ($t['id'] ?? 0),
+            'data' => $data,
+            'cliente' => (string) ($t['cliente'] ?? ''),
+            'status' => (string) ($t['status'] ?? ''),
+            'valor' => $valor,
+            'caixa' => $caixa,
+            'repasse' => $repasse,
+            'repasse_pago' => $repassePago,
+        ];
     }
+    foreach ($por as &$grupo) {
+        usort($grupo['itens'], static function (array $a, array $b): int {
+            return strcmp((string) $b['data'], (string) $a['data']) ?: ((int) $b['id'] <=> (int) $a['id']);
+        });
+    }
+    unset($grupo);
     uasort($por, static fn(array $a, array $b): int => $b['prolabore'] <=> $a['prolabore']);
     return array_values($por);
 }
