@@ -58,7 +58,7 @@
     var partes = [];
     if (clima) {
       var dias = (clima.dias || []).map(function (dia, i) {
-        return '<button type="button" class="mot-dia' + (i === 0 ? ' is-on' : '') + '" data-mot-dia="' + i + '">' +
+        return '<button type="button" class="mot-dia' + (i === 0 ? ' is-on' : '') + '" data-mot-dia="' + i + '" data-mot-icone="' + dia.icone + '">' +
           '<b>' + dia.rotulo + '</b><span>' + dia.max + '° / ' + dia.min + '°</span></button>';
       }).join('');
       var infos = (clima.dias || []).map(function (dia, i) {
@@ -66,14 +66,18 @@
           dia.texto + ' · chuva ' + dia.chuva + '%</p>';
       }).join('');
       partes.push(
-        '<button type="button" class="mot-card mot-card-clima is-aberto" data-mot-card="clima" aria-expanded="true">' +
+        '<article class="mot-card mot-card-clima is-aberto mot-ceu-' + clima.icone + '" data-mot-card="clima">' +
+          '<span class="mot-ceu" aria-hidden="true">' +
+            '<span class="mot-sol"></span><span class="mot-nuvem"></span>' +
+            '<span class="mot-chuva"><i></i><i></i><i></i><i></i><i></i><i></i></span>' +
+          '</span>' +
           '<span class="mot-card-k">Florianópolis</span>' +
           '<span class="mot-clima-linha"><span class="mot-ico">' + icone(clima.icone) + '</span><strong>' + clima.temp + '°</strong></span>' +
           '<small>' + clima.texto + '</small>' +
           '<span class="mot-dias">' + dias + '</span>' +
           '<span class="mot-detalhe">' + infos +
             '<em>Sensação ' + clima.sensacao + '° · umidade ' + clima.umidade + '% · vento ' + clima.vento + ' km/h</em>' +
-          '</span></button>'
+          '</span></article>'
       );
     }
     (cambio || []).forEach(function (moeda) {
@@ -81,12 +85,13 @@
       var sinal = variacao > 0 ? '+' : '';
       var tom = variacao > 0 ? 'sobe' : (variacao < 0 ? 'desce' : '');
       partes.push(
-        '<button type="button" class="mot-card mot-card-moeda" data-mot-card="' + moeda.sigla + '" aria-expanded="false">' +
+        '<article class="mot-card mot-card-moeda ' + tom + '" data-mot-card="' + moeda.sigla + '">' +
           '<span class="mot-card-k"><b class="mot-sigla">' + moeda.sigla + '</b> ' + moeda.moeda + '</span>' +
           '<strong>' + dinheiro(moeda.compra) + '</strong>' +
           '<small class="' + tom + '">' + sinal + variacao.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '% hoje</small>' +
+          '<span class="mot-bolsa" aria-hidden="true"><svg viewBox="0 0 120 36" preserveAspectRatio="none"><path class="mot-traco" d="' + (variacao < 0 ? 'M0 8 C20 10 30 14 46 18 C62 24 78 22 96 28 L120 32' : 'M0 30 C18 26 34 22 50 16 C68 10 86 12 120 4') + '"/></svg></span>' +
           '<span class="mot-detalhe">Compra ' + dinheiro(moeda.compra) + '<br>Venda ' + dinheiro(moeda.venda) +
-            '<br>Mínima ' + dinheiro(moeda.min) + ' · Máxima ' + dinheiro(moeda.max) + '</span></button>'
+            '<br>Mínima ' + dinheiro(moeda.min) + ' · Máxima ' + dinheiro(moeda.max) + '</span></article>'
       );
     });
     if (!partes.length) {
@@ -106,6 +111,8 @@
         var chave = el.getAttribute('data-mot-dia') || el.getAttribute('data-mot-info');
         el.classList.toggle('is-on', chave === indice);
       });
+      var ceu = dia.getAttribute('data-mot-icone') || 'nuvem';
+      cardDia.className = cardDia.className.replace(/mot-ceu-[\w-]+/, 'mot-ceu-' + ceu);
       return;
     }
     var card = ev.target.closest('[data-mot-card]');
@@ -138,7 +145,8 @@
           min: Math.round(Number((tempo.daily.temperature_2m_min || [])[i] || 0)),
           max: Math.round(Number((tempo.daily.temperature_2m_max || [])[i] || 0)),
           chuva: Math.round(Number((tempo.daily.precipitation_probability_max || [])[i] || 0)),
-          texto: dia.texto
+          texto: dia.texto,
+          icone: dia.icone
         };
       });
       clima = {

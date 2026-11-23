@@ -3074,25 +3074,67 @@ html[data-theme="dark"] .chat-x {
 }
 .mot-painel-grade { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 10px; }
 .mot-card {
+  position: relative; overflow: hidden;
   display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
   min-height: 148px; padding: 14px; text-align: left; cursor: pointer;
-  border: 1px solid var(--line); border-radius: 16px; background: var(--bg); color: var(--ink);
-  box-shadow: 0 8px 20px rgba(16, 19, 24, .06);
+  border: 1px solid #e6e8ee; border-radius: 16px;
+  background: #fff; color: #152033;
+  box-shadow: 0 8px 20px rgba(16, 19, 24, .08);
 }
-.mot-card-clima {
-  background:
-    radial-gradient(90% 80% at 100% 0%, rgba(242, 107, 26, .22), transparent 55%),
-    var(--bg);
+.mot-card-clima { background: #fff; padding-top: 62px; }
+.mot-ceu {
+  position: absolute; inset: 0 0 auto 0; height: 54px; pointer-events: none; overflow: hidden;
 }
+.mot-sol, .mot-nuvem, .mot-chuva { display: none; }
+.mot-sol {
+  position: absolute; top: 8px; right: 16px; width: 28px; height: 28px; border-radius: 50%;
+  background: #f5b400; box-shadow: 0 0 0 6px rgba(245, 180, 0, .25);
+}
+.mot-nuvem {
+  position: absolute; top: 16px; right: 18px; width: 46px; height: 16px; border-radius: 16px;
+  background: #d5dbe6;
+}
+.mot-nuvem::before {
+  content: ""; position: absolute; left: 8px; top: -10px; width: 18px; height: 18px; border-radius: 50%;
+  background: #d5dbe6;
+}
+.mot-chuva { position: absolute; inset: 0; }
+.mot-chuva i {
+  position: absolute; top: -8px; width: 2px; height: 10px; border-radius: 2px; background: #5b9dff; opacity: .85;
+  animation: mot-pingo 1.1s linear infinite;
+}
+.mot-chuva i:nth-child(1) { left: 18%; animation-delay: 0s; }
+.mot-chuva i:nth-child(2) { left: 36%; animation-delay: .2s; }
+.mot-chuva i:nth-child(3) { left: 52%; animation-delay: .45s; }
+.mot-chuva i:nth-child(4) { left: 68%; animation-delay: .1s; }
+.mot-chuva i:nth-child(5) { left: 80%; animation-delay: .55s; }
+.mot-chuva i:nth-child(6) { left: 90%; animation-delay: .3s; }
+.mot-ceu-sol .mot-sol, .mot-ceu-sol-nuvem .mot-sol { display: block; animation: mot-sol 3.2s ease-in-out infinite; }
+.mot-ceu-sol-nuvem .mot-nuvem, .mot-ceu-nuvem .mot-nuvem, .mot-ceu-chuva .mot-nuvem, .mot-ceu-tempestade .mot-nuvem, .mot-ceu-neblina .mot-nuvem { display: block; animation: mot-nuvem 4s ease-in-out infinite; }
+.mot-ceu-chuva .mot-chuva, .mot-ceu-tempestade .mot-chuva { display: block; }
+.mot-ceu-tempestade .mot-ceu { animation: mot-raio 2.4s ease-in-out infinite; }
+@keyframes mot-pingo { from { transform: translateY(0); opacity: 0; } 20% { opacity: 1; } to { transform: translateY(52px); opacity: 0; } }
+@keyframes mot-sol { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.12); } }
+@keyframes mot-nuvem { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(-8px); } }
+@keyframes mot-raio { 0%, 86%, 100% { background: transparent; } 90%, 94% { background: rgba(245, 180, 0, .35); } }
+.mot-bolsa { display: block; width: 100%; height: 36px; margin-top: 6px; }
+.mot-bolsa svg { width: 100%; height: 36px; display: block; }
+.mot-traco { fill: none; stroke: #5c6573; stroke-width: 2.5; stroke-linecap: round; }
+.mot-card-moeda.sobe .mot-traco { stroke: #15803d; }
+.mot-card-moeda.desce .mot-traco { stroke: #b91c1c; }
+.mot-card-moeda.sobe .mot-bolsa svg { animation: mot-sobe 1.6s ease-in-out infinite; }
+.mot-card-moeda.desce .mot-bolsa svg { animation: mot-desce 1.6s ease-in-out infinite; }
+@keyframes mot-sobe { 0%, 100% { transform: translateY(3px); } 50% { transform: translateY(-4px); } }
+@keyframes mot-desce { 0%, 100% { transform: translateY(-3px); } 50% { transform: translateY(4px); } }
 .mot-sigla {
   display: inline-grid; place-items: center; min-width: 36px; height: 18px; margin-right: 4px;
   border-radius: 999px; background: #152033; color: #fff; font-size: 10px; letter-spacing: .04em;
 }
 .mot-card strong { font-size: 22px; line-height: 1.1; }
-.mot-card small { color: var(--muted); font-size: 12px; }
+.mot-card small { color: #5c6573; font-size: 12px; }
 .mot-card small.sobe { color: #15803d; }
 .mot-card small.desce { color: #b91c1c; }
-.mot-card-k { font-size: 11px; font-weight: 700; color: var(--faint); }
+.mot-card-k { font-size: 11px; font-weight: 700; color: #5c6573; }
 .mot-clima-linha { display: flex; align-items: center; gap: 8px; }
 .mot-ico { width: 28px; height: 28px; color: var(--orange); }
 .mot-ico svg { width: 28px; height: 28px; display: block; }
@@ -3102,10 +3144,10 @@ html[data-theme="dark"] .chat-x {
 .mot-dias { display: flex; gap: 6px; width: 100%; margin-top: 8px; }
 .mot-dia {
   flex: 1; min-width: 0; padding: 6px; border-radius: 8px;
-  border: 1px solid var(--line); background: var(--card); color: var(--ink); text-align: center;
+  border: 1px solid #e6e8ee; background: #f6f7f9; color: #152033; text-align: center;
 }
 .mot-dia b, .mot-dia span { display: block; }
-.mot-dia span { color: var(--muted); font-size: 11px; }
+.mot-dia span { color: #5c6573; font-size: 11px; }
 .mot-dia.is-on { border-color: var(--orange); color: var(--orange); }
 .mot-dia-info { display: none; margin: 0 0 4px; }
 .mot-dia-info.is-on { display: block; }
