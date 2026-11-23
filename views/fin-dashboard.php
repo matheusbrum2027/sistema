@@ -101,7 +101,7 @@ view_head();
 <section class="card" style="margin-top:12px">
   <header class="card-h"><h2>Pro-labore por motorista</h2></header>
   <div class="table-wrap">
-    <table>
+    <table class="pro-tabela">
       <thead><tr><th>Motorista</th><th>Viagens</th><th>Concluídas</th><th>Receita</th><th>Na hora</th><th>Boleto</th><th>Pro-labore</th><th>Pago</th><th>Em aberto</th></tr></thead>
       <tbody>
         <?php foreach ($prolabore as $linha): ?>
