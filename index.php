@@ -219,6 +219,19 @@ if ((string) ($_GET['p'] ?? '') === 'analise') {
     exit;
 }
 
+if ((string) ($_GET['p'] ?? '') === 'clima') {
+    header('Content-Type: application/json; charset=utf-8');
+    header('Cache-Control: private, no-store');
+    if (!painel_clima_sessao()) {
+        http_response_code(401);
+        echo '{"ok":false}';
+        exit;
+    }
+    session_write_close();
+    echo json_encode(painel_clima_publico(), JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 if ((string) ($_GET['p'] ?? '') === 'mapa') {
     header('Content-Type: application/json; charset=utf-8');
     header('Cache-Control: private, no-store');

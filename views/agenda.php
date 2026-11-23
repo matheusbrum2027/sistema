@@ -189,7 +189,23 @@ $cartaoAgenda = static function (array $leg, bool $admin, array $obsPorId): void
     <?php
 };
 if (!$admin) {
+    $meuNome = '';
+    foreach ($db['motoristas'] ?? [] as $motLinha) {
+        if ((int) ($motLinha['id'] ?? 0) === $meuId && (string) ($motLinha['status'] ?? '') === 'ativo') {
+            $meuNome = trim((string) ($motLinha['nome'] ?? ''));
+            break;
+        }
+    }
+    $partesNome = preg_split('/\s+/u', $meuNome) ?: [];
+    $primeiroNome = trim((string) ($partesNome[0] ?? ''));
+    if ($primeiroNome === '') {
+        $primeiroNome = 'Motorista';
+    }
     view_head('', 'Suas viagens. O acesso mostra somente o que foi atribuído a você.');
+    echo '<section class="mot-painel" data-mot-painel aria-label="Clima e câmbio">';
+    echo '<div class="mot-painel-topo"><div><strong>Olá, ' . e($primeiroNome) . '</strong><small>Painel só seu · Florianópolis</small></div><time data-mot-relogio>--:--</time></div>';
+    echo '<div class="mot-painel-grade" data-mot-grade><p class="mot-painel-espera">Carregando clima e câmbio…</p></div>';
+    echo '</section>';
     echo '<p id="push-estado" class="help">Preparando os avisos deste celular…</p>';
 } else {
     view_head();

@@ -29,6 +29,7 @@ require_once __DIR__ . '/senha.php';
 require_once __DIR__ . '/totp.php';
 require_once __DIR__ . '/campanha.php';
 require_once __DIR__ . '/mapa.php';
+require_once __DIR__ . '/painel_clima.php';
 require_once __DIR__ . '/analise.php';
 require_once __DIR__ . '/supabase.php';
 require_once __DIR__ . '/store.php';

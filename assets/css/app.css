@@ -2990,3 +2990,52 @@ dialog.dlg-ficha.dlg-dossie:modal { width: min(560px, 100vw) !important; }
   .lista-cards { grid-template-columns: 1fr; }
   .agenda-card { min-height: 44px; }
 }
+.mot-painel,
+.mot-painel * { text-transform: none !important; letter-spacing: 0 !important; }
+.mot-painel {
+  margin: 0 0 14px; padding: 14px;
+  border: 1px solid var(--line); border-radius: 16px;
+  background:
+    radial-gradient(120% 80% at 100% 0%, rgba(242, 107, 26, .18), transparent 46%),
+    var(--card);
+}
+.mot-painel-topo {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px;
+}
+.mot-painel-topo strong { display: block; font-size: 18px; }
+.mot-painel-topo small { color: var(--muted); font-size: 12px; }
+.mot-painel-topo time {
+  font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--orange);
+}
+.mot-painel-grade { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.mot-card {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+  min-height: 92px; padding: 12px; text-align: left;
+  border: 1px solid var(--line); border-radius: 12px; background: var(--bg); color: var(--ink);
+}
+.mot-card strong { font-size: 22px; line-height: 1.1; }
+.mot-card small { color: var(--muted); font-size: 12px; }
+.mot-card small.sobe { color: #15803d; }
+.mot-card small.desce { color: #b91c1c; }
+.mot-card-k { font-size: 11px; font-weight: 700; color: var(--faint); }
+.mot-clima-linha { display: flex; align-items: center; gap: 8px; }
+.mot-ico { width: 28px; height: 28px; color: var(--orange); }
+.mot-ico svg { width: 28px; height: 28px; display: block; }
+.mot-detalhe { display: none; width: 100%; margin-top: 8px; color: var(--muted); font-size: 12px; line-height: 1.45; }
+.mot-card.is-aberto { border-color: var(--orange); }
+.mot-card.is-aberto .mot-detalhe { display: block; }
+.mot-dias { display: flex; gap: 6px; margin-bottom: 6px; }
+.mot-dia {
+  flex: 1; min-width: 0; padding: 6px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--card); color: var(--ink); text-align: center;
+}
+.mot-dia b, .mot-dia span { display: block; }
+.mot-dia span { color: var(--muted); font-size: 11px; }
+.mot-dia.is-on { border-color: var(--orange); color: var(--orange); }
+.mot-dia-info { display: none; margin: 0 0 4px; }
+.mot-dia-info.is-on { display: block; }
+.mot-detalhe em { font-style: normal; }
+.mot-painel-espera { margin: 0; color: var(--muted); }
+@media (max-width: 720px) {
+  .mot-painel-grade { grid-template-columns: 1fr; }
+}

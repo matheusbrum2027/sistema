@@ -22,6 +22,9 @@ declare(strict_types=1);
   </footer>
 </dialog>
 <script src="assets/js/app.js?v=41"></script>
+<?php if (($_SESSION['role'] ?? '') === 'motorista' && !empty($_SESSION['auth'])): ?>
+<script src="assets/js/painel-motorista.js?v=1"></script>
+<?php endif; ?>
 <?php if (($_SESSION['role'] ?? '') === 'admin' && !empty($_SESSION['auth']) && empty($bare)): ?>
 <div class="flutuantes-direita" id="flutuantes-direita">
   <div class="chat-borda" id="chat-borda">
