@@ -419,6 +419,8 @@ td { padding: 12px 10px; border-bottom: 1px solid #eef0f3; vertical-align: middl
 .pro-lista tfoot td { font-weight: 700; border-top: 1px solid var(--line); }
 .pro-tabela tr:hover > td { background: transparent; color: inherit; }
 .pro-tabela .pro-painel:hover > td { background: var(--bg); }
+.pro-painel:hover .pro-lista td,
+.pro-lista tr:hover td { background: transparent; color: inherit; }
 .table-reservas .col-fixo,
 .table-reservas .col-fixo .tag,
 .table-reservas .col-fixo .badge { white-space: nowrap; }
@@ -1747,6 +1749,8 @@ html[data-theme="dark"] .range a:hover,
 html[data-theme="dark"] tr:hover td { background: #2c3442; color: var(--ink); }
 html[data-theme="dark"] .pro-tabela tr:hover > td { background: transparent; color: var(--ink); }
 html[data-theme="dark"] .pro-tabela .pro-painel:hover > td { background: var(--bg); }
+html[data-theme="dark"] .pro-painel:hover .pro-lista td,
+html[data-theme="dark"] .pro-lista tr:hover td { background: transparent; color: inherit; }
 html[data-theme="dark"] th { background: #232833; color: var(--muted); }
 html[data-theme="dark"] td { border-bottom-color: #2e3644; }
 html[data-theme="dark"] .box,
