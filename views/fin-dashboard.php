@@ -55,9 +55,9 @@ $lucroReal = $recebido - $despPaga;
 view_head();
 ?>
 <div class="month-nav">
-  <a class="btn btn-sm" href="<?= e(href('fin-dashboard', ['mes' => $cursor->modify('-1 month')->format('Y-m')])) ?>">‹</a>
+  <a class="btn btn-sm" href="<?= e(href('fin-dashboard', ['mes' => $cursor->modify('-1 month')->format('Y-m')] + ($motFiltro > 0 ? ['mot' => $motFiltro] : []))) ?>">‹</a>
   <strong><?= e(ucfirst(mes_longo($cursor))) ?> de <?= e($cursor->format('Y')) ?></strong>
-  <a class="btn btn-sm" href="<?= e(href('fin-dashboard', ['mes' => $cursor->modify('+1 month')->format('Y-m')])) ?>">›</a>
+  <a class="btn btn-sm" href="<?= e(href('fin-dashboard', ['mes' => $cursor->modify('+1 month')->format('Y-m')] + ($motFiltro > 0 ? ['mot' => $motFiltro] : []))) ?>">›</a>
 </div>
 <form class="filters" method="get" action="index.php">
   <input type="hidden" name="p" value="fin-dashboard">

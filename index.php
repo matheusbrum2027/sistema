@@ -562,7 +562,7 @@ if (in_array($current, ['entrar', 'seja-motorista', 'aplicativo'], true) && !pre
         $modo = 'corridas';
     } elseif (in_array($current, $comCorridas, true) || ($current === 'mot-cadastros' && (int) ($_GET['id'] ?? 0) > 0)) {
         $modo = 'corridas';
-        if (in_array($current, ['reservas', 'faturado', 'viagens'], true)) {
+        if (in_array($current, ['reservas', 'viagens', 'faturado'], true)) {
             $dePedido = (string) ($_GET['de'] ?? '');
             $atePedido = (string) ($_GET['ate'] ?? '');
             if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $dePedido) === 1) {
@@ -573,8 +573,45 @@ if (in_array($current, ['entrar', 'seja-motorista', 'aplicativo'], true) && !pre
             }
         }
     }
-    // Sem intervalo, a lista do mês inteiro saía do banco. O padrão é de ontem a daqui a sete dias.
-    if (in_array($modo, ['corridas', 'financeiro'], true) && ($de === '' || $ate === '')) {
+    if ($current === 'fin-dashboard') {
+        $mesFin = (string) ($_GET['mes'] ?? '');
+        if (preg_match('/^\d{4}-\d{2}$/', $mesFin) !== 1) {
+            $mesFin = today()->format('Y-m');
+        }
+        $inicioMes = DateTimeImmutable::createFromFormat('!Y-m-d', $mesFin . '-01', new DateTimeZone('America/Sao_Paulo'));
+        if ($inicioMes instanceof DateTimeImmutable) {
+            $de = $inicioMes->format('Y-m-d');
+            $ate = $inicioMes->modify('last day of this month')->format('Y-m-d');
+        }
+    }
+    if (in_array($current, ['receber', 'relatorios'], true)) {
+        $dePedido = (string) ($_GET['de'] ?? '');
+        $atePedido = (string) ($_GET['ate'] ?? '');
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $dePedido) === 1) {
+            $de = $dePedido;
+        }
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $atePedido) === 1) {
+            $ate = $atePedido;
+        }
+    }
+    if ($current === 'relatorios' && ($de === '' || $ate === '')) {
+        if ($de === '' && $ate === '') {
+            $de = today()->format('Y-m-01');
+            $ate = today()->modify('last day of this month')->format('Y-m-d');
+        } elseif ($de === '') {
+            $de = $ate;
+        } else {
+            $ate = $de;
+        }
+    }
+    if ($current === 'faturado' && $de === '' && $ate === '') {
+        $de = today()->format('Y-m-01');
+        $ate = today()->modify('last day of this month')->format('Y-m-d');
+        $_GET['de'] = $de;
+        $_GET['ate'] = $ate;
+    }
+    // Reservas e viagens, sem data, ficam na semana. O financeiro pede o mês que está na tela.
+    if (in_array($current, ['reservas', 'viagens'], true) && in_array($modo, ['corridas', 'financeiro'], true) && ($de === '' || $ate === '')) {
         if ($de === '') {
             $de = today()->modify('-1 day')->format('Y-m-d');
         }
