@@ -100,6 +100,34 @@ if (isset($_GET['cron'])) {
     }
     session_write_close();
     try {
+        $eco = null;
+        try {
+            $eco = store_rpc('fln_eco', ['p_chave' => 'cron', 'p_base' => store_base()], 8);
+        } catch (Throwable) {
+            $eco = null;
+        }
+        if (is_array($eco) && !empty($eco['igual'])) {
+            $ajustes = is_array($eco['settings'] ?? null) ? $eco['settings'] : [];
+            $sheetsPendente = sheets_ativo() && !empty($ajustes['sheets_sync_pendente']);
+            $drivePendente = function_exists('drive_conectado')
+                && drive_conectado(['settings' => $ajustes])
+                && (string) ($ajustes['drive_ultimo_dia'] ?? '') !== today()->format('d/m/Y');
+            if (!$sheetsPendente && !$drivePendente) {
+                $presenca = ['ok' => false, 'pulado' => true];
+                try {
+                    if (function_exists('uazapi_aplicar_presenca')
+                        && (($ajustes['wa_status'] ?? '') === 'conectado')
+                        && uazapi_settings_ready($ajustes)) {
+                        uazapi_aplicar_presenca($ajustes);
+                        $presenca = ['ok' => true, 'pulado' => false];
+                    }
+                } catch (Throwable) {
+                    $presenca = ['ok' => false];
+                }
+                echo json_encode(['ok' => true, 'enviados' => 0, 'eco' => true, 'presenca' => $presenca, 'em' => date('Y-m-d H:i')]);
+                exit;
+            }
+        }
         $enviados = disparar_pendentes(40.0);
         $sheetsOk = null;
         $drive = null;
@@ -133,6 +161,10 @@ if (isset($_GET['cron'])) {
                 $out = drive_cron($db);
                 return is_array($out) ? $out : ['ok' => true, 'pulado' => true];
             });
+        }
+        try {
+            store_rpc('fln_eco_marcar', ['p_chave' => 'cron', 'p_base' => store_base()], 8);
+        } catch (Throwable) {
         }
         echo json_encode(['ok' => true, 'enviados' => $enviados, 'sheets' => $sheetsOk, 'drive' => $drive, 'presenca' => $presenca, 'em' => date('Y-m-d H:i')]);
     } catch (Throwable $e) {
@@ -519,13 +551,13 @@ if (in_array($current, ['entrar', 'seja-motorista', 'aplicativo'], true) && !pre
             }
         }
     }
-    // Sem intervalo, a lista inteira saía do banco. O padrão passa a ser o mês corrente.
+    // Sem intervalo, a lista do mês inteiro saía do banco. O padrão é de ontem a daqui a sete dias.
     if (in_array($modo, ['corridas', 'financeiro'], true) && ($de === '' || $ate === '')) {
         if ($de === '') {
-            $de = today()->modify('first day of this month')->format('Y-m-d');
+            $de = today()->modify('-1 day')->format('Y-m-d');
         }
         if ($ate === '') {
-            $ate = today()->modify('last day of this month')->format('Y-m-d');
+            $ate = today()->modify('+7 days')->format('Y-m-d');
         }
         $_GET['de'] = $de;
         $_GET['ate'] = $ate;
