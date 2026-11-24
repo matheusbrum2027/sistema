@@ -562,6 +562,15 @@ if (in_array($current, ['entrar', 'seja-motorista', 'aplicativo'], true) && !pre
         $modo = 'corridas';
     } elseif (in_array($current, $comCorridas, true) || ($current === 'mot-cadastros' && (int) ($_GET['id'] ?? 0) > 0)) {
         $modo = 'corridas';
+        $reservasPediuData = $current === 'reservas' && (isset($_GET['de']) || isset($_GET['ate']));
+        if ($current === 'reservas' && !$reservasPediuData) {
+            $deCookie = (string) ($_COOKIE['fln_res_de'] ?? '');
+            $ateCookie = (string) ($_COOKIE['fln_res_ate'] ?? '');
+            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $deCookie) === 1 && preg_match('/^\d{4}-\d{2}-\d{2}$/', $ateCookie) === 1) {
+                $_GET['de'] = $deCookie;
+                $_GET['ate'] = $ateCookie;
+            }
+        }
         if (in_array($current, ['reservas', 'viagens', 'faturado'], true)) {
             $dePedido = (string) ($_GET['de'] ?? '');
             $atePedido = (string) ($_GET['ate'] ?? '');
@@ -571,6 +580,21 @@ if (in_array($current, ['entrar', 'seja-motorista', 'aplicativo'], true) && !pre
             if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $atePedido) === 1) {
                 $ate = $atePedido;
             }
+        }
+        if ($current === 'reservas' && $reservasPediuData && $de !== '' && $ate !== '') {
+            $seguro = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+                || (strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https');
+            $opcaoCookie = [
+                'expires' => time() + 180 * 86400,
+                'path' => '/',
+                'httponly' => true,
+                'samesite' => 'Lax',
+                'secure' => $seguro,
+            ];
+            setcookie('fln_res_de', $de, $opcaoCookie);
+            setcookie('fln_res_ate', $ate, $opcaoCookie);
+            $_COOKIE['fln_res_de'] = $de;
+            $_COOKIE['fln_res_ate'] = $ate;
         }
     }
     if ($current === 'fin-dashboard') {
@@ -619,7 +643,8 @@ if (in_array($current, ['entrar', 'seja-motorista', 'aplicativo'], true) && !pre
         $_GET['de'] = $de;
         $_GET['ate'] = $ate;
     }
-    // Reservas e viagens, sem data, ficam na semana. O financeiro pede o mês que está na tela.
+    // Sem data escolhida, viagens e a primeira abertura de reservas ficam na semana.
+    // Se a pessoa já filtrou reservas, o intervalo salvo acima prevalece.
     if (in_array($current, ['reservas', 'viagens'], true) && in_array($modo, ['corridas', 'financeiro'], true) && ($de === '' || $ate === '')) {
         if ($de === '') {
             $de = today()->modify('-1 day')->format('Y-m-d');
