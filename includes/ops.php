@@ -455,11 +455,12 @@ function resumo_prolabore(array $db, string $de, string $ate): array
         } else {
             $por[$mid]['vista'] += $valor;
         }
-        $repasse = 0.0;
+        $repasse = (float) ($t['repasse'] ?? 0);
         $repassePago = false;
         if ((string) ($t['status'] ?? '') === 'concluida') {
-            $repasse = (float) ($t['repasse'] ?? 0);
             $por[$mid]['concluidas']++;
+        }
+        if ($repasse > 0) {
             $por[$mid]['prolabore'] += $repasse;
             $repassePago = repasse_esta_pago($db, (int) $t['id']);
             if ($repassePago) {

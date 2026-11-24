@@ -119,7 +119,7 @@ function relatorio_consulta(array $db): array
         } else {
             $vista += $valor;
         }
-        if ((string) ($trip['status'] ?? '') === 'concluida') {
+        if ((string) ($trip['status'] ?? '') !== 'cancelada') {
             $repasse += (float) ($trip['repasse'] ?? 0);
         }
     }
@@ -216,7 +216,7 @@ final class RelatorioPdf
         $this->tabelaReservas();
         $this->secao('Lançamentos do período');
         $this->tabelaLancamentos();
-        $this->nota('Cada linha acima entrou nos totais deste documento. Reserva cancelada só aparece quando o filtro pede. O pro-labore soma o repasse das concluídas. Despesa soma as saídas dos lançamentos.');
+        $this->nota('Cada linha acima entrou nos totais deste documento. Reserva cancelada só aparece quando o filtro pede. O pro-labore soma o repasse gravado na reserva. Despesa soma as saídas dos lançamentos.');
         return $this->montar();
     }
 
@@ -308,7 +308,7 @@ final class RelatorioPdf
                 $this->pagina->ret(self::MARGEM, $this->y - 3, self::LARGURA - (self::MARGEM * 2), 13, self::GELO);
             }
             $valor = (float) ($trip['valor'] ?? 0);
-            $repasse = (string) ($trip['status'] ?? '') === 'concluida' ? (float) ($trip['repasse'] ?? 0) : 0.0;
+            $repasse = (string) ($trip['status'] ?? '') === 'cancelada' ? 0.0 : (float) ($trip['repasse'] ?? 0);
             $somaValor += $valor;
             $somaRepasse += $repasse;
             $conta = !empty($trip['pago']) ? 'Recebido' : (!empty($trip['faturado']) ? 'Boleto' : 'Na hora');
@@ -324,7 +324,7 @@ final class RelatorioPdf
                 status_label((string) ($trip['status'] ?? '')),
                 brl($valor),
                 $conta,
-                (string) ($trip['status'] ?? '') === 'concluida' ? brl($repasse) : '—',
+                $repasse > 0 ? brl($repasse) : '—',
             ];
             $this->linha($celulas, $cols, false);
         }

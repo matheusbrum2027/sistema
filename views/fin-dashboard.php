@@ -97,7 +97,7 @@ view_head();
   <article class="card stat"><span>Já recebido</span><strong class="ok"><?= e(brl($recebido)) ?></strong><small>Cliente já pagou</small></article>
   <article class="card stat"><span>A receber na hora</span><strong class="warn"><?= e(brl($aVista)) ?></strong><small>Sem a marca de faturado</small></article>
   <article class="card stat"><span>Boleto no fim do mês</span><strong class="warn"><?= e(brl($boleto)) ?></strong><small>Faturado e ainda em aberto</small></article>
-  <article class="card stat"><span>Pro-labore em aberto</span><strong><?= e(brl($proAberto)) ?></strong><small>Repasse de viagens concluídas</small></article>
+  <article class="card stat"><span>Pro-labore em aberto</span><strong><?= e(brl($proAberto)) ?></strong><small>Repasse gravado na reserva e ainda não pago</small></article>
 </div>
 <section class="card" style="margin-top:12px">
   <header class="card-h"><h2>Despesas no mês</h2></header>
@@ -157,7 +157,7 @@ view_head();
                       <td><?= status_badge((string) $item['status']) ?></td>
                       <td><?= e(brl((float) $item['valor'])) ?></td>
                       <td><?= e($item['caixa'] === 'recebido' ? 'Recebido' : ($item['caixa'] === 'boleto' ? 'Boleto' : 'Na hora')) ?></td>
-                      <td><?php if ((string) $item['status'] !== 'concluida'): ?>—<?php else: ?><?= e(brl((float) $item['repasse'])) ?> · <?= !empty($item['repasse_pago']) ? 'Pago' : 'Em aberto' ?><?php endif; ?></td>
+                      <td><?php if ((float) $item['repasse'] <= 0): ?>—<?php else: ?><?= e(brl((float) $item['repasse'])) ?> · <?= !empty($item['repasse_pago']) ? 'Pago' : 'Em aberto' ?><?php endif; ?></td>
                     </tr>
                   <?php endforeach; ?>
                 </tbody>
@@ -177,4 +177,4 @@ view_head();
     </table>
   </div>
 </section>
-<p class="help" style="margin-top:12px">Cada reserva entra em Contas a receber. Se estiver marcada como faturado, o vencimento vai para o último dia do mês: a empresa paga o pacote por boleto. Concluir a viagem, com repasse maior que zero, gera o pro-labore daquele motorista em Contas a pagar. Juros, mora e sangria não são calculados sozinhos; uma taxa entra como lançamento manual.</p>
+<p class="help" style="margin-top:12px">Cada reserva entra em Contas a receber. Se estiver marcada como faturado, o vencimento vai para o último dia do mês: a empresa paga o pacote por boleto. O pro-labore mostrado aqui é o repasse gravado na reserva. A conta a pagar desse valor nasce quando a viagem é concluída. Juros, mora e sangria não são calculados sozinhos; uma taxa entra como lançamento manual.</p>
