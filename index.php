@@ -543,7 +543,21 @@ if (in_array($current, ['entrar', 'seja-motorista', 'aplicativo'], true) && !pre
         $idTrip = (int) ($_GET['id'] ?? 0);
     } elseif ($current === 'agenda') {
         $modo = 'corridas';
-        [$de, $ate] = agenda_intervalo((string) ($_GET['mes'] ?? ''));
+        $mesPedido = (string) ($_GET['mes'] ?? '');
+        $semanaPedida = (string) ($_GET['semana'] ?? '');
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $semanaPedida) === 1) {
+            $diaSemana = DateTimeImmutable::createFromFormat('!Y-m-d', $semanaPedida, new DateTimeZone('America/Sao_Paulo'));
+            if ($diaSemana instanceof DateTimeImmutable && $diaSemana->format('Y-m-d') === $semanaPedida) {
+                $iniSemana = $diaSemana->modify('-' . (int) $diaSemana->format('w') . ' days');
+                $de = $iniSemana->format('Y-m-d');
+                $ate = $iniSemana->modify('+6 days')->format('Y-m-d');
+            }
+        } elseif (preg_match('/^\d{4}-\d{2}$/', $mesPedido) === 1) {
+            [$de, $ate] = agenda_intervalo($mesPedido);
+        } else {
+            $de = today()->format('Y-m-d');
+            $ate = $de;
+        }
     } elseif ($current === 'clientes' && (string) ($_GET['fragment'] ?? '') === 'cliente') {
         $modo = 'corridas';
     } elseif (in_array($current, $comCorridas, true) || ($current === 'mot-cadastros' && (int) ($_GET['id'] ?? 0) > 0)) {

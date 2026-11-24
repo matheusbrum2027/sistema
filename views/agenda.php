@@ -24,6 +24,7 @@ $gridStart = $cursor->modify('-' . $weekStart . ' days');
 $gridIni = $gridStart->format('Y-m-d');
 $gridFim = $gridStart->modify('+41 days')->format('Y-m-d');
 $hojeIso = today()->format('Y-m-d');
+$soHoje = !isset($_GET['mes']) && !isset($_GET['semana']);
 $limiteIso = today()->modify('+30 days')->format('Y-m-d');
 $janelaIni = $gridIni < $hojeIso ? $gridIni : $hojeIso;
 $janelaFim = $gridFim > $limiteIso ? $gridFim : $limiteIso;
@@ -217,10 +218,11 @@ if (!$admin) {
 ?>
 <div class="agenda-pagina agenda-pagina-<?= e($vista) ?>">
 <nav class="agenda-vistas" aria-label="Modelo da agenda">
-  <a class="<?= $vista === 'calendario' ? 'is-on' : '' ?>" href="<?= e(href('agenda', ['vista' => 'calendario', 'mes' => $mes])) ?>">Mês</a>
-  <a class="<?= $vista === 'kanban' ? 'is-on' : '' ?>" href="<?= e(href('agenda', ['vista' => 'kanban', 'mes' => $semanaInicio->modify('+3 days')->format('Y-m'), 'semana' => $semanaInicio->format('Y-m-d')])) ?>">Quadro</a>
-  <a class="<?= $vista === 'lista' ? 'is-on' : '' ?>" href="<?= e(href('agenda', ['vista' => 'lista', 'mes' => $mes])) ?>">Lista</a>
+  <a class="<?= !$soHoje && $vista === 'calendario' ? 'is-on' : '' ?>" href="<?= e(href('agenda', ['vista' => 'calendario', 'mes' => $mes])) ?>">Mês</a>
+  <a class="<?= !$soHoje && $vista === 'kanban' ? 'is-on' : '' ?>" href="<?= e(href('agenda', ['vista' => 'kanban', 'mes' => $semanaInicio->modify('+3 days')->format('Y-m'), 'semana' => $semanaInicio->format('Y-m-d')])) ?>">Quadro</a>
+  <a class="<?= !$soHoje && $vista === 'lista' ? 'is-on' : '' ?>" href="<?= e(href('agenda', ['vista' => 'lista', 'mes' => $mes])) ?>">Lista</a>
 </nav>
+<?php if (!$soHoje): ?>
 <section class="agenda-lista<?= $admin ? ' so-celular' : '' ?>" aria-label="Próximas viagens">
   <h2 class="sec-title">Próximas viagens</h2>
   <?php if ($proximas === []): ?>
@@ -244,7 +246,23 @@ if (!$admin) {
     <?php endforeach; ?>
   <?php endif; ?>
 </section>
-<?php if ($vista === 'kanban'): ?>
+<?php endif; ?>
+<?php if ($soHoje): ?>
+<?php $legsHoje = $byDay[$hojeIso] ?? []; ?>
+<section class="agenda-hoje" aria-label="Viagens de hoje">
+  <div class="cal-head">
+    <strong>Hoje · <?= e(today()->format('d/m')) ?></strong>
+  </div>
+  <?php if ($legsHoje === []): ?>
+    <p class="empty-box"><strong>Nenhuma viagem hoje.</strong></p>
+  <?php else: ?>
+    <div class="lista-cards">
+      <?php foreach ($legsHoje as $leg) { $cartaoAgenda($leg, $admin, $obsPorId); } ?>
+    </div>
+  <?php endif; ?>
+  <p class="cal-note">Só as viagens de hoje. Mês, Quadro ou Lista abrem os outros dias.</p>
+</section>
+<?php elseif ($vista === 'kanban'): ?>
 <?php
   $semanaFim = $semanaInicio->modify('+6 days');
   $semanaAnt = $semanaInicio->modify('-7 days');
@@ -335,7 +353,7 @@ if (!$admin) {
     <a class="cal-nav" href="<?= e(href('agenda', ['mes' => $cursor->modify('-1 month')->format('Y-m')])) ?>" aria-label="Mês anterior">‹</a>
     <strong><?= e(ucfirst(mes_longo($cursor))) ?> <?= e($cursor->format('Y')) ?></strong>
     <a class="cal-nav" href="<?= e(href('agenda', ['mes' => $cursor->modify('+1 month')->format('Y-m')])) ?>" aria-label="Próximo mês">›</a>
-    <a class="btn btn-sm cal-hoje" href="<?= e(href('agenda', ['mes' => today()->format('Y-m')])) ?>">Hoje</a>
+    <a class="btn btn-sm cal-hoje" href="<?= e(href('agenda')) ?>">Hoje</a>
   </div>
   <div class="cal-grid">
     <?php foreach (['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'] as $dow): ?>
