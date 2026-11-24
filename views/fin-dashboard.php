@@ -16,6 +16,17 @@ $noMes = static function (string $data) use ($mes): bool {
 $deMes = $cursor->format('Y-m-d');
 $ateMes = fim_do_mes($deMes);
 $motFiltro = (int) ($_GET['mot'] ?? 0);
+$mesesMot = array_values(array_filter(
+    (array) ($GLOBALS['fln_meses_mot'] ?? []),
+    static fn(mixed $item): bool => is_string($item) && preg_match('/^\d{4}-\d{2}$/', $item) === 1
+));
+$mesAnterior = $cursor->modify('-1 month')->format('Y-m');
+$mesSeguinte = $cursor->modify('+1 month')->format('Y-m');
+if ($motFiltro > 0 && $mesesMot !== []) {
+    $posMes = array_search($mes, $mesesMot, true);
+    $mesSeguinte = $posMes !== false && $posMes > 0 ? $mesesMot[$posMes - 1] : '';
+    $mesAnterior = $posMes !== false && isset($mesesMot[$posMes + 1]) ? $mesesMot[$posMes + 1] : '';
+}
 $prolabore = resumo_prolabore($db, $deMes, $ateMes);
 $receitas = 0.0;
 $recebido = 0.0;
@@ -55,9 +66,18 @@ $lucroReal = $recebido - $despPaga;
 view_head();
 ?>
 <div class="month-nav">
-  <a class="btn btn-sm" href="<?= e(href('fin-dashboard', ['mes' => $cursor->modify('-1 month')->format('Y-m')] + ($motFiltro > 0 ? ['mot' => $motFiltro] : []))) ?>">‹</a>
+  <?php $navMot = $motFiltro > 0 ? ['mot' => $motFiltro] : []; ?>
+  <?php if ($mesAnterior !== ''): ?>
+    <a class="btn btn-sm" href="<?= e(href('fin-dashboard', ['mes' => $mesAnterior] + $navMot)) ?>">‹</a>
+  <?php else: ?>
+    <span class="btn btn-sm" aria-disabled="true">‹</span>
+  <?php endif; ?>
   <strong><?= e(ucfirst(mes_longo($cursor))) ?> de <?= e($cursor->format('Y')) ?></strong>
-  <a class="btn btn-sm" href="<?= e(href('fin-dashboard', ['mes' => $cursor->modify('+1 month')->format('Y-m')] + ($motFiltro > 0 ? ['mot' => $motFiltro] : []))) ?>">›</a>
+  <?php if ($mesSeguinte !== ''): ?>
+    <a class="btn btn-sm" href="<?= e(href('fin-dashboard', ['mes' => $mesSeguinte] + $navMot)) ?>">›</a>
+  <?php else: ?>
+    <span class="btn btn-sm" aria-disabled="true">›</span>
+  <?php endif; ?>
 </div>
 <form class="filters" method="get" action="index.php">
   <input type="hidden" name="p" value="fin-dashboard">
@@ -107,10 +127,11 @@ view_head();
         <?php foreach ($prolabore as $linha): ?>
           <?php if ($motFiltro > 0 && (int) $linha['id'] !== $motFiltro) continue; ?>
           <?php $painel = 'pro-mot-' . (int) $linha['id']; ?>
+          <?php $aberto = $motFiltro > 0 && (int) $linha['id'] === $motFiltro; ?>
           <tr>
             <td>
-              <button class="pro-abre" type="button" data-pro-abre aria-expanded="false" aria-controls="<?= e($painel) ?>">
-                <i class="pro-seta is-baixo" aria-hidden="true"></i>
+              <button class="pro-abre" type="button" data-pro-abre aria-expanded="<?= $aberto ? 'true' : 'false' ?>" aria-controls="<?= e($painel) ?>">
+                <i class="pro-seta<?= $aberto ? '' : ' is-baixo' ?>" aria-hidden="true"></i>
                 <?= e($linha['nome']) ?>
               </button>
             </td>
@@ -123,7 +144,7 @@ view_head();
             <td><?= e(brl($linha['prolabore_pago'])) ?></td>
             <td><?= e(brl($linha['prolabore_aberto'])) ?></td>
           </tr>
-          <tr class="pro-painel" id="<?= e($painel) ?>" hidden>
+          <tr class="pro-painel" id="<?= e($painel) ?>"<?= $aberto ? '' : ' hidden' ?>>
             <td colspan="9">
               <table class="pro-lista">
                 <thead><tr><th>Nº</th><th>Data</th><th>Cliente</th><th>Status</th><th>Valor</th><th>Conta</th><th>Pro-labore</th></tr></thead>

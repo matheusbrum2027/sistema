@@ -578,6 +578,15 @@ if (in_array($current, ['entrar', 'seja-motorista', 'aplicativo'], true) && !pre
         if (preg_match('/^\d{4}-\d{2}$/', $mesFin) !== 1) {
             $mesFin = today()->format('Y-m');
         }
+        $motPed = (int) ($_GET['mot'] ?? 0);
+        if ($motPed > 0) {
+            $mesesMot = meses_do_motorista($motPed);
+            $GLOBALS['fln_meses_mot'] = $mesesMot;
+            if ($mesesMot !== [] && !in_array($mesFin, $mesesMot, true)) {
+                $mesFin = $mesesMot[0];
+                $_GET['mes'] = $mesFin;
+            }
+        }
         $inicioMes = DateTimeImmutable::createFromFormat('!Y-m-d', $mesFin . '-01', new DateTimeZone('America/Sao_Paulo'));
         if ($inicioMes instanceof DateTimeImmutable) {
             $de = $inicioMes->format('Y-m-d');

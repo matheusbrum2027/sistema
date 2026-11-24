@@ -373,6 +373,29 @@ function pager(string $page, array $pg, array $query = []): string
     return '<div class="pager"><span>Mostrando ' . (int) $pg['from'] . ' a ' . (int) $pg['to'] . ' de ' . (int) $pg['total'] . ' · Página ' . (int) $pg['page'] . ' de ' . (int) $pg['pages'] . '</span><span class="pager-nav">' . $prev . $next . '</span></div>';
 }
 
+/** Meses, do mais novo ao mais antigo, em que o motorista tem reserva ativa. */
+function meses_do_motorista(int $mot): array
+{
+    if ($mot <= 0 || !function_exists('store_remoto') || !store_remoto()) {
+        return [];
+    }
+    try {
+        $lista = store_rpc('fln_meses_motorista', ['p_base' => store_base(), 'p_mot' => $mot], 15);
+    } catch (BancoIndisponivel) {
+        return [];
+    }
+    if (!is_array($lista)) {
+        return [];
+    }
+    $meses = [];
+    foreach ($lista as $mes) {
+        if (is_string($mes) && preg_match('/^\d{4}-\d{2}$/', $mes) === 1) {
+            $meses[] = $mes;
+        }
+    }
+    return $meses;
+}
+
 function fim_do_mes(string $data): string
 {
     $dt = DateTimeImmutable::createFromFormat('!Y-m-d', substr($data, 0, 10));
