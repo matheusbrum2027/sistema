@@ -980,6 +980,7 @@ button.cal-day-top { appearance: none; border: 0; background: transparent; color
   font-size: 12.5px; color: var(--ink); line-height: 1.45;
 }
 #aviso-conflito { color: var(--red); font-weight: 600; font-size: 13px; }
+.num-reserva { margin: 0; padding: 0; border: 0; background: none; color: inherit; font: inherit; font-weight: 700; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
 .so-celular { display: none; }
 @media (max-width: 720px) {
   .so-celular { display: grid; }

@@ -197,7 +197,7 @@ view_head('<button class="btn btn-primary" type="button" data-open-dialog="dlg-r
       <tbody>
         <?php foreach ($pg['rows'] as $trip): ?>
           <tr>
-            <td class="col-fixo" data-label="Nº"><a href="<?= e(href('agenda', ['ver' => $trip['id'], 'mes' => substr((string) $trip['data'], 0, 7)])) ?>">#<?= (int) $trip['id'] ?></a></td>
+            <td class="col-fixo" data-label="Nº"><button type="button" class="num-reserva" data-open-dialog="dlg-ver-<?= (int) $trip['id'] ?>" data-reserva-id="<?= (int) $trip['id'] ?>">#<?= (int) $trip['id'] ?></button></td>
             <td class="col-cli" data-label="Cliente"><span class="clip" title="<?= e($trip['cliente']) ?>"><?= e($trip['cliente']) ?></span></td>
             <td class="col-contato" data-label="Contato"><span class="clip" title="<?= e(trim($trip['telefone'] . ' ' . $trip['email'])) ?>"><?= e($trip['telefone']) ?></span></td>
             <td class="col-fixo" data-label="Tipo"><?= tipo_badges($trip) ?></td>

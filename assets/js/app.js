@@ -590,6 +590,7 @@
     }
       const abrir = event.target.closest('[data-open-dialog]');
       if (abrir) {
+        event.preventDefault();
         const alvo = abrir.getAttribute('data-open-dialog');
         const id = abrir.getAttribute('data-reserva-id');
         const ficha = abrir.getAttribute('data-ficha');
@@ -602,7 +603,9 @@
         const dlg = document.getElementById(alvo);
         if (dlg) mostrar(dlg);
         else if (ficha && fichaId) carregarFicha(ficha, fichaId, alvo).then(mostrar).catch(() => { location.href = 'index.php?p=clientes'; });
-        else if (id) carregarReserva(id, alvo).then(mostrar).catch(() => { location.href = 'index.php?p=agenda&ver=' + encodeURIComponent(id); });
+        else if (id) carregarReserva(id, alvo).then(mostrar).catch(() => {
+          if (document.body.dataset.page !== 'reservas') location.href = 'index.php?p=agenda&ver=' + encodeURIComponent(id);
+        });
         return;
       }
     const fechar = event.target.closest('[data-close-dialog]');
