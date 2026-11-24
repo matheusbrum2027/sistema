@@ -271,14 +271,13 @@ if (!$admin) {
       ? $semanaInicio->format('j') . '–' . $semanaFim->format('j') . ' ' . mes_longo($semanaInicio)
       : $semanaInicio->format('j') . ' ' . mes_longo($semanaInicio) . ' – ' . $semanaFim->format('j') . ' ' . mes_longo($semanaFim);
   $nomesQuadro = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-  $hojeSemana = today()->modify('-' . (int) today()->format('w') . ' days');
 ?>
 <div class="cal-wrap kanban-wrap">
   <div class="cal-head">
     <a class="cal-nav" href="<?= e(href('agenda', ['vista' => 'kanban', 'mes' => $semanaAnt->modify('+3 days')->format('Y-m'), 'semana' => $semanaAnt->format('Y-m-d')])) ?>" aria-label="Semana anterior">‹</a>
     <strong><?= e($tituloSemana) ?> <?= e($semanaFim->format('Y')) ?></strong>
     <a class="cal-nav" href="<?= e(href('agenda', ['vista' => 'kanban', 'mes' => $semanaProx->modify('+3 days')->format('Y-m'), 'semana' => $semanaProx->format('Y-m-d')])) ?>" aria-label="Próxima semana">›</a>
-    <a class="btn btn-sm cal-hoje" href="<?= e(href('agenda', ['vista' => 'kanban', 'mes' => today()->format('Y-m'), 'semana' => $hojeSemana->format('Y-m-d')])) ?>">Hoje</a>
+    <a class="btn btn-sm cal-hoje" href="<?= e(href('agenda')) ?>">Hoje</a>
   </div>
   <div class="kanban-board">
     <?php for ($i = 0; $i < 7; $i++): ?>
@@ -310,7 +309,7 @@ if (!$admin) {
     <a class="cal-nav" href="<?= e(href('agenda', ['vista' => 'lista', 'mes' => $cursor->modify('-1 month')->format('Y-m')])) ?>" aria-label="Mês anterior">‹</a>
     <strong><?= e(ucfirst(mes_longo($cursor))) ?> <?= e($cursor->format('Y')) ?></strong>
     <a class="cal-nav" href="<?= e(href('agenda', ['vista' => 'lista', 'mes' => $cursor->modify('+1 month')->format('Y-m')])) ?>" aria-label="Próximo mês">›</a>
-    <a class="btn btn-sm cal-hoje" href="<?= e(href('agenda', ['vista' => 'lista', 'mes' => today()->format('Y-m')])) ?>">Hoje</a>
+    <a class="btn btn-sm cal-hoje" href="<?= e(href('agenda')) ?>">Hoje</a>
   </div>
   <?php
     $nomesLista = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
