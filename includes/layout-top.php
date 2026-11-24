@@ -50,7 +50,7 @@ foreach ($db['automacoes'] as $autoRow) {
     if (/Android|iPhone|iPad|iPod/i.test(ua) || ipad) return;
     var link = document.createElement('link');
     link.rel = 'manifest';
-    link.href = 'manifest.json';
+    link.href = 'index.php?p=manifest';
     document.head.appendChild(link);
   })();
   </script>

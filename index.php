@@ -27,6 +27,14 @@ if ($hospede === 'driverflntransfer.app') {
     exit;
 }
 
+if ((string) ($_GET['p'] ?? '') === 'manifest') {
+    header('Content-Type: application/manifest+json; charset=utf-8');
+    header('Cache-Control: public, max-age=3600');
+    header('X-Content-Type-Options: nosniff');
+    readfile(__DIR__ . '/manifest.json');
+    exit;
+}
+
 require __DIR__ . '/includes/bootstrap.php';
 
 try {
@@ -50,7 +58,7 @@ $httpsPainel = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
 if ($httpsPainel) {
     header('Strict-Transport-Security: max-age=15552000');
 }
-header("Content-Security-Policy: default-src 'self'; img-src 'self' data: blob: https://pps.whatsapp.net https://*.whatsapp.net https://basemaps.cartocdn.com https://*.basemaps.cartocdn.com https://unpkg.com; media-src 'self'; style-src 'self' https://fonts.googleapis.com https://unpkg.com 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com data:; script-src 'self' https://unpkg.com 'unsafe-inline'; connect-src 'self' https://basemaps.cartocdn.com https://*.basemaps.cartocdn.com https://api.open-meteo.com https://air-quality-api.open-meteo.com https://economia.awesomeapi.com.br; worker-src 'self' blob:; frame-src 'self' blob:; object-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://www.driverflntransfer.app https://driverflntransfer.app https://accounts.google.com");
+header("Content-Security-Policy: default-src 'self'; img-src 'self' data: blob: https://pps.whatsapp.net https://*.whatsapp.net https://basemaps.cartocdn.com https://*.basemaps.cartocdn.com https://unpkg.com; media-src 'self'; style-src 'self' https://fonts.googleapis.com https://unpkg.com 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com data:; script-src 'self' https://unpkg.com https://static.cloudflareinsights.com 'unsafe-inline'; connect-src 'self' https://basemaps.cartocdn.com https://*.basemaps.cartocdn.com https://api.open-meteo.com https://air-quality-api.open-meteo.com https://economia.awesomeapi.com.br https://cloudflareinsights.com https://static.cloudflareinsights.com; worker-src 'self' blob:; frame-src 'self' blob:; object-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://www.driverflntransfer.app https://driverflntransfer.app https://accounts.google.com");
 if ((string) ($_GET['p'] ?? '') === 'marca') {
     $chave = (string) ($_GET['k'] ?? '');
     if (!in_array($chave, ['logo', 'logo_lateral', 'favicon', 'assinatura'], true)) {
