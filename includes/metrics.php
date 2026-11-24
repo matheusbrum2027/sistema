@@ -206,7 +206,8 @@ function build_metrics(array $db, string $range, string $de = '', string $ate = 
     $chM = [];
     foreach ($cmonths as $m) {
         $rows = array_values(array_filter($trips, static fn(array $t): bool => str_starts_with($t['data'], $m['key'])));
-        $gRows = array_values(array_filter($db['grupos'], static fn(array $g): bool => str_starts_with((string) $g['data'], $m['key'])));
+        $listaGrupos = is_array($db['grupos'] ?? null) ? $db['grupos'] : [];
+        $gRows = array_values(array_filter($listaGrupos, static fn(array $g): bool => str_starts_with((string) $g['data'], $m['key'])));
         $chT[] = count(array_filter($rows, static fn(array $t): bool => ($t['canal'] ?? 'transfer') === 'transfer'));
         $chM[] = count(array_filter($rows, static fn(array $t): bool => ($t['canal'] ?? '') === 'motoristas'));
         $chG[] = count(array_filter($rows, static fn(array $t): bool => ($t['canal'] ?? '') === 'grupos')) + count($gRows);
@@ -236,7 +237,7 @@ function build_metrics(array $db, string $range, string $de = '', string $ate = 
     $periodoFunil = trips_between($trips, $dStart, $today);
     $leads = $periodoFunil;
 
-    $grupos = $db['grupos'];
+    $grupos = is_array($db['grupos'] ?? null) ? $db['grupos'] : [];
     usort($grupos, static fn(array $a, array $b): int => strcmp((string) $b['data'], (string) $a['data']));
 
     return [

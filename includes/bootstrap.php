@@ -718,6 +718,15 @@ function normalize_db(array $db): array
     if (!isset($db['avisos']) || !is_array($db['avisos'])) {
         $db['avisos'] = [];
     }
+    if (!isset($db['grupos']) || !is_array($db['grupos'])) {
+        $db['grupos'] = [];
+    }
+    if (!isset($db['inbox']) || !is_array($db['inbox'])) {
+        $db['inbox'] = [];
+    }
+    if (!isset($db['veiculos']) || !is_array($db['veiculos'])) {
+        $db['veiculos'] = [];
+    }
     chat_store_garantir($db);
     lixo_reservas_garantir($db);
     // Expira lixo no máx. 1x/dia — evita varrer a cada page load.

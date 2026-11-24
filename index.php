@@ -655,6 +655,22 @@ if (in_array($current, ['entrar', 'seja-motorista', 'aplicativo'], true) && !pre
         $_GET['de'] = $de;
         $_GET['ate'] = $ate;
     }
+    if ($current === 'metricas') {
+        $faixa = (string) ($_GET['range'] ?? '30d');
+        if (!in_array($faixa, ['hoje', '7d', '30d', '90d', '12m'], true)) {
+            $faixa = '30d';
+        }
+        $deFaixa = (string) ($_GET['de'] ?? '');
+        $ateFaixa = (string) ($_GET['ate'] ?? '');
+        $deValida = preg_match('/^\d{4}-\d{2}-\d{2}$/', $deFaixa) === 1;
+        $ateValida = preg_match('/^\d{4}-\d{2}-\d{2}$/', $ateFaixa) === 1;
+        if ($deValida && $ateValida) {
+            $faixa = 'periodo';
+        }
+        [$iniFaixa, $fimFaixa, $iniAnterior] = range_bounds($faixa, today(), $deValida ? $deFaixa : '', $ateValida ? $ateFaixa : '');
+        $de = $iniAnterior->format('Y-m-d');
+        $ate = $fimFaixa->format('Y-m-d');
+    }
     $db = load_db(false, false, $modo, $de, $ate, $idTrip);
 }
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET' && empty($soltarSessaoAntes)) {
