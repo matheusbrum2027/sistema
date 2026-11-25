@@ -79,35 +79,31 @@ function db_request_cache(?array $nova = null, bool $limpar = false): ?array
     return $db;
 }
 
-/** Favicon = logo da empresa (mesma imagem). Retorna [href, mime]. */
+/** Ícone da aba do navegador. Só a imagem enviada como favicon; a logo da empresa não entra aqui. */
 function brand_favicon(array $db): array
 {
     $s = is_array($db['settings'] ?? null) ? $db['settings'] : [];
-    // Ordem: logo da empresa (principal), lateral, favicon legado, arquivo estático.
     $marcaV = (int) ($s['marca_v'] ?? 1);
-    foreach (['logo', 'logo_lateral', 'favicon'] as $chave) {
-        if (trim((string) ($s[$chave] ?? '')) === '' && !empty($s['tem_' . $chave])) {
-            return ['index.php?p=marca&k=' . $chave . '&v=' . $marcaV, 'image/png'];
-        }
-        $href = trim((string) ($s[$chave] ?? ''));
-        if ($href === '') {
-            continue;
-        }
-        $mime = 'image/png';
-        if (preg_match('#^data:(image/[a-z0-9.+-]+)#i', $href, $m)) {
-            $mime = strtolower($m[1]);
-        } elseif (preg_match('/\.jpe?g($|\?)/i', $href)) {
-            $mime = 'image/jpeg';
-        } elseif (preg_match('/\.webp($|\?)/i', $href)) {
-            $mime = 'image/webp';
-        } elseif (preg_match('/\.gif($|\?)/i', $href)) {
-            $mime = 'image/gif';
-        } elseif (preg_match('/\.svg($|\?)/i', $href)) {
-            $mime = 'image/svg+xml';
-        }
-        return [$href, $mime];
+    $href = trim((string) ($s['favicon'] ?? ''));
+    if ($href === '' && !empty($s['tem_favicon'])) {
+        return ['index.php?p=marca&k=favicon&v=' . $marcaV, 'image/png'];
     }
-    return ['assets/brand/logo-fln.jpg', 'image/jpeg'];
+    if ($href === '') {
+        return ['assets/brand/logo-fln.jpg', 'image/jpeg'];
+    }
+    $mime = 'image/png';
+    if (preg_match('#^data:(image/[a-z0-9.+-]+)#i', $href, $m)) {
+        $mime = strtolower($m[1]);
+    } elseif (preg_match('/\.jpe?g($|\?)/i', $href)) {
+        $mime = 'image/jpeg';
+    } elseif (preg_match('/\.webp($|\?)/i', $href)) {
+        $mime = 'image/webp';
+    } elseif (preg_match('/\.gif($|\?)/i', $href)) {
+        $mime = 'image/gif';
+    } elseif (preg_match('/\.svg($|\?)/i', $href)) {
+        $mime = 'image/svg+xml';
+    }
+    return [$href, $mime];
 }
 
 function e(mixed $value): string

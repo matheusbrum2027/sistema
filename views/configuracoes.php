@@ -16,7 +16,7 @@ view_head('', 'Cada bloco salva sozinho. Toque em Editar para liberar os campos.
   <form method="post" action="index.php" enctype="multipart/form-data" class="form-grid">
     <?= csrf_fields('save_conta') ?>
     <input type="hidden" name="editando" value="0">
-    <fieldset disabled>
+    <fieldset class="cfg-lock">
       <label class="field">Nome fantasia <input name="nome" required maxlength="80" value="<?= e($s['nome']) ?>" placeholder="Transfer FLN"></label>
       <label class="field">Razão social <input name="razao" maxlength="120" value="<?= e($s['razao']) ?>" placeholder="Fln Transfer Executivo e Turismo"></label>
       <label class="field">CNPJ <input name="cnpj" maxlength="20" value="<?= e($s['cnpj']) ?>" placeholder="41.581.147/0001-08"></label>
@@ -28,21 +28,44 @@ view_head('', 'Cada bloco salva sozinho. Toque em Editar para liberar os campos.
       <label class="field">UF <input name="uf" maxlength="2" value="<?= e($s['uf']) ?>" placeholder="SC"></label>
       <label class="field full">Endereço <input name="endereco" maxlength="160" value="<?= e($s['endereco']) ?>" placeholder="Servidão Estação Lua Clara, Rio Vermelho, Florianópolis - SC, 88060"></label>
       <p class="cfg-split">Identidade visual</p>
-      <label class="field">Logo <input type="file" name="logo" accept="image/png,image/jpeg,image/webp"></label>
+      <label class="field">Logo do PDF <input type="file" name="logo" accept="image/png,image/jpeg,image/webp"></label>
       <label class="field">Logo lateral <input type="file" name="logo_lateral" accept="image/png,image/jpeg,image/webp"></label>
-      <label class="field">Favicon <input type="file" name="favicon" accept="image/png,image/jpeg,image/webp"></label>
-      <p class="hint full">O favicon do sistema usa exatamente a logo da empresa. Se enviar só o favicon, ele também vira a logo.</p>
+      <label class="field">Favicon da aba <input type="file" name="favicon" accept="image/png,image/jpeg,image/webp"></label>
+      <p class="hint full">A logo entra só no PDF e no comprovante da reserva. O favicon entra só na aba do navegador. Trocar uma não altera a outra. PNG, JPG ou WEBP, até 400 KB. Toque em Editar, escolha o arquivo e salve.</p>
       <div class="form-actions full"><button class="btn btn-primary" type="submit">Salvar dados</button></div>
     </fieldset>
   </form>
-  <?php if (!empty($s['logo']) || !empty($s['tem_logo'])): ?>
-    <div class="cfg-marca">
-      <img src="<?= !empty($s['logo']) ? e((string) $s['logo']) : e('index.php?p=marca&k=logo&v=' . (int) ($s['marca_v'] ?? 1)) ?>" alt="Logo da empresa">
-      <p class="hint">Esta logo entra no PDF da reserva e no favicon.</p>
-    </div>
-  <?php else: ?>
-    <p class="hint">Nenhuma logo salva. Toque em Editar, envie a imagem e salve.</p>
-  <?php endif; ?>
+  <div class="cfg-marcas">
+    <?php
+      $marcas = [
+          'logo' => ['Logo do PDF', 'Aparece no cabeçalho do PDF da reserva.'],
+          'logo_lateral' => ['Logo lateral', 'Entra no PDF só quando a logo principal não foi enviada.'],
+          'favicon' => ['Favicon', 'Aparece só na aba do navegador.'],
+      ];
+      foreach ($marcas as $chaveMarca => $rotuloMarca):
+          $temMarca = !empty($s[$chaveMarca]) || !empty($s['tem_' . $chaveMarca]);
+          $srcMarca = !empty($s[$chaveMarca])
+              ? (string) $s[$chaveMarca]
+              : 'index.php?p=marca&k=' . $chaveMarca . '&v=' . (int) ($s['marca_v'] ?? 1);
+    ?>
+      <div class="cfg-marca<?= $chaveMarca === 'favicon' ? ' cfg-marca-aba' : ' cfg-marca-pdf' ?>">
+        <?php if ($temMarca): ?>
+          <img src="<?= e($srcMarca) ?>" alt="<?= e($rotuloMarca[0]) ?>">
+        <?php else: ?>
+          <p class="hint">Nenhuma imagem.</p>
+        <?php endif; ?>
+        <p><strong><?= e($rotuloMarca[0]) ?></strong></p>
+        <p class="hint"><?= e($rotuloMarca[1]) ?></p>
+        <?php if ($temMarca): ?>
+          <form method="post" action="index.php" data-confirm="Remover <?= e($rotuloMarca[0]) ?>?">
+            <?= csrf_fields('remove_logo') ?>
+            <input type="hidden" name="qual" value="<?= e($chaveMarca) ?>">
+            <button class="btn btn-sm" type="submit">Remover</button>
+          </form>
+        <?php endif; ?>
+      </div>
+    <?php endforeach; ?>
+  </div>
 </section>
 
 <section class="card cfg-card">
@@ -56,7 +79,7 @@ view_head('', 'Cada bloco salva sozinho. Toque em Editar para liberar os campos.
   <form method="post" action="index.php" class="form-grid">
     <?= csrf_fields('save_comprovante') ?>
     <input type="hidden" name="editando" value="0">
-    <fieldset disabled>
+    <fieldset class="cfg-lock">
       <label class="field full">Informação principal <textarea name="comp_principal" maxlength="2000" placeholder="Fln Transfer Executivo e Turismo&#10;CNPJ 41.581.147/0001-08"><?= e($s['comp_principal'] ?? '') ?></textarea></label>
       <label class="field full">Rodapé <textarea name="comp_rodape" maxlength="2000" placeholder="Obrigado por viajar com a gente."><?= e($s['comp_rodape'] ?? '') ?></textarea></label>
       <div class="form-actions full"><button class="btn btn-primary" type="submit">Salvar comprovante</button></div>
@@ -75,7 +98,7 @@ view_head('', 'Cada bloco salva sozinho. Toque em Editar para liberar os campos.
   <form method="post" action="index.php" enctype="multipart/form-data" class="form-grid">
     <?= csrf_fields('save_assinatura') ?>
     <input type="hidden" name="editando" value="0">
-    <fieldset disabled>
+    <fieldset class="cfg-lock">
       <label class="field">Nome na assinatura <input name="assinatura_nome" maxlength="80" value="<?= e($s['assinatura_nome'] ?? '') ?>" placeholder="Matheus Brum"></label>
       <label class="field">Imagem da assinatura <input type="file" name="assinatura" accept="image/png,image/jpeg,image/webp"></label>
       <div class="form-actions full"><button class="btn btn-primary" type="submit">Salvar assinatura</button></div>
@@ -98,7 +121,7 @@ view_head('', 'Cada bloco salva sozinho. Toque em Editar para liberar os campos.
   <form method="post" action="index.php" class="form-grid">
     <?= csrf_fields('save_atendente') ?>
     <input type="hidden" name="editando" value="0">
-    <fieldset disabled>
+    <fieldset class="cfg-lock">
       <label class="field">Nome do atendente <input name="atendente_nome" maxlength="80" value="<?= e($s['atendente_nome'] ?? ($s['assinatura_nome'] ?? 'Matheus Brum')) ?>" placeholder="Matheus Brum"></label>
       <label class="field">WhatsApp do atendente <input name="atendente_fone" maxlength="30" value="<?= e($s['atendente_fone'] ?? '') ?>" placeholder="(48) 99967-2557"></label>
       <p class="hint full">Celular pessoal do Matheus Brum para receber avisos de “falar com atendente”. Sem este número, o pedido não dispara.</p>
@@ -118,7 +141,7 @@ view_head('', 'Cada bloco salva sozinho. Toque em Editar para liberar os campos.
   <form method="post" action="index.php" class="form-grid">
     <?= csrf_fields('save_pagamentos') ?>
     <input type="hidden" name="editando" value="0">
-    <fieldset disabled>
+    <fieldset class="cfg-lock">
       <label class="field">Chave Pix <input name="pix" maxlength="80" value="<?= e($s['pix']) ?>" placeholder="chave Pix da empresa"></label>
       <label class="field">Cidade do recebedor <input name="pix_cidade" maxlength="60" value="<?= e($s['pix_cidade'] ?? '') ?>" placeholder="Florianópolis"></label>
       <?php $temPagTok = segredo_cadastrado((string) ($s['pagbank_token'] ?? '')); ?>
@@ -143,7 +166,7 @@ view_head('', 'Cada bloco salva sozinho. Toque em Editar para liberar os campos.
   <form method="post" action="index.php" class="form-grid">
     <?= csrf_fields('save_operacao') ?>
     <input type="hidden" name="editando" value="0">
-    <fieldset disabled>
+    <fieldset class="cfg-lock">
       <label class="field">Antecedência mínima (horas) <input type="number" name="antecedencia" min="0" max="72" value="<?= e($s['antecedencia']) ?>" placeholder="2"></label>
       <label class="field">Intervalo entre viagens (minutos) <input type="number" name="intervalo_motorista" min="1" max="720" step="1" required value="<?= e($s['intervalo_motorista'] ?? '120') ?>" placeholder="120"></label>
       <label class="cfg-switch"><input type="checkbox" name="modo_simples" value="1"<?= !empty($s['modo_simples']) ? ' checked' : '' ?>> <span>Modo simples<small>Enxuga a operação do dia a dia.</small></span></label>
@@ -308,7 +331,7 @@ $classe2fa = $estado2fa === 'on' ? 'ok' : ($estado2fa === 'setup' ? 'warn' : 'of
   <form method="post" action="index.php" class="form-grid">
     <?= csrf_fields('save_notificacoes') ?>
     <input type="hidden" name="editando" value="0">
-    <fieldset disabled>
+    <fieldset class="cfg-lock">
       <div class="cfg-switches full">
         <label class="cfg-switch"><input type="checkbox" name="notif_som" value="1"<?= !isset($s['notif_som']) || !empty($s['notif_som']) ? ' checked' : '' ?>> <span>Som<small>Toque quando o aviso chegar.</small></span></label>
         <label class="cfg-switch"><input type="checkbox" name="notif_vibrar" value="1"<?= !isset($s['notif_vibrar']) || !empty($s['notif_vibrar']) ? ' checked' : '' ?>> <span>Vibração<small>O aparelho vibra junto com o som.</small></span></label>

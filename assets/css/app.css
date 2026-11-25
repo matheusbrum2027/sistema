@@ -1253,7 +1253,9 @@ html[data-theme="dark"] .com-card-mark { background: #1b2028; border-color: #3d4
   border: 0; margin: 0; padding: 0; min-inline-size: 0;
   display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px;
 }
-.cfg-card fieldset:disabled { opacity: 0.72; }
+.cfg-card fieldset:disabled,
+.cfg-card fieldset.cfg-lock { opacity: 0.72; }
+.cfg-card fieldset.cfg-lock :is(input, textarea, select, button) { pointer-events: none; }
 .detalhe-lista { display: grid; grid-template-columns: 180px 1fr; gap: 4px 10px; margin: 0; }
 .detalhe-lista dt { color: var(--muted); font-size: 12px; }
 .detalhe-lista dd { margin: 0; font-size: 13px; display: flex; align-items: flex-start; gap: 6px; }
@@ -2025,7 +2027,8 @@ html[data-theme="dark"] .nav-scroll::-webkit-scrollbar-thumb { background: #4650
 .cfg-page .card-h h2 { font-size: 15px; }
 .cfg-lead { margin: 3px 0 0; color: var(--muted); font-size: 12px; font-weight: 400; line-height: 1.45; max-width: 62ch; }
 .cfg-page .cfg-card fieldset { gap: 12px 14px; }
-.cfg-page .cfg-card fieldset:disabled { opacity: 0.45; }
+.cfg-page .cfg-card fieldset:disabled,
+.cfg-page .cfg-card fieldset.cfg-lock { opacity: 0.45; }
 .cfg-page .cfg-card fieldset:disabled input,
 .cfg-page .cfg-card fieldset:disabled textarea,
 .cfg-page .cfg-card fieldset:disabled select { color: var(--muted); }
@@ -2063,8 +2066,12 @@ html[data-theme="dark"] .nav-scroll::-webkit-scrollbar-thumb { background: #4650
 #form-contrato .contrato-previa-sec { position: relative; }
 #form-contrato .contrato-previa-sec > [data-cfg-edit] { position: absolute; top: 8px; right: 16px; z-index: 2; }
 #form-contrato.is-editando .contrato-previa-sec > [data-cfg-edit] { display: none; }
-.cfg-marca { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
-.cfg-marca img { width: 72px; height: 72px; object-fit: contain; background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 6px; }
+.cfg-marcas { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
+.cfg-marca { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; margin: 0; }
+.cfg-marca img { width: 88px; height: 88px; object-fit: contain; border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
+.cfg-marca-pdf img { background: #1a2332; }
+.cfg-marca-aba img { background: #f4f6f8; }
+@media (max-width: 720px) { .cfg-marcas { grid-template-columns: 1fr; } }
 .cfg-split { grid-column: 1 / -1; margin: 2px 0 0; padding-top: 10px; border-top: 1px solid var(--line); color: var(--faint); font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
 .cfg-switches { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .cfg-switch { display: flex; align-items: flex-start; gap: 8px; margin: 0; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--ink); font-weight: 600; }

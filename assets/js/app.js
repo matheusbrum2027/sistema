@@ -672,7 +672,10 @@
       const card = editarCfg.closest('.cfg-card');
       const fieldset = card?.querySelector('fieldset');
       const flag = card?.querySelector('input[name="editando"]');
-      if (fieldset) fieldset.disabled = false;
+      if (fieldset) {
+        fieldset.disabled = false;
+        fieldset.classList.remove('cfg-lock');
+      }
       if (flag) flag.value = '1';
       card?.classList.add('is-editando');
       card?.querySelectorAll('[data-cfg-edit]').forEach((btn) => { btn.hidden = true; });

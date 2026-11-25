@@ -1166,8 +1166,15 @@ function cliente_from_post(): array
 
 function save_image_setting(array &$db, string $fileKey, string $settingKey): ?string
 {
-    if (empty($_FILES[$fileKey]['tmp_name']) || !is_uploaded_file((string) $_FILES[$fileKey]['tmp_name'])) {
+    if (!isset($_FILES[$fileKey]) || !is_array($_FILES[$fileKey])) {
         return null;
+    }
+    $erroEnvio = (int) ($_FILES[$fileKey]['error'] ?? UPLOAD_ERR_NO_FILE);
+    if ($erroEnvio === UPLOAD_ERR_NO_FILE) {
+        return null;
+    }
+    if ($erroEnvio !== UPLOAD_ERR_OK || empty($_FILES[$fileKey]['tmp_name']) || !is_uploaded_file((string) $_FILES[$fileKey]['tmp_name'])) {
+        return 'A imagem não foi enviada. Use PNG, JPG ou WEBP de até 400 KB.';
     }
     $size = (int) ($_FILES[$fileKey]['size'] ?? 0);
     if ($size <= 0 || $size > 400000) {
@@ -1759,9 +1766,6 @@ function ops_dispatch(array &$db, string $action): ?array
             $img = save_image_setting($db, 'favicon', 'favicon');
             if ($img !== null) {
                 return [$img, ''];
-            }
-            if (empty($db['settings']['logo']) && !empty($db['settings']['favicon'])) {
-                $db['settings']['logo'] = (string) $db['settings']['favicon'];
             }
             return [null, 'Dados da conta salvos.'];
 

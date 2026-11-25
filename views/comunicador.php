@@ -68,7 +68,7 @@ view_head();
   <form method="post" action="index.php" class="form-grid">
     <?= csrf_fields('save_comunicador_autos') ?>
     <input type="hidden" name="editando" value="0">
-    <fieldset disabled>
+    <fieldset class="cfg-lock">
       <label class="cfg-switch full">
         <input type="checkbox" name="whatsapp_criacao" value="1"<?= $auto('whatsapp_criacao') ? ' checked' : '' ?>>
         <span>Ao criar a reserva → motoristas atribuídos<small>Envia o card (ciência / PDF / atendente) só para os motoristas daquela reserva. Não envia ao cliente. Não duplica se já foi enviado com sucesso.</small></span>
