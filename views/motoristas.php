@@ -30,6 +30,7 @@ view_head('<button class="btn btn-primary" type="button" data-open-dialog="dlg-m
   <input type="hidden" name="p" value="mot-cadastros">
   <label>Busca <input name="q" value="<?= e($q) ?>" placeholder="Buscar por nome ou CPF"></label>
   <button class="btn btn-sm" type="submit">Buscar</button>
+  <a class="btn btn-sm" href="<?= e(href('mot-cadastros')) ?>">Limpar</a>
 </form>
 <section class="card">
   <div class="table-wrap">

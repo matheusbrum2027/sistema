@@ -56,6 +56,7 @@ view_head('<a class="btn btn-sm" href="' . e(href('receber')) . '">Contas a rece
     </select>
   </label>
   <button class="btn btn-sm" type="submit">Filtrar</button>
+  <a class="btn btn-sm" href="<?= e(href('faturado', ['limpar' => '1'])) ?>">Limpar</a>
 </form>
 <div class="stat-row">
   <article class="card stat"><span>Reservas faturadas</span><strong><?= count($rows) ?></strong></article>

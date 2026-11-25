@@ -91,6 +91,7 @@ view_head();
     </select>
   </label>
   <button class="btn btn-sm" type="submit">Filtrar</button>
+  <a class="btn btn-sm" href="<?= e(href('fin-dashboard')) ?>">Limpar</a>
 </form>
 <div class="stat-row five">
   <article class="card stat"><span>Receita do mês</span><strong><?= e(brl($receitas)) ?></strong><small>Reservas não canceladas</small></article>

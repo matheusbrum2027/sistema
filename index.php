@@ -531,6 +531,7 @@ if (in_array($current, ['entrar', 'seja-motorista', 'aplicativo'], true) && !pre
     $de = '';
     $ate = '';
     $idTrip = 0;
+    $reservasPediuData = false;
     $comFinanceiro = ['fin-dashboard', 'receber', 'relatorios'];
     $comCaixa = ['lancamentos', 'pagar'];
     $comCorridas = ['reservas', 'faturado', 'metricas', 'viagens'];
@@ -562,8 +563,10 @@ if (in_array($current, ['entrar', 'seja-motorista', 'aplicativo'], true) && !pre
         $modo = 'corridas';
     } elseif (in_array($current, $comCorridas, true) || ($current === 'mot-cadastros' && (int) ($_GET['id'] ?? 0) > 0)) {
         $modo = 'corridas';
-        $reservasPediuData = $current === 'reservas' && (isset($_GET['de']) || isset($_GET['ate']));
-        if ($current === 'reservas' && !$reservasPediuData) {
+        $limparPedido = (string) ($_GET['limpar'] ?? '') === '1';
+        $reservasPediuData = $current === 'reservas' && !$limparPedido && (isset($_GET['de']) || isset($_GET['ate']));
+        $reservasTudo = $current === 'reservas' && ($limparPedido || (!$reservasPediuData && (string) ($_COOKIE['fln_res_tudo'] ?? '') === '1'));
+        if ($current === 'reservas' && !$reservasPediuData && !$reservasTudo) {
             $deCookie = (string) ($_COOKIE['fln_res_de'] ?? '');
             $ateCookie = (string) ($_COOKIE['fln_res_ate'] ?? '');
             if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $deCookie) === 1 && preg_match('/^\d{4}-\d{2}-\d{2}$/', $ateCookie) === 1) {
@@ -595,6 +598,24 @@ if (in_array($current, ['entrar', 'seja-motorista', 'aplicativo'], true) && !pre
             setcookie('fln_res_ate', $ate, $opcaoCookie);
             $_COOKIE['fln_res_de'] = $de;
             $_COOKIE['fln_res_ate'] = $ate;
+            setcookie('fln_res_tudo', '', array_replace($opcaoCookie, ['expires' => time() - 3600]));
+            unset($_COOKIE['fln_res_tudo']);
+        }
+        if ($current === 'reservas' && $limparPedido) {
+            $seguro = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+                || (strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https');
+            $opcaoCookie = [
+                'expires' => time() + 180 * 86400,
+                'path' => '/',
+                'httponly' => true,
+                'samesite' => 'Lax',
+                'secure' => $seguro,
+            ];
+            setcookie('fln_res_de', '', array_replace($opcaoCookie, ['expires' => time() - 3600]));
+            setcookie('fln_res_ate', '', array_replace($opcaoCookie, ['expires' => time() - 3600]));
+            setcookie('fln_res_tudo', '1', $opcaoCookie);
+            unset($_COOKIE['fln_res_de'], $_COOKIE['fln_res_ate']);
+            $_COOKIE['fln_res_tudo'] = '1';
         }
     }
     if ($current === 'fin-dashboard') {
@@ -627,7 +648,7 @@ if (in_array($current, ['entrar', 'seja-motorista', 'aplicativo'], true) && !pre
             $ate = $atePedido;
         }
     }
-    if ($current === 'relatorios' && ($de === '' || $ate === '')) {
+    if ($current === 'relatorios' && (string) ($_GET['limpar'] ?? '') !== '1' && ($de === '' || $ate === '')) {
         if ($de === '' && $ate === '') {
             $de = today()->format('Y-m-01');
             $ate = today()->modify('last day of this month')->format('Y-m-d');
@@ -637,7 +658,7 @@ if (in_array($current, ['entrar', 'seja-motorista', 'aplicativo'], true) && !pre
             $ate = $de;
         }
     }
-    if ($current === 'faturado' && $de === '' && $ate === '') {
+    if ($current === 'faturado' && (string) ($_GET['limpar'] ?? '') !== '1' && $de === '' && $ate === '') {
         $de = today()->format('Y-m-01');
         $ate = today()->modify('last day of this month')->format('Y-m-d');
         $_GET['de'] = $de;
@@ -654,6 +675,13 @@ if (in_array($current, ['entrar', 'seja-motorista', 'aplicativo'], true) && !pre
         }
         $_GET['de'] = $de;
         $_GET['ate'] = $ate;
+    }
+    $limparLista = (string) ($_GET['limpar'] ?? '') === '1';
+    $reservasTodas = $current === 'reservas' && ($limparLista || (!$reservasPediuData && (string) ($_COOKIE['fln_res_tudo'] ?? '') === '1'));
+    if ($reservasTodas || ($limparLista && in_array($current, ['faturado', 'relatorios'], true))) {
+        $de = '1990-01-01';
+        $ate = '2100-12-31';
+        unset($_GET['de'], $_GET['ate']);
     }
     if ($current === 'metricas') {
         $faixa = (string) ($_GET['range'] ?? '30d');

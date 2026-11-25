@@ -48,6 +48,7 @@ view_head('<a class="btn btn-sm" href="' . e(href('lancamentos')) . '">Lançamen
   </label>
   <label>Busca <input name="q" value="<?= e($q) ?>" placeholder="Repasse ou combustível"></label>
   <button class="btn btn-sm" type="submit">Filtrar</button>
+  <a class="btn btn-sm" href="<?= e(href('pagar')) ?>">Limpar</a>
 </form>
 <article class="card stat" style="margin-bottom:12px"><span>Em aberto neste filtro</span><strong><?= e(brl($total)) ?></strong></article>
 <section class="card">

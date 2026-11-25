@@ -10,6 +10,9 @@ $keep = array_filter([
     'estado' => $rel['estado'],
     'q' => $rel['q'],
 ]);
+if ($rel['de'] === '' && $rel['ate'] === '') {
+    $keep['limpar'] = '1';
+}
 $pg = slice_page($rel['viagens'], 20);
 $arquivo = relatorio_arquivo_pdf($rel);
 $pdfHref = href('relatorios', ['baixar' => 'pdf'] + $keep);
@@ -46,6 +49,7 @@ view_head('<a class="btn btn-primary" href="' . e($pdfHref) . '" download="' . e
   </label>
   <label>Cliente / nº <input name="q" value="<?= e($rel['q']) ?>" placeholder="MZ ou 2390"></label>
   <button class="btn btn-sm" type="submit">Filtrar</button>
+  <a class="btn btn-sm" href="<?= e(href('relatorios', ['limpar' => '1'])) ?>">Limpar</a>
 </form>
 <div class="stat-row">
   <article class="card stat"><span>Reservas</span><strong><?= (int) $tot['viagens'] ?></strong></article>

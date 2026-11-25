@@ -18,11 +18,11 @@ function relatorio_consulta(array $db): array
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $ate)) {
         $ate = '';
     }
-    if ($de === '' && $ate === '' && preg_match('/^\d{4}-\d{2}$/', $mes)) {
+    if ((string) ($_GET['limpar'] ?? '') !== '1' && $de === '' && $ate === '' && preg_match('/^\d{4}-\d{2}$/', $mes)) {
         $de = $mes . '-01';
         $ate = fim_do_mes($de);
     }
-    if ($de === '' && $ate === '') {
+    if ((string) ($_GET['limpar'] ?? '') !== '1' && $de === '' && $ate === '') {
         $hoje = today();
         $de = $hoje->format('Y-m-01');
         $ate = fim_do_mes($de);
@@ -142,7 +142,7 @@ function relatorio_consulta(array $db): array
         'cancelada' => 'Cancelada',
         default => 'Ativas, sem canceladas',
     };
-    $rotulo = br_date($de) . ' a ' . br_date($ate);
+    $rotulo = $de !== '' && $ate !== '' ? br_date($de) . ' a ' . br_date($ate) : 'Todas as reservas';
     return [
         'de' => $de,
         'ate' => $ate,

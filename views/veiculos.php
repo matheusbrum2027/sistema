@@ -26,6 +26,7 @@ view_head('<button class="btn btn-primary" type="button" data-open-dialog="dlg-v
   <input type="hidden" name="p" value="veiculos">
   <label>Busca <input name="q" value="<?= e($q) ?>" placeholder="Buscar por placa, marca, modelo ou tipo"></label>
   <button class="btn btn-sm" type="submit">Buscar</button>
+  <a class="btn btn-sm" href="<?= e(href('veiculos')) ?>">Limpar</a>
 </form>
 <section class="card">
   <?php if ($rows === []): ?>

@@ -176,6 +176,7 @@ view_head('<button class="btn btn-primary" type="button" data-open-dialog="dlg-r
   </label>
   <label>Cliente / contato / nº <input name="q" value="<?= e($q) ?>" placeholder="Paulo Henrique ou 3778"></label>
   <button class="btn btn-sm" type="submit">Filtrar</button>
+  <a class="btn btn-sm" href="<?= e(href('reservas', ['limpar' => '1'])) ?>">Limpar</a>
 </form>
 <section class="card">
   <div class="table-wrap">

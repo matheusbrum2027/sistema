@@ -61,6 +61,7 @@ view_head('<a class="btn btn-sm" href="' . e(href('fin-dashboard')) . '">Dashboa
     </select>
   </label>
   <button class="btn btn-sm" type="submit">Filtrar</button>
+  <a class="btn btn-sm" href="<?= e(href('lancamentos')) ?>">Limpar</a>
 </form>
 <section class="card">
   <div class="table-wrap">

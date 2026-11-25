@@ -20,6 +20,7 @@ view_head('<button class="btn btn-primary" type="button" data-open-dialog="dlg-c
   <input type="hidden" name="p" value="clientes">
   <label>Busca <input name="q" value="<?= e($q) ?>" placeholder="Buscar por nome, CPF ou cidade"></label>
   <button class="btn btn-sm" type="submit">Buscar</button>
+  <a class="btn btn-sm" href="<?= e(href('clientes')) ?>">Limpar</a>
 </form>
   <section class="card">
   <div class="table-wrap">

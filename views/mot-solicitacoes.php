@@ -17,6 +17,7 @@ view_head('', 'Candidatos do site e do webhook Motorista. Após a reunião com o
   <input type="hidden" name="p" value="mot-solicitacoes">
   <label>Busca <input name="q" value="<?= e($q) ?>" placeholder="Nome, e-mail, telefone ou placa"></label>
   <button class="btn btn-sm" type="submit">Buscar</button>
+  <a class="btn btn-sm" href="<?= e(href('mot-solicitacoes')) ?>">Limpar</a>
   <a class="btn btn-sm" href="<?= e(href('seja-motorista')) ?>" target="_blank" rel="noopener">Abrir página pública</a>
 </form>
 <section class="card">
