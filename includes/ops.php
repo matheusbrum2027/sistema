@@ -1880,7 +1880,7 @@ function ops_dispatch(array &$db, string $action): ?array
             }
             $db['settings']['antecedencia'] = (string) max(0, min(72, (int) post('antecedencia')));
             if (array_key_exists('intervalo_motorista', $_POST)) {
-                $db['settings']['intervalo_motorista'] = (string) max(1, min(720, (int) post('intervalo_motorista')));
+                $db['settings']['intervalo_motorista'] = (string) max(0, min(720, (int) post('intervalo_motorista')));
             }
             $db['settings']['modo_simples'] = post('modo_simples') === '1';
             $adminRaw = clip(post('usuario'), 80);

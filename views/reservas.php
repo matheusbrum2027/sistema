@@ -640,6 +640,7 @@ foreach ($db['motoristas'] as $m) {
   const form = document.getElementById('form-reserva');
   if (!form) return;
   const dadosOcup = JSON.parse(document.getElementById('ocupacao-motoristas').textContent || '{}');
+  const minutosFolga = Number.isFinite(Number(dadosOcup.intervalo)) ? Number(dadosOcup.intervalo) : 120;
   const aviso = document.getElementById('aviso-conflito');
   function instante(data, hora) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(data || '')) return null;
@@ -678,7 +679,7 @@ foreach ($db['motoristas'] as $m) {
         trechos.push([ida, motoresDaChave('volta')]);
       }
     }
-    const dur = (dadosOcup.intervalo || 120) * 60;
+    const dur = minutosFolga * 60;
     const achados = [];
     trechos.forEach(([inicio, mids]) => {
       mids.filter((m) => m > 0).forEach((mid) => {
@@ -695,7 +696,10 @@ foreach ($db['motoristas'] as $m) {
   function syncConflito() {
     const lista = conflitosAtuais();
     aviso.hidden = lista.length === 0;
-    aviso.textContent = lista.length ? 'Conflito de agenda: ' + lista.join(' ') + ' O intervalo mínimo entre viagens do mesmo motorista é de ' + dadosOcup.intervalo + ' minutos. Escolha outro motorista ou outro horário.' : '';
+    const regra = minutosFolga > 0
+      ? ' O intervalo mínimo entre viagens do mesmo motorista é de ' + minutosFolga + ' minutos. Escolha outro motorista ou outro horário.'
+      : ' O horário cruza outra viagem por hora deste motorista.';
+    aviso.textContent = lista.length ? 'Conflito de agenda: ' + lista.join(' ') + regra : '';
     return lista.length === 0;
   }
   form.addEventListener('change', syncConflito);

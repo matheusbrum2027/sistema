@@ -168,7 +168,8 @@ view_head('', 'Cada bloco salva sozinho. Toque em Editar para liberar os campos.
     <input type="hidden" name="editando" value="0">
     <fieldset class="cfg-lock">
       <label class="field">Antecedência mínima (horas) <input type="number" name="antecedencia" min="0" max="72" value="<?= e($s['antecedencia']) ?>" placeholder="2"></label>
-      <label class="field">Intervalo entre viagens (minutos) <input type="number" name="intervalo_motorista" min="1" max="720" step="1" required value="<?= e($s['intervalo_motorista'] ?? '120') ?>" placeholder="120"></label>
+      <label class="field">Intervalo entre viagens (minutos) <input type="number" name="intervalo_motorista" min="0" max="720" step="1" required value="<?= e($s['intervalo_motorista'] ?? '120') ?>" placeholder="120"></label>
+      <p class="hint full">É a folga mínima entre uma viagem e a próxima do mesmo motorista. Use 0 para tirar essa trava. Viagem por hora continua ocupando o tempo contratado.</p>
       <label class="cfg-switch"><input type="checkbox" name="modo_simples" value="1"<?= !empty($s['modo_simples']) ? ' checked' : '' ?>> <span>Modo simples<small>Enxuga a operação do dia a dia.</small></span></label>
       <label class="field">Usuário do administrador <input name="usuario" required maxlength="80" value="<?= e($s['usuario'] ?? 'admin') ?>" placeholder="admin" autocomplete="username"></label>
       <?php $temSenhaAdmin = segredo_cadastrado((string) ($s['senha'] ?? '')); ?>

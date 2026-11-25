@@ -9,7 +9,7 @@ if (realpath((string) ($_SERVER['SCRIPT_FILENAME'] ?? '')) === realpath(__FILE__
 function intervalo_motorista(array $db): int
 {
     $min = (int) ($db['settings']['intervalo_motorista'] ?? 120);
-    return max(1, min(720, $min));
+    return max(0, min(720, $min));
 }
 
 function motoristas_do_trecho(array $trip, string $kind): array
@@ -213,8 +213,12 @@ function integridade_violada(array $antes, array $depois): ?string
             return (isset($tAntes[$o['trip']]) ? 'a reserva #' . $o['trip'] : 'esta nova reserva') . ' (' . $quando . ')';
         };
         [$primeiro, $segundo] = isset($tAntes[$a['trip']]) ? [$a, $b] : [$b, $a];
+        $folga = intervalo_motorista($depois);
+        $regra = $folga > 0
+            ? 'O intervalo mínimo entre viagens do mesmo motorista é de ' . $folga . ' minutos.'
+            : 'O horário cruza outra viagem por hora do mesmo motorista.';
         return 'Conflito de agenda: ' . $nome . ' já tem ' . $rotulo($primeiro) . ' e não pode assumir ' . $rotulo($segundo)
-            . '. O intervalo mínimo entre viagens do mesmo motorista é de ' . intervalo_motorista($depois) . ' minutos. Escolha outro motorista ou outro horário. Nada foi salvo.';
+            . '. ' . $regra . ' Escolha outro motorista ou outro horário. Nada foi salvo.';
     }
     return null;
 }
