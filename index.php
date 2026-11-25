@@ -735,28 +735,32 @@ if (in_array($current, ['entrar', 'seja-motorista', 'aplicativo'], true) && !pre
     }
     $db = load_db(false, false, $modo, $de, $ate, $idTrip);
     $idEdit = $current === 'reservas' ? (int) ($_GET['edit'] ?? 0) : 0;
-    if ($idEdit > 0) {
-        $temEdit = false;
-        foreach ($db['transfers'] as $row) {
-            if ((int) ($row['id'] ?? 0) === $idEdit) {
-                $temEdit = true;
-                break;
+    if ($idEdit > 0 && store_remoto()) {
+        $completa = null;
+        try {
+            $extra = store_ler(false, 'uma', '', '', $idEdit, false);
+        } catch (Throwable) {
+            $extra = null;
+        }
+        if (is_array($extra)) {
+            foreach ($extra['transfers'] ?? [] as $row) {
+                if (is_array($row) && (int) ($row['id'] ?? 0) === $idEdit) {
+                    $completa = $row;
+                    break;
+                }
             }
         }
-        // O detalhe abre qualquer reserva. A lista pode estar em outro período.
-        if (!$temEdit && store_remoto()) {
-            try {
-                $extra = store_ler(false, 'uma', '', '', $idEdit, false);
-            } catch (Throwable) {
-                $extra = null;
-            }
-            if (is_array($extra)) {
-                foreach ($extra['transfers'] ?? [] as $row) {
-                    if ((int) ($row['id'] ?? 0) === $idEdit) {
-                        $db['transfers'][] = $row;
-                        break;
-                    }
+        if (is_array($completa)) {
+            $trocou = false;
+            foreach ($db['transfers'] as $i => $row) {
+                if ((int) ($row['id'] ?? 0) === $idEdit) {
+                    $db['transfers'][$i] = $completa;
+                    $trocou = true;
+                    break;
                 }
+            }
+            if (!$trocou) {
+                $db['transfers'][] = $completa;
             }
         }
     }

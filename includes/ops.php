@@ -677,6 +677,41 @@ function meios_pagamento(): array
     ];
 }
 
+function chave_meio_pagamento(string $meio): string
+{
+    $meio = strtolower(trim($meio));
+    return match ($meio) {
+        'ted' => 'transferencia',
+        'faturado' => 'faturado_empresa',
+        default => $meio,
+    };
+}
+
+/** A lista não traz o mapa de pagamentos. Sem isto a edição abre em branco e o salvamento apaga o PIX. */
+function pagamentos_da_reserva(array $trip): array
+{
+    $meios = meios_pagamento();
+    $limpo = [];
+    $bruto = $trip['pagamentos'] ?? null;
+    if (is_array($bruto)) {
+        foreach ($bruto as $chave => $parte) {
+            $nome = chave_meio_pagamento((string) $chave);
+            if (!isset($meios[$nome])) {
+                continue;
+            }
+            $limpo[$nome] = round((float) $parte, 2);
+        }
+    }
+    if ($limpo !== []) {
+        return $limpo;
+    }
+    $meio = chave_meio_pagamento((string) ($trip['meio'] ?? ''));
+    if ($meio === '' || $meio === 'misto' || !isset($meios[$meio])) {
+        return [];
+    }
+    return [$meio => round(max(0, (float) ($trip['valor'] ?? 0)), 2)];
+}
+
 function rotulo_forma_pgto(array $trip): string
 {
     $meio = strtolower(trim((string) ($trip['meio'] ?? '')));
@@ -808,8 +843,11 @@ function montar_reservas(array &$db, ?array $current): array
     $soma = 0.0;
     $guardaValor = function_exists('funcionario_sem_financeiro') && funcionario_sem_financeiro();
     if ($guardaValor) {
-        $pagamentos = is_array($current) && is_array($current['pagamentos'] ?? null) ? $current['pagamentos'] : [];
+        $pagamentos = is_array($current) ? pagamentos_da_reserva($current) : [];
         $valor = is_array($current) ? (float) ($current['valor'] ?? 0) : 0.0;
+    } elseif (post('pagamentos_informados') !== '1' && is_array($current) && pagamentos_da_reserva($current) !== []) {
+        $pagamentos = pagamentos_da_reserva($current);
+        $valor = (float) ($current['valor'] ?? 0);
     } else {
         foreach (meios_pagamento() as $chave => $rotulo) {
             if (post('pag_' . $chave) === '1') {
@@ -820,8 +858,11 @@ function montar_reservas(array &$db, ?array $current): array
         }
         $manual = max(0, post_money('valor_manual'));
         $valor = $manual > 0 ? $manual : $soma;
-        if ($valor <= 0) {
+        if ($valor <= 0 && $pagamentos === []) {
             return ['Informe o valor total ou o valor de cada meio de pagamento.', []];
+        }
+        if ($valor <= 0) {
+            $valor = $soma;
         }
     }
     $quem = one_of(post('quem'), ['motorista', 'parceiro'], 'motorista');

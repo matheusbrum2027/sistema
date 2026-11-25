@@ -272,7 +272,7 @@ if ($edit && $docEdit === '' && !empty($edit['cliente_id'])) {
         }
     }
 }
-$pagEdit = is_array($edit['pagamentos'] ?? null) ? $edit['pagamentos'] : [];
+$pagEdit = is_array($edit) ? pagamentos_da_reserva($edit) : [];
 $somaPag = 0.0;
 foreach ($pagEdit as $parte) {
     $somaPag += (float) $parte;
@@ -280,10 +280,10 @@ foreach ($pagEdit as $parte) {
 $manualEdit = '';
 if ($edit && (float) $edit['valor'] > 0 && abs($somaPag - (float) $edit['valor']) > 0.009) {
     $manualEdit = number_format((float) $edit['valor'], 2, ',', '');
-    $pagEdit = [];
 } elseif (!$edit && (float) ($pre['valor'] ?? 0) > 0) {
     $manualEdit = number_format((float) $pre['valor'], 2, ',', '');
 }
+$pagamentosVisiveis = !$edit || $pagEdit !== [] || trim((string) ($edit['meio'] ?? '')) === '';
 $trechosForm = [
     ['embarque' => '', 'desembarque' => '', 'data' => '', 'hora' => '', 'pax' => 1],
     ['embarque' => '', 'desembarque' => '', 'data' => '', 'hora' => '', 'pax' => 1],
@@ -572,6 +572,9 @@ $catEdit = in_array($catAtual, $catsOk, true) ? $catAtual : '';
       </div>
 
       <h3 class="sec-title">Formas de pagamento</h3>
+      <?php if ($pagamentosVisiveis): ?>
+        <input type="hidden" name="pagamentos_informados" value="1">
+      <?php endif; ?>
       <div class="pay-list">
         <?php foreach (meios_pagamento() as $chave => $rotulo): ?>
           <label class="pay-line">
