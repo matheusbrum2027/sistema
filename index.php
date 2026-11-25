@@ -541,6 +541,18 @@ if ($soltarSessaoAntes) {
     session_write_close();
 }
 if (in_array($current, ['entrar', 'seja-motorista', 'aplicativo'], true) && !preg_match('/^[a-f0-9]{32}$/', $acessoLogin)) {
+    if ($current === 'entrar' && (string) ($_GET['etapa'] ?? '') === '2fa' && (string) ($_GET['cancelar'] ?? '') !== '1') {
+        try {
+            $db2fa = load_db(true, false, 'casca');
+        } catch (Throwable) {
+            $db2fa = ['settings' => []];
+        }
+        if (!autenticacao_2fa_pronta($db2fa)) {
+            unset($_SESSION['pending_2fa']);
+            flash('A verificação em 2 passos está desligada. Entre com usuário, senha e o código visual.', 'err');
+            redirect(href('entrar'));
+        }
+    }
     $db = [
         'settings' => ['nome' => 'Transfer FLN'],
         'motoristas' => [],

@@ -176,13 +176,24 @@ function totp_qr_url(string $otpauthUri, int $tamanho = 220): string
  * - setup: chave gerada, ainda não confirmada (login NÃO exige 2FA)
  * - on: confirmada e ativa no login do admin
  */
+function totp_flag_ligada(mixed $valor): bool
+{
+    if ($valor === true || $valor === 1) {
+        return true;
+    }
+    if (!is_string($valor)) {
+        return false;
+    }
+    return in_array(strtolower(trim($valor)), ['1', 'true', 'on', 'sim'], true);
+}
+
 function totp_estado(array $db): string
 {
     $secret = totp_secret_limpo((string) ($db['settings']['totp_secret'] ?? ''));
     if (!totp_secret_valido($secret)) {
         return 'off';
     }
-    if (!empty($db['settings']['verificacao_2fa'])) {
+    if (totp_flag_ligada($db['settings']['verificacao_2fa'] ?? false) && totp_flag_ligada($db['settings']['totp_confirmado'] ?? false)) {
         return 'on';
     }
     return 'setup';

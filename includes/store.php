@@ -263,6 +263,10 @@ function store_nota_gravar(int $id, ?string $obs, ?string $interna): void
 
 function store_ler(bool $completo = true, string $modo = '', string $de = '', string $ate = '', int $idTrip = 0, bool $usarVista = true): ?array
 {
+    // A casca traz usuário, senha e 2FA. Uma cópia local da versão antiga pedia o código depois de desligar.
+    if ($modo === 'casca') {
+        $usarVista = false;
+    }
     $chave = store_copia_chave($completo, $modo, $de, $ate, $idTrip);
     $copia = $usarVista ? store_copia_ler($chave) : null;
     $vista = (int) ($copia['versao'] ?? 0);

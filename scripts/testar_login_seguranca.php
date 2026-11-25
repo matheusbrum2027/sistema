@@ -61,13 +61,15 @@ ok('qr local', str_starts_with($qr, 'data:image/svg+xml;base64,') && !str_contai
 $svg = base64_decode(substr($qr, strlen('data:image/svg+xml;base64,')), true);
 ok('qr desenha', is_string($svg) && str_contains($svg, '<svg') && str_contains($svg, '<rect'));
 
-$dbOff = ['settings' => ['verificacao_2fa' => false, 'totp_secret' => '']];
-$dbSetup = ['settings' => ['verificacao_2fa' => false, 'totp_secret' => $secret]];
-$dbOn = ['settings' => ['verificacao_2fa' => true, 'totp_secret' => $secret]];
-$dbSemSecret = ['settings' => ['verificacao_2fa' => true, 'totp_secret' => '']];
+$dbOff = ['settings' => ['verificacao_2fa' => false, 'totp_confirmado' => false, 'totp_secret' => '']];
+$dbSetup = ['settings' => ['verificacao_2fa' => false, 'totp_confirmado' => false, 'totp_secret' => $secret]];
+$dbOn = ['settings' => ['verificacao_2fa' => true, 'totp_confirmado' => true, 'totp_secret' => $secret]];
+$dbTextoFalso = ['settings' => ['verificacao_2fa' => 'false', 'totp_confirmado' => 'false', 'totp_secret' => $secret]];
+$dbSemSecret = ['settings' => ['verificacao_2fa' => true, 'totp_confirmado' => true, 'totp_secret' => '']];
 ok('2FA off', totp_estado($dbOff) === 'off' && !autenticacao_2fa_pronta($dbOff));
 ok('2FA setup sem exigir login', totp_estado($dbSetup) === 'setup' && !autenticacao_2fa_pronta($dbSetup));
 ok('2FA on com secret', totp_estado($dbOn) === 'on' && autenticacao_2fa_pronta($dbOn));
+ok('texto false nao liga', totp_estado($dbTextoFalso) === 'setup' && !autenticacao_2fa_pronta($dbTextoFalso));
 ok('2FA on sem secret', !autenticacao_2fa_pronta($dbSemSecret));
 
 // Vetor conhecido RFC 6238 (secret "12345678901234567890" em base32 = GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ)

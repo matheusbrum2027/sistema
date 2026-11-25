@@ -45,7 +45,7 @@ function captcha_novo(): void
 
 function verificacao_2fa_ativa(array $db): bool
 {
-    return !empty($db['settings']['verificacao_2fa']);
+    return autenticacao_2fa_pronta($db);
 }
 
 function captcha_confere(string $digitado): bool

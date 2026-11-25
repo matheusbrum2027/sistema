@@ -1742,10 +1742,15 @@ function handle_post(): void
             flash('A etapa 2FA expirou. Entre de novo com usuário, senha e código visual.', 'err');
             redirect(href('entrar'));
         }
-        $db = load_db();
+        $db = load_db(true, false, 'casca');
+        if (!autenticacao_2fa_pronta($db)) {
+            unset($_SESSION['pending_2fa']);
+            flash('A verificação em 2 passos está desligada. Entre com usuário, senha e o código visual.', 'err');
+            redirect(href('entrar'));
+        }
         $secret = strtoupper((string) ($db['settings']['totp_secret'] ?? ''));
         $codigo = preg_replace('/\D+/', '', post('codigo_2fa')) ?? '';
-        if (!autenticacao_2fa_pronta($db) || !totp_confere($secret, $codigo)) {
+        if (!totp_confere($secret, $codigo)) {
             login_falhou();
             flash('Código incorreto. Use o número de 6 dígitos que aparece agora no autenticador.', 'err');
             redirect($volta);
@@ -1764,7 +1769,7 @@ function handle_post(): void
             flash('Muitas tentativas. Aguarde alguns minutos e tente de novo.', 'err');
             redirect($volta);
         }
-        $db = load_db(false, false, 'casca');
+        $db = load_db(true, false, 'casca');
         if (!captcha_confere(post('captcha'))) {
             login_falhou();
             flash('O código de verificação visual está incorreto ou expirou.', 'err');
