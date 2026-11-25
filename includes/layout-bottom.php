@@ -35,9 +35,9 @@ declare(strict_types=1);
     </button>
   </div>
   <div class="dock-borda" id="mapa-borda">
-    <button class="dock-aba dock-mapa" type="button" id="mapa-abrir" aria-controls="mapa-painel" aria-expanded="false" title="Mapa operacional">
+    <button class="dock-aba dock-mapa" type="button" id="mapa-abrir" aria-controls="mapa-painel" aria-expanded="false" title="Abrangência">
       <span class="dock-ico" aria-hidden="true"><?= icon('pin') ?></span>
-      <span class="dock-aba-txt">Mapa</span>
+      <span class="dock-aba-txt">Abrangência</span>
       <span class="dock-aba-badge" id="mapa-aba-badge" hidden></span>
     </button>
   </div>
@@ -236,7 +236,7 @@ declare(strict_types=1);
 <link rel="stylesheet" href="assets/vendor/leaflet/leaflet.css?v=2">
 <script src="assets/vendor/leaflet/leaflet.js?v=2"></script>
 <script src="assets/js/chat.js?v=18"></script>
-<script src="assets/js/mapa.js?v=7"></script>
+<script src="assets/js/mapa.js?v=8"></script>
 <script src="assets/js/push.js?v=9"></script>
 <?php endif; ?>
 <?php endif; ?>

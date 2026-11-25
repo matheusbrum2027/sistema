@@ -62,13 +62,9 @@
       attributionControl: true,
     }).setView([-27.5954, -48.5480], 11);
 
-    const tiles = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-      maxZoom: 20,
-      subdomains: 'abcd',
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-    });
-    tiles.on('tileloadstart', (ev) => {
-      if (ev.tile) ev.tile.referrerPolicy = 'origin';
+    const tiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     });
     tiles.addTo(map);
 
@@ -115,6 +111,7 @@
 
   function pintar() {
     if (!dados || !map) return;
+    gera++;
     const r = dados.resumo || {};
     document.getElementById('mapa-kpi-total').textContent = String(r.total || 0);
     document.getElementById('mapa-kpi-pins').textContent = String(r.pins || 0);
@@ -203,6 +200,52 @@
     m.openPopup();
   }
 
+  let gera = 0;
+  async function completarFaltantes() {
+    const fila = (dados?.faltam || []).slice(0, 8);
+    const minha = gera;
+    if (!fila.length) return;
+    try {
+      for (const item of fila) {
+        if (!aberta || minha !== gera) return;
+        const r = await fetch('index.php?p=mapa-geo', {
+          method: 'POST',
+          credentials: 'same-origin',
+          cache: 'no-store',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify({ q: item.texto }),
+        });
+        const j = await r.json();
+        if (!j.ok || j.lat == null || j.lng == null || !map) continue;
+        const pin = {
+          id: item.id,
+          tipo: item.tipo,
+          lat: j.lat,
+          lng: j.lng,
+          ponto: j.nome || item.texto,
+          status: item.status,
+          hora: item.hora,
+          data: item.data,
+          cliente: item.cliente,
+          texto: item.texto,
+          par: item.par,
+        };
+        dados.pins = dados.pins || [];
+        dados.pins.push(pin);
+        if (minha !== gera || !layerPins) return;
+        const m = L.marker([pin.lat, pin.lng], { icon: iconePin(pin.tipo, pin.status) })
+          .bindPopup(popupHtml(pin))
+          .addTo(layerPins);
+        m.on('click', () => { ativa = Number(pin.id); pintarLista(); });
+        if (!marcadores.has(Number(pin.id))) marcadores.set(Number(pin.id), []);
+        marcadores.get(Number(pin.id)).push(m);
+        dados.faltam = (dados.faltam || []).filter((x) => !(x.id === item.id && x.tipo === item.tipo));
+        document.getElementById('mapa-kpi-pins').textContent = String(dados.pins.length);
+        pintarLista();
+      }
+    } catch (e) { /* o mapa continua com os pontos já conhecidos */ }
+  }
+
   async function carregar() {
     if (!garantirMapa()) {
       listaEl.innerHTML = '<p class="mapa-vazio">A biblioteca do mapa não carregou. Atualize a página.</p>';
@@ -222,6 +265,7 @@
       pintar();
       ajustarMapa();
       if (ativa) focar(ativa);
+      completarFaltantes();
     } catch (e) {
       listaEl.innerHTML = '<p class="mapa-vazio">' + esc(e.message || 'Não foi possível carregar o mapa.') + '</p>';
     }

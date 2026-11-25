@@ -360,7 +360,7 @@ $classe2fa = $estado2fa === 'on' ? 'ok' : ($estado2fa === 'setup' ? 'warn' : 'of
     <?php else: ?>
       <p class="help" style="margin-top:10px">No Google Cloud: crie um OAuth Client (tipo Web), URI de redirecionamento <code><?= e(drive_redirect_uri()) ?></code>, e cadastre <code>GOOGLE_OAUTH_CLIENT_ID</code> + <code>GOOGLE_OAUTH_CLIENT_SECRET</code> no Vercel.</p>
     <?php endif; ?>
-    <p class="help" style="margin-top:10px">Chave de API (<code>GOOGLE_API_KEY</code>): <?= google_api_configurada() ? 'configurada no servidor (usada com key= nas APIs Google; não vai para o browser).' : 'ausente — cadastre no .env / Vercel.' ?></p>
+    <p class="help" style="margin-top:10px">O mapa do painel usa só o Leaflet, sem chave. A chave Google, se existir, fica no servidor e não entra no mapa.</p>
   <?php else: ?>
     <ul class="help" style="margin:0;padding-left:18px;line-height:1.7">
       <li>Conta: <?= e(drive_email_mascarado($db)) ?></li>

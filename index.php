@@ -58,7 +58,7 @@ $httpsPainel = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
 if ($httpsPainel) {
     header('Strict-Transport-Security: max-age=15552000');
 }
-header("Content-Security-Policy: default-src 'self'; img-src 'self' data: blob: https://pps.whatsapp.net https://*.whatsapp.net https://basemaps.cartocdn.com https://*.basemaps.cartocdn.com https://unpkg.com; media-src 'self'; style-src 'self' https://fonts.googleapis.com https://unpkg.com 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com data:; script-src 'self' https://unpkg.com https://static.cloudflareinsights.com 'unsafe-inline'; connect-src 'self' https://basemaps.cartocdn.com https://*.basemaps.cartocdn.com https://api.open-meteo.com https://air-quality-api.open-meteo.com https://economia.awesomeapi.com.br https://cloudflareinsights.com https://static.cloudflareinsights.com; worker-src 'self' blob:; frame-src 'self' blob:; object-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://www.driverflntransfer.app https://driverflntransfer.app https://accounts.google.com");
+header("Content-Security-Policy: default-src 'self'; img-src 'self' data: blob: https://pps.whatsapp.net https://*.whatsapp.net https://tile.openstreetmap.org https://unpkg.com; media-src 'self'; style-src 'self' https://fonts.googleapis.com https://unpkg.com 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com data:; script-src 'self' https://unpkg.com https://static.cloudflareinsights.com 'unsafe-inline'; connect-src 'self' https://tile.openstreetmap.org https://api.open-meteo.com https://air-quality-api.open-meteo.com https://economia.awesomeapi.com.br https://cloudflareinsights.com https://static.cloudflareinsights.com; worker-src 'self' blob:; frame-src 'self' blob:; object-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://www.driverflntransfer.app https://driverflntransfer.app https://accounts.google.com");
 if ((string) ($_GET['p'] ?? '') === 'marca') {
     $chave = (string) ($_GET['k'] ?? '');
     if (!in_array($chave, ['logo', 'logo_lateral', 'favicon', 'assinatura'], true)) {
@@ -300,6 +300,28 @@ if ((string) ($_GET['p'] ?? '') === 'mapa') {
         exit;
     }
     echo json_encode($saida, JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+if ((string) ($_GET['p'] ?? '') === 'mapa-geo') {
+    header('Content-Type: application/json; charset=utf-8');
+    header('Cache-Control: private, no-store');
+    if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST' || !mapa_admin()) {
+        http_response_code(401);
+        echo '{"ok":false}';
+        exit;
+    }
+    $corpo = json_decode((string) file_get_contents('php://input'), true);
+    $q = trim((string) (is_array($corpo) ? ($corpo['q'] ?? '') : ''));
+    session_write_close();
+    $ponto = $q === '' ? null : mapa_geocode_osm($q);
+    echo json_encode([
+        'ok' => $ponto !== null,
+        'lat' => $ponto['lat'] ?? null,
+        'lng' => $ponto['lng'] ?? null,
+        'nome' => $ponto['nome'] ?? '',
+        'id' => $ponto['id'] ?? '',
+    ], JSON_UNESCAPED_UNICODE);
     exit;
 }
 

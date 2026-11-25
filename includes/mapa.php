@@ -31,29 +31,91 @@ function mapa_pontos(): array
     ];
 }
 
-function mapa_geocode_google(string $texto): ?array
+function mapa_geocode_arquivo(): string
 {
-    if (!function_exists('google_api_key') || google_api_key() === '') {
-        return null;
+    return rtrim(sys_get_temp_dir(), '\\/') . DIRECTORY_SEPARATOR . 'fln-geocode.json';
+}
+
+function &mapa_geocode_mem(): array
+{
+    static $cache = null;
+    if ($cache === null) {
+        $arquivo = mapa_geocode_arquivo();
+        $lido = is_file($arquivo) ? json_decode((string) file_get_contents($arquivo), true) : [];
+        $cache = is_array($lido) ? $lido : [];
     }
+    return $cache;
+}
+
+function mapa_geocode_ler(): array
+{
+    return mapa_geocode_mem();
+}
+
+function mapa_geocode_gravar(array $cache): void
+{
+    $mem = &mapa_geocode_mem();
+    $mem = $cache;
+    @file_put_contents(mapa_geocode_arquivo(), json_encode($cache, JSON_UNESCAPED_UNICODE));
+}
+
+function mapa_geocode_chave(string $texto): string
+{
+    $t = mb_strtolower(trim($texto));
+    $t = strtr($t, ['á' => 'a', 'à' => 'a', 'ã' => 'a', 'â' => 'a', 'é' => 'e', 'ê' => 'e', 'í' => 'i', 'ó' => 'o', 'ô' => 'o', 'õ' => 'o', 'ú' => 'u', 'ü' => 'u', 'ç' => 'c']);
+    return sha1($t);
+}
+
+function mapa_ponto_na_regiao(float $lat, float $lng): bool
+{
+    return $lat >= -29.5 && $lat <= -25.7 && $lng >= -53.9 && $lng <= -48.2;
+}
+
+function mapa_ponto_cache(string $texto): ?array
+{
+    $chave = mapa_geocode_chave($texto);
+    $cache = mapa_geocode_ler();
+    $hit = $cache[$chave] ?? null;
+    return is_array($hit) && isset($hit['lat'], $hit['lng']) ? $hit : null;
+}
+
+function mapa_geocode_osm(string $texto): ?array
+{
     $endereco = trim($texto);
-    if ($endereco === '') {
+    if ($endereco === '' || mb_strlen($endereco) > 180 || !function_exists('curl_init')) {
         return null;
     }
-    if (!str_contains(mb_strtolower($endereco), 'florian') && !str_contains(mb_strtolower($endereco), 'sc')) {
-        $endereco .= ', Grande Florianópolis, SC, Brasil';
+    $salvo = mapa_ponto_cache($endereco);
+    if ($salvo) {
+        return $salvo;
     }
-    $url = 'https://maps.googleapis.com/maps/api/geocode/json?' . http_build_query([
-        'address' => $endereco,
-        'region' => 'br',
-        'language' => 'pt-BR',
-        'key' => google_api_key(),
+    static $ultimo = 0.0;
+    $agora = microtime(true);
+    if ($ultimo > 0 && ($agora - $ultimo) < 1.1) {
+        usleep((int) ((1.1 - ($agora - $ultimo)) * 1000000));
+    }
+    $ultimo = microtime(true);
+    $consulta = $endereco;
+    $baixo = mb_strtolower($consulta);
+    if (!str_contains($baixo, 'santa catarina') && !str_contains($baixo, 'brasil') && !preg_match('/\bsc\b/u', $baixo)) {
+        $consulta .= ', Santa Catarina, Brasil';
+    }
+    $url = 'https://nominatim.openstreetmap.org/search?' . http_build_query([
+        'q' => $consulta,
+        'format' => 'jsonv2',
+        'limit' => 1,
+        'countrycodes' => 'br',
+        'viewbox' => '-53.9,-25.7,-48.2,-29.5',
+        'bounded' => 0,
     ], '', '&', PHP_QUERY_RFC3986);
     $ch = curl_init($url);
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_TIMEOUT => 8,
-        CURLOPT_HTTPHEADER => ['Accept: application/json'],
+        CURLOPT_HTTPHEADER => [
+            'Accept: application/json',
+            'User-Agent: FLNTransferPainel/1.0 (mapa operacional)',
+        ],
     ]);
     if (function_exists('curl_ca_nativo')) {
         curl_ca_nativo($ch);
@@ -61,27 +123,33 @@ function mapa_geocode_google(string $texto): ?array
     $raw = curl_exec($ch);
     curl_close($ch);
     $json = json_decode((string) $raw, true);
-    if (!is_array($json) || (string) ($json['status'] ?? '') !== 'OK') {
+    $linha = is_array($json) ? ($json[0] ?? null) : null;
+    if (!is_array($linha) || !isset($linha['lat'], $linha['lon'])) {
         return null;
     }
-    $res = $json['results'][0] ?? null;
-    if (!is_array($res)) {
+    $lat = (float) $linha['lat'];
+    $lng = (float) $linha['lon'];
+    if (!mapa_ponto_na_regiao($lat, $lng)) {
         return null;
     }
-    $loc = $res['geometry']['location'] ?? null;
-    if (!is_array($loc) || !isset($loc['lat'], $loc['lng'])) {
-        return null;
-    }
-    $nome = trim((string) ($res['formatted_address'] ?? $texto));
+    $nome = trim((string) ($linha['display_name'] ?? $endereco));
+    $nome = preg_replace('/,\s*Brasil$/u', '', $nome) ?? $nome;
     if (mb_strlen($nome) > 48) {
         $nome = mb_substr($nome, 0, 45) . '…';
     }
-    return [
-        'id' => 'geo_' . substr(sha1(mb_strtolower($texto)), 0, 10),
+    $ponto = [
+        'id' => 'geo_' . substr(mapa_geocode_chave($endereco), 0, 10),
         'nome' => $nome !== '' ? $nome : 'Ponto',
-        'lat' => (float) $loc['lat'],
-        'lng' => (float) $loc['lng'],
+        'lat' => $lat,
+        'lng' => $lng,
     ];
+    $cache = mapa_geocode_ler();
+    $cache[mapa_geocode_chave($endereco)] = $ponto;
+    if (count($cache) > 400) {
+        $cache = array_slice($cache, -400, null, true);
+    }
+    mapa_geocode_gravar($cache);
+    return $ponto;
 }
 
 function mapa_resolver_ponto(string $texto, bool $remoto = false): ?array
@@ -104,9 +172,9 @@ function mapa_resolver_ponto(string $texto, bool $remoto = false): ?array
         }
     }
     if (!$remoto) {
-        return null;
+        return mapa_ponto_cache($texto);
     }
-    return mapa_geocode_google($texto);
+    return mapa_geocode_osm($texto);
 }
 
 function mapa_jitter_geo(int $id, float $lat, float $lng): array
@@ -137,6 +205,7 @@ function mapa_viagens(array $db, string $filtro = 'hoje', string $status = 'toda
 
     $pins = [];
     $rotas = [];
+    $faltam = [];
     $porStatus = ['pendente' => 0, 'reserva' => 0, 'andamento' => 0, 'concluida' => 0, 'cancelada' => 0];
     $porPonto = [];
 
@@ -159,6 +228,30 @@ function mapa_viagens(array $db, string $filtro = 'hoje', string $status = 'toda
         $destinoTxt = (string) ($t['destino'] ?? '');
         $o = mapa_resolver_ponto($origemTxt);
         $d = mapa_resolver_ponto($destinoTxt);
+        if ($o === null && trim($origemTxt) !== '' && count($faltam) < 24) {
+            $faltam[] = [
+                'id' => (int) ($t['id'] ?? 0),
+                'tipo' => 'origem',
+                'texto' => $origemTxt,
+                'status' => $st,
+                'hora' => (string) ($t['hora'] ?? ''),
+                'data' => $data,
+                'cliente' => (string) ($t['cliente'] ?? ''),
+                'par' => $destinoTxt,
+            ];
+        }
+        if ($d === null && trim($destinoTxt) !== '' && count($faltam) < 24) {
+            $faltam[] = [
+                'id' => (int) ($t['id'] ?? 0),
+                'tipo' => 'destino',
+                'texto' => $destinoTxt,
+                'status' => $st,
+                'hora' => (string) ($t['hora'] ?? ''),
+                'data' => $data,
+                'cliente' => (string) ($t['cliente'] ?? ''),
+                'par' => $origemTxt,
+            ];
+        }
         if ($o === null && $d === null) {
             continue;
         }
@@ -243,5 +336,6 @@ function mapa_viagens(array $db, string $filtro = 'hoje', string $status = 'toda
         'hotspots' => $hotspots,
         'pins' => $pins,
         'rotas' => $rotas,
+        'faltam' => $faltam,
     ];
 }

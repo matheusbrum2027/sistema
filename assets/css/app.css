@@ -2220,7 +2220,7 @@ body.printing #print-root {
 .flutuantes-direita {
   position: fixed; right: 0; top: 34%; z-index: 40;
   display: flex; flex-direction: column; align-items: flex-end; gap: 8px;
-  width: max-content; max-width: 100%;
+  width: max-content; max-width: none; overflow: visible;
   pointer-events: none;
   touch-action: manipulation;
 }
@@ -2228,7 +2228,8 @@ body.printing #print-root {
   position: relative;
   flex: 0 0 auto;
   width: max-content;
-  max-width: max-content;
+  max-width: none;
+  overflow: visible;
   align-self: flex-end;
   pointer-events: auto;
   touch-action: manipulation;
@@ -2285,14 +2286,15 @@ html[data-theme="dark"] .dock-aba-txt {
 }
 .dock-aba:hover,
 .dock-aba:focus-visible {
-  box-sizing: content-box;
-  width: max-content;
+  box-sizing: border-box;
+  width: 46px;
   max-width: none;
-  height: 44px;
+  height: 46px;
   overflow: visible;
-  justify-content: flex-start;
-  gap: 8px;
-  padding: 0 18px 0 14px;
+  justify-content: center;
+  gap: 0;
+  padding: 0;
+  z-index: 3;
   background: var(--orange);
   box-shadow: -8px 4px 18px rgba(242, 107, 26, .28);
 }
@@ -2310,7 +2312,22 @@ html[data-theme="dark"] .dock-aba:hover .dock-ico .ico,
 html[data-theme="dark"] .dock-aba:focus-visible .dock-ico .ico { color: #fff; stroke: #fff; }
 .dock-aba:hover .dock-aba-txt,
 .dock-aba:focus-visible .dock-aba-txt {
-  max-width: none; width: auto; flex: 0 0 auto; overflow: visible; opacity: 1;
+  position: absolute;
+  right: calc(100% - 1px);
+  top: -1px;
+  height: 46px;
+  display: flex;
+  align-items: center;
+  max-width: none;
+  width: max-content;
+  padding: 0 8px 0 14px;
+  overflow: visible;
+  opacity: 1;
+  white-space: nowrap;
+  text-overflow: clip;
+  background: var(--orange);
+  color: #fff;
+  border-radius: 12px 0 0 12px;
 }
 .dock-aba:hover .dock-aba-badge,
 .dock-aba:focus-visible .dock-aba-badge {
@@ -2323,7 +2340,10 @@ html[data-theme="dark"] .dock-aba:focus-visible .dock-ico .ico { color: #fff; st
   .dock-aba:hover,
   .dock-aba:focus-visible { width: 46px; padding: 0; gap: 0; justify-content: center; }
   .dock-aba:hover .dock-aba-txt,
-  .dock-aba:focus-visible .dock-aba-txt { max-width: 0; opacity: 0; }
+  .dock-aba:focus-visible .dock-aba-txt {
+    position: static; right: auto; height: auto; max-width: 0; width: 0;
+    padding: 0; opacity: 0; background: transparent;
+  }
 }
 
 .analise-painel {
