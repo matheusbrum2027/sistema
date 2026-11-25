@@ -720,15 +720,6 @@
     event.preventDefault();
     abrirSemRecarregar(destino.href, true);
   });
-  document.addEventListener('pointerover', (event) => {
-    const link = event.target.closest?.('.sidebar a[href]');
-    if (!link) return;
-    let destino;
-    try { destino = new URL(link.href, location.href); } catch (err) { return; }
-    const pagina = destino.searchParams.get('p') || '';
-    if (pagina === 'reservas' || pagina === 'faturado' || pagina === 'metricas' || pagina === 'viagens' || pagina === 'agenda') return;
-    pedirPagina(link.href);
-  });
   window.addEventListener('popstate', () => {
     abrirSemRecarregar(location.href, false);
   });

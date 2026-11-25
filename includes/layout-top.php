@@ -16,7 +16,7 @@ if ($range !== 'periodo') {
     $filtroAte = $fimFiltro->format('Y-m-d');
 }
 $periodoAtivo = $range === 'periodo' ? ' is-on' : '';
-$auto = $current === 'metricas';
+$auto = false;
 $btnCorridas = in_array($current, ['agenda', 'reservas'], true)
     ? '<button class="btn topbar-atualizar" type="button" data-atualizar-corridas>' . icon('refresh') . ' Atualizar corridas</button>'
     : '';

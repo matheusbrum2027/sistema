@@ -524,6 +524,135 @@ function store_gravar(array $db, string $acao): void
     store_versao($nova);
 }
 
+/** Datas do formulário, com dois dias de folga para o conflito de motorista. */
+function store_janela_gravacao(): array
+{
+    $datas = [];
+    $andar = static function (mixed $valor) use (&$andar, &$datas): void {
+        if (is_array($valor)) {
+            foreach ($valor as $item) {
+                $andar($item);
+            }
+            return;
+        }
+        if (is_string($valor) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $valor) === 1) {
+            $datas[] = $valor;
+        }
+    };
+    $andar($_POST);
+    $tz = new DateTimeZone('America/Sao_Paulo');
+    if ($datas === []) {
+        $datas[] = (new DateTimeImmutable('now', $tz))->format('Y-m-d');
+    }
+    sort($datas);
+    $de = new DateTimeImmutable($datas[0], $tz);
+    $ate = new DateTimeImmutable($datas[array_key_last($datas)], $tz);
+    return [$de->modify('-2 days')->format('Y-m-d'), $ate->modify('+2 days')->format('Y-m-d')];
+}
+
+/**
+ * Casca, a reserva inteira e só a agenda dos dias vizinhos.
+ * A lista completa fica no banco.
+ */
+function store_db_para_gravar(int $idTrip): array
+{
+    [$de, $ate] = store_janela_gravacao();
+    $r = store_rpc('fln_ler_gravacao', [
+        'p_base' => store_base(),
+        'p_id' => $idTrip,
+        'p_de' => $de,
+        'p_ate' => $ate,
+    ], 20);
+    if (!is_array($r) || !is_array($r['dados'] ?? null)) {
+        throw new BancoIndisponivel('Leitura enxuta indisponível.');
+    }
+    store_versao((int) ($r['versao'] ?? 0));
+    $dados = $r['dados'];
+    if (!isset($dados['settings'], $dados['motoristas']) || !is_array($dados['settings']) || !is_array($dados['motoristas'])) {
+        throw new BancoIndisponivel('Leitura enxuta incompleta.');
+    }
+    $dados['transfers'] = [];
+    $dados['lancamentos'] = [];
+    unset($dados['_menu']);
+    $db = persistir_acesso_motorista(normalize_db($dados));
+    if (!isset($db['seq']) || !is_array($db['seq'])) {
+        $db['seq'] = [];
+    }
+    $trips = [];
+    foreach (is_array($r['agenda'] ?? null) ? $r['agenda'] : [] as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+        $row['_eco'] = 1;
+        $trips[] = $row;
+    }
+    $full = is_array($r['trip'] ?? null) ? $r['trip'] : null;
+    if ($full !== null) {
+        unset($full['_eco']);
+        $colocou = false;
+        $idFull = (int) ($full['id'] ?? 0);
+        foreach ($trips as $i => $row) {
+            if ((int) ($row['id'] ?? 0) === $idFull) {
+                $trips[$i] = $full;
+                $colocou = true;
+                break;
+            }
+        }
+        if (!$colocou) {
+            $trips[] = $full;
+        }
+    }
+    $db['transfers'] = $trips;
+    $db['lancamentos'] = [];
+    foreach (is_array($r['lancamentos'] ?? null) ? $r['lancamentos'] : [] as $row) {
+        if (is_array($row)) {
+            $db['lancamentos'][] = $row;
+        }
+    }
+    $GLOBALS['fln_menu'] = true;
+    $db['seq']['transfer'] = max((int) ($db['seq']['transfer'] ?? 1), (int) ($r['max_transfer'] ?? 0) + 1);
+    $db['seq']['lancamento'] = max((int) ($db['seq']['lancamento'] ?? 1), (int) ($r['max_lancamento'] ?? 0) + 1);
+    return $db;
+}
+
+/** Grava só as reservas alteradas e os lançamentos delas. O restante permanece. */
+function store_gravar_reservas(array $db, string $acao): void
+{
+    $trips = [];
+    foreach ($db['transfers'] ?? [] as $trip) {
+        if (!is_array($trip) || !empty($trip['_eco'])) {
+            continue;
+        }
+        unset($trip['_eco']);
+        $trips[] = $trip;
+    }
+    if ($trips === [] || count($trips) > 40) {
+        throw new BancoIndisponivel('A gravação da reserva não fechou. Tente de novo.');
+    }
+    $lancamentos = [];
+    foreach ($db['lancamentos'] ?? [] as $row) {
+        if (!is_array($row) || (string) ($row['papel'] ?? '') === '_teto') {
+            continue;
+        }
+        $lancamentos[] = $row;
+    }
+    $dados = $db;
+    unset($dados['transfers'], $dados['lancamentos'], $dados['_menu']);
+    $nova = (int) store_rpc('fln_gravar_reservas', [
+        'p_versao' => store_versao(),
+        'p_dados' => $dados,
+        'p_trips' => $trips,
+        'p_lancamentos' => $lancamentos,
+        'p_acao' => $acao,
+        'p_usuario' => store_quem(),
+        'p_base' => store_base(),
+    ], 22);
+    if ($nova < 0) {
+        throw new BancoConflito('Outra pessoa salvou ao mesmo tempo.');
+    }
+    store_versao($nova);
+}
+
 /**
  * Lê o estado atual, aplica $alterar e grava. Se outra gravação ocorrer no meio,
  * relê e aplica de novo; $alterar não pode ter efeito fora de $db.
@@ -531,11 +660,38 @@ function store_gravar(array $db, string $acao): void
 function com_db(string $acao, callable $alterar, bool $leve = false): mixed
 {
     // Chat, push e acesso não podem reenviar as 3 mil reservas: isso estoura a cota.
-    if (!$leve && preg_match('/^(chat_|push_|acesso_)/', $acao) === 1) {
+    if (!$leve && preg_match('/^(chat_|push_|acesso_|campanha_|2fa_)/', $acao) === 1) {
         $leve = true;
     }
+    $cadastro = [
+        'save_contrato', 'save_conta', 'save_comprovante', 'save_assinatura', 'save_atendente',
+        'save_pagamentos', 'save_operacao', 'save_notificacoes', 'remove_logo',
+        'add_automacao', 'update_automacao', 'delete_automacao', 'save_comunicador_autos',
+        'add_webhook_dominio', 'update_webhook_dominio', 'delete_webhook_dominio', 'delete_inbox',
+        'conectar_whatsapp', 'excluir_instancia_whatsapp', 'status_whatsapp',
+        'sheets_sync_now', 'drive_backup_now', 'drive_desconectar', 'drive_oauth_salvar', 'drive_cron',
+        'add_cliente', 'update_cliente', 'add_veiculo', 'update_veiculo',
+        'add_motorista', 'update_motorista', 'reset_senha_motorista', 'candidatura_motorista', 'marca_fln',
+    ];
+    if (!$leve && in_array($acao, $cadastro, true)) {
+        $leve = true;
+    }
+    $reserva = in_array($acao, [
+        'add_transfer', 'update_transfer', 'set_transfer_status',
+        'receber_transfer', 'faturar_transfer', 'comunicar_reserva',
+    ], true);
     for ($tentativa = 0; $tentativa < 4; $tentativa++) {
-        $db = $leve ? load_db(true, false, 'casca') : load_db(true, true);
+        $enxuta = false;
+        if ($reserva) {
+            try {
+                $db = store_db_para_gravar((int) post('id'));
+                $enxuta = true;
+            } catch (Throwable) {
+                $db = load_db(true, true);
+            }
+        } else {
+            $db = $leve ? load_db(true, false, 'casca') : load_db(true, true);
+        }
         $resultado = $alterar($db);
         if ($resultado === false) {
             return false;
@@ -545,7 +701,11 @@ function com_db(string $acao, callable $alterar, bool $leve = false): mixed
             unset($gravar['transfers'], $gravar['lancamentos'], $gravar['_menu']);
         }
         try {
-            save_db($gravar, $acao);
+            if ($enxuta) {
+                store_gravar_reservas($gravar, $acao);
+            } else {
+                save_db($gravar, $acao);
+            }
             return $resultado;
         } catch (BancoConflito) {
             db_request_cache(null, true);
