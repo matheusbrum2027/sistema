@@ -574,6 +574,7 @@ function store_db_para_gravar(int $idTrip): array
     $dados['transfers'] = [];
     $dados['lancamentos'] = [];
     unset($dados['_menu']);
+    $GLOBALS['fln_ids_gravacao'] = [];
     $db = persistir_acesso_motorista(normalize_db($dados));
     if (!isset($db['seq']) || !is_array($db['seq'])) {
         $db['seq'] = [];
@@ -601,6 +602,9 @@ function store_db_para_gravar(int $idTrip): array
         if (!$colocou) {
             $trips[] = $full;
         }
+        if ($idFull > 0) {
+            $GLOBALS['fln_ids_gravacao'][] = $idFull;
+        }
     }
     $db['transfers'] = $trips;
     $db['lancamentos'] = [];
@@ -619,14 +623,26 @@ function store_db_para_gravar(int $idTrip): array
 function store_gravar_reservas(array $db, string $acao): void
 {
     $trips = [];
+    $idsGravados = [];
     foreach ($db['transfers'] ?? [] as $trip) {
         if (!is_array($trip) || !empty($trip['_eco'])) {
             continue;
         }
         unset($trip['_eco']);
         $trips[] = $trip;
+        $idTrip = (int) ($trip['id'] ?? 0);
+        if ($idTrip > 0) {
+            $idsGravados[] = $idTrip;
+        }
     }
-    if ($trips === [] || count($trips) > 40) {
+    $apagar = [];
+    foreach (is_array($GLOBALS['fln_ids_gravacao'] ?? null) ? $GLOBALS['fln_ids_gravacao'] : [] as $idCarregado) {
+        $idCarregado = (int) $idCarregado;
+        if ($idCarregado > 0 && !in_array($idCarregado, $idsGravados, true)) {
+            $apagar[] = $idCarregado;
+        }
+    }
+    if (($trips === [] && $apagar === []) || count($trips) > 40 || count($apagar) > 3) {
         throw new BancoIndisponivel('A gravação da reserva não fechou. Tente de novo.');
     }
     $lancamentos = [];
@@ -646,6 +662,7 @@ function store_gravar_reservas(array $db, string $acao): void
         'p_acao' => $acao,
         'p_usuario' => store_quem(),
         'p_base' => store_base(),
+        'p_apagar' => $apagar,
     ], 22);
     if ($nova < 0) {
         throw new BancoConflito('Outra pessoa salvou ao mesmo tempo.');
@@ -677,7 +694,7 @@ function com_db(string $acao, callable $alterar, bool $leve = false): mixed
         $leve = true;
     }
     $reserva = in_array($acao, [
-        'add_transfer', 'update_transfer', 'set_transfer_status',
+        'add_transfer', 'update_transfer', 'set_transfer_status', 'delete_transfer',
         'receber_transfer', 'faturar_transfer', 'comunicar_reserva',
     ], true);
     for ($tentativa = 0; $tentativa < 4; $tentativa++) {
@@ -686,7 +703,10 @@ function com_db(string $acao, callable $alterar, bool $leve = false): mixed
             try {
                 $db = store_db_para_gravar((int) post('id'));
                 $enxuta = true;
-            } catch (Throwable) {
+            } catch (Throwable $e) {
+                if (str_contains($e->getMessage(), 'cota de leitura')) {
+                    throw $e instanceof BancoIndisponivel ? $e : new BancoIndisponivel($e->getMessage());
+                }
                 $db = load_db(true, true);
             }
         } else {
