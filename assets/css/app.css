@@ -1297,6 +1297,7 @@ html[data-theme="dark"] .com-card-mark { background: #1b2028; border-color: #3d4
   flex: 0 0 auto; width: 86px; height: 86px; background: #fff; border-radius: 8px;
   display: grid; place-items: center; overflow: hidden; padding: 6px;
 }
+.doc-logo-box.is-clara { background: transparent; }
 .doc-mark {
   width: 100%; height: 100%; display: grid; place-items: center;
   background: var(--doc-orange); color: #fff; font-weight: 700; letter-spacing: 0.04em; border-radius: 6px;
@@ -2175,6 +2176,7 @@ body.printing #print-root {
   body.printing .doc-banner-copy h2 { color: #fff !important; }
   body.printing .doc-local { color: #c5ccd6 !important; }
   body.printing .doc-logo-box { background: #fff !important; width: 86px !important; height: 86px !important; }
+  body.printing .doc-logo-box.is-clara { background: transparent !important; }
   body.printing .doc-route-line {
     width: 48px !important; height: 2px !important; margin: 22px 0 0 !important;
     background-image: linear-gradient(90deg, #f26b1a 40%, transparent 40%) !important;

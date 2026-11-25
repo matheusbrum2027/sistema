@@ -433,15 +433,20 @@ function reserva_midia_src(array $s, string $chave): string
     if ($src !== '') {
         return $src;
     }
+    static $cache = [];
+    if (array_key_exists($chave, $cache)) {
+        return $cache[$chave];
+    }
     if (!function_exists('store_midia')) {
         return '';
     }
     try {
         $src = store_midia($chave);
     } catch (Throwable) {
-        return '';
+        $src = '';
     }
-    return is_string($src) ? trim($src) : '';
+    $cache[$chave] = is_string($src) ? trim($src) : '';
+    return $cache[$chave];
 }
 
 /** @return array{jpeg:string,w:int,h:int}|null */
@@ -478,6 +483,19 @@ function reserva_bin_jpeg(string $bin): ?array
         $p += 2 + $tam;
     }
     return null;
+}
+
+function reserva_logo_clara(array $s): bool
+{
+    $src = reserva_midia_src($s, 'logo');
+    if ($src === '') {
+        $src = reserva_midia_src($s, 'logo_lateral');
+    }
+    if ($src === '' || !function_exists('reserva_pdf_jpeg')) {
+        return false;
+    }
+    $img = reserva_pdf_jpeg($src);
+    return is_array($img) && !empty($img['clara']);
 }
 
 function reserva_logo(array $s): string
@@ -538,7 +556,7 @@ function reserva_cabecalho_empresa(array $s, string $titulo, string $kicker = 'D
     $local = reserva_cidade_uf($s);
     echo '<header class="doc-banner">';
     echo '<div class="doc-banner-inner">';
-    echo '<div class="doc-logo-box">';
+    echo '<div class="doc-logo-box' . (reserva_logo_clara($s) ? ' is-clara' : '') . '">';
     if ($logo !== '') {
         echo $logo;
     } else {
