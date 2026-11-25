@@ -522,8 +522,10 @@
     abrirPreviaPdf(url.href, nome);
   }
   document.addEventListener('click', (event) => {
-    if (event.target.closest('#flutuantes-direita, #mapa-painel, #chat-painel, .leaflet-container')) return;
-    const salvarPdf = event.target.closest('[data-pdf-salvar]');
+    const alvo = event.target instanceof Element ? event.target : event.target.parentElement;
+    if (!alvo) return;
+    if (alvo.closest('#flutuantes-direita, #mapa-painel, #chat-painel, .leaflet-container')) return;
+    const salvarPdf = alvo.closest('[data-pdf-salvar]');
     if (salvarPdf) {
       event.preventDefault();
       const dlg = salvarPdf.closest('#dlg-pdf-visor');
@@ -532,19 +534,35 @@
       if (url) salvarPdfDireto(url, nome, salvarPdf);
       return;
     }
-    const pdfLink = event.target.closest('[data-baixar-pdf]');
+    const editarReserva = alvo.closest('[data-editar-reserva]');
+    if (editarReserva) {
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+      event.preventDefault();
+      const destino = new URL(editarReserva.href, location.href);
+      if (document.body.dataset.page === 'reservas') {
+        const atual = new URL(location.href);
+        ['de', 'ate', 'estado', 'motorista', 'faturado', 'q', 'ord', 'dir', 'limpar'].forEach((chave) => {
+          if (atual.searchParams.has(chave) && !destino.searchParams.has(chave)) {
+            destino.searchParams.set(chave, atual.searchParams.get(chave) || '');
+          }
+        });
+      }
+      location.assign(destino.href);
+      return;
+    }
+    const pdfLink = alvo.closest('[data-baixar-pdf]');
     if (pdfLink) {
       event.preventDefault();
       baixarPdfDoLink(pdfLink);
       return;
     }
-    const atualizarCorridas = event.target.closest('[data-atualizar-corridas]');
+    const atualizarCorridas = alvo.closest('[data-atualizar-corridas]');
     if (atualizarCorridas) {
       event.preventDefault();
       if (!navOcupado) abrirSemRecarregar(location.href, false);
       return;
     }
-    const abrirDia = event.target.closest('.cal-abrir');
+    const abrirDia = alvo.closest('.cal-abrir');
     if (abrirDia && calTela.matches) {
       const dia = abrirDia.getAttribute('data-cal-dia') || '';
       if (calDiaValido(dia)) {
@@ -556,14 +574,14 @@
       }
       return;
     }
-    const tipoBtn = event.target.closest('[data-cal-tipo]');
+    const tipoBtn = alvo.closest('[data-cal-tipo]');
     if (tipoBtn && document.getElementById('cal-foco')) {
       calTipo = tipoBtn.getAttribute('data-cal-tipo') || 'todas';
       document.querySelectorAll('[data-cal-tipo]').forEach((btn) => btn.classList.toggle('is-on', btn === tipoBtn));
       calMostrar();
       return;
     }
-    const olho = event.target.closest('[data-toggle-senha]');
+    const olho = alvo.closest('[data-toggle-senha]');
     if (olho) {
       const campo = document.getElementById('senha');
       if (campo) {
@@ -574,7 +592,7 @@
       }
       return;
     }
-    const copiar = event.target.closest('[data-copy]');
+    const copiar = alvo.closest('[data-copy]');
     if (copiar) {
       const text = copiar.getAttribute('data-copy') || '';
       const avisar = () => {
@@ -588,7 +606,7 @@
       navigator.clipboard.writeText(text).then(avisar).catch(() => window.prompt('Copie:', text));
       return;
     }
-      const abrir = event.target.closest('[data-open-dialog]');
+      const abrir = alvo.closest('[data-open-dialog]');
       if (abrir) {
         event.preventDefault();
         const alvo = abrir.getAttribute('data-open-dialog');
@@ -608,7 +626,7 @@
         });
         return;
       }
-    const fechar = event.target.closest('[data-close-dialog]');
+    const fechar = alvo.closest('[data-close-dialog]');
     if (fechar) {
       const dlg = fechar.closest('dialog');
       const chave = dlg?.dataset.clearQuery || (dlg?.id === 'dlg-reserva' ? 'edit' : '');
@@ -624,7 +642,7 @@
       dlg?.close();
       return;
     }
-    const aba = event.target.closest('[data-form-tab]');
+    const aba = alvo.closest('[data-form-tab]');
     if (aba) {
       const form = aba.closest('form');
       const nome = aba.getAttribute('data-form-tab');
@@ -632,7 +650,7 @@
       form?.querySelectorAll('[data-form-pane]').forEach((pane) => { pane.hidden = pane.getAttribute('data-form-pane') !== nome; });
       return;
     }
-    const proximo = event.target.closest('[data-form-next]');
+    const proximo = alvo.closest('[data-form-next]');
     if (proximo) {
       const form = proximo.closest('form');
       const abas = [...(form?.querySelectorAll('[data-form-tab]') || [])];
@@ -640,7 +658,7 @@
       abas[Math.min(abas.length - 1, atual + 1)]?.click();
       return;
     }
-    const proAbre = event.target.closest('[data-pro-abre]');
+    const proAbre = alvo.closest('[data-pro-abre]');
     if (proAbre) {
       const painel = document.getElementById(proAbre.getAttribute('aria-controls') || '');
       const aberto = proAbre.getAttribute('aria-expanded') === 'true';
@@ -649,7 +667,7 @@
       proAbre.querySelector('.pro-seta')?.classList.toggle('is-baixo', aberto);
       return;
     }
-    const editarCfg = event.target.closest('[data-cfg-edit]');
+    const editarCfg = alvo.closest('[data-cfg-edit]');
     if (editarCfg) {
       const card = editarCfg.closest('.cfg-card');
       const fieldset = card?.querySelector('fieldset');
@@ -668,7 +686,7 @@
       if (alvo) window.setTimeout(() => alvo.focus(), 280);
       return;
     }
-    const tema = event.target.closest('[data-theme-toggle]');
+    const tema = alvo.closest('[data-theme-toggle]');
     if (tema) {
       const escuro = document.documentElement.dataset.theme === 'dark';
       pedirConfirmacao(
@@ -677,7 +695,7 @@
       );
       return;
     }
-    const imprimir = event.target.closest('[data-print]');
+    const imprimir = alvo.closest('[data-print]');
     if (imprimir) {
       const textos = textosDe(imprimir);
       const gerar = () => gerarPdf(imprimir);
@@ -688,7 +706,7 @@
       pedirConfirmacao(textos, gerar);
       return;
     }
-    const link = event.target.closest('a[href]');
+    const link = alvo.closest('a[href]');
     if (!link || !link.closest('[data-shell-nav]')) return;
     if (link.closest('.sidebar')) fecharMenu();
     if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;

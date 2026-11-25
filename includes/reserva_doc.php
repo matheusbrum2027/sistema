@@ -1065,7 +1065,7 @@ function reserva_dialogos(array $db, array $trip, bool $admin, string $contexto 
       <div class="dialog-b"><?php reserva_detalhes($db, $trip); ?></div>
       <footer class="dlg-foot">
         <?php if ($admin): ?>
-          <a class="btn btn-sm" href="<?= e(href('reservas', ['edit' => $id])) ?>">Editar</a>
+          <a class="btn btn-sm" href="<?= e(href('reservas', ['edit' => $id])) ?>" data-editar-reserva="<?= $id ?>">Editar</a>
           <?php if (count($legsCom) > 1): ?>
             <?php foreach ($legsCom as $legCom): ?>
               <button class="btn btn-sm" type="button" data-open-dialog="dlg-com-<?= $id ?>-<?= e((string) $legCom['kind']) ?>">Comunicar <?= e((string) $legCom['label']) ?></button>

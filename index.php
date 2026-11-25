@@ -734,6 +734,32 @@ if (in_array($current, ['entrar', 'seja-motorista', 'aplicativo'], true) && !pre
         $ate = $fimFaixa->format('Y-m-d');
     }
     $db = load_db(false, false, $modo, $de, $ate, $idTrip);
+    $idEdit = $current === 'reservas' ? (int) ($_GET['edit'] ?? 0) : 0;
+    if ($idEdit > 0) {
+        $temEdit = false;
+        foreach ($db['transfers'] as $row) {
+            if ((int) ($row['id'] ?? 0) === $idEdit) {
+                $temEdit = true;
+                break;
+            }
+        }
+        // O detalhe abre qualquer reserva. A lista pode estar em outro período.
+        if (!$temEdit && store_remoto()) {
+            try {
+                $extra = store_ler(false, 'uma', '', '', $idEdit, false);
+            } catch (Throwable) {
+                $extra = null;
+            }
+            if (is_array($extra)) {
+                foreach ($extra['transfers'] ?? [] as $row) {
+                    if ((int) ($row['id'] ?? 0) === $idEdit) {
+                        $db['transfers'][] = $row;
+                        break;
+                    }
+                }
+            }
+        }
+    }
 }
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET' && empty($soltarSessaoAntes)) {
     // CSRF/captcha/flash precisam gravar antes de soltar o lock da sessão.
