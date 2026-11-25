@@ -34,7 +34,7 @@ final class ReservaPdfFolha
 
     /** @var list<FolhaPdf> */
     private array $paginas = [];
-    /** @var array<string, array{jpeg:string,w:int,h:int}> */
+    /** @var array<string, array{jpeg?:string,rgb?:string,mask?:string,w:int,h:int,flate?:bool}> */
     private array $imagens = [];
     private FolhaPdf $pagina;
     private float $y = 0;
@@ -557,11 +557,30 @@ final class ReservaPdfFolha
         $recursosImg = '';
         foreach ($this->imagens as $nome => $imagem) {
             $id = $next++;
-            $jpeg = $imagem['jpeg'];
-            $objs[$id] = '<< /Type /XObject /Subtype /Image /Width ' . $imagem['w']
-                . ' /Height ' . $imagem['h']
-                . ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ' . strlen($jpeg)
-                . " >>\nstream\n" . $jpeg . "\nendstream";
+            $mascara = '';
+            if (!empty($imagem['flate'])) {
+                if (!empty($imagem['mask'])) {
+                    $mid = $next++;
+                    $mask = (string) $imagem['mask'];
+                    $objs[$mid] = '<< /Type /XObject /Subtype /Image /Width ' . $imagem['w']
+                        . ' /Height ' . $imagem['h']
+                        . ' /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length ' . strlen($mask)
+                        . " >>\nstream\n" . $mask . "\nendstream";
+                    $mascara = ' /SMask ' . $mid . ' 0 R';
+                }
+                $rgb = (string) ($imagem['rgb'] ?? '');
+                $objs[$id] = '<< /Type /XObject /Subtype /Image /Width ' . $imagem['w']
+                    . ' /Height ' . $imagem['h']
+                    . ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode /Length ' . strlen($rgb)
+                    . $mascara
+                    . " >>\nstream\n" . $rgb . "\nendstream";
+            } else {
+                $jpeg = (string) ($imagem['jpeg'] ?? '');
+                $objs[$id] = '<< /Type /XObject /Subtype /Image /Width ' . $imagem['w']
+                    . ' /Height ' . $imagem['h']
+                    . ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ' . strlen($jpeg)
+                    . " >>\nstream\n" . $jpeg . "\nendstream";
+            }
             $recursosImg .= '/' . $nome . ' ' . $id . ' 0 R ';
         }
         $kids = [];
@@ -697,6 +716,12 @@ function reserva_pdf_jpeg(string $src): ?array
     if (!is_string($bin) || $bin === '') {
         return null;
     }
+    if (str_starts_with($bin, "\x89PNG\r\n\x1a\n")) {
+        $png = reserva_png_flate($bin);
+        if ($png !== null) {
+            return $png;
+        }
+    }
     $direto = reserva_bin_jpeg($bin);
     if ($direto !== null) {
         return $direto;
@@ -753,4 +778,167 @@ function reserva_pdf_jpeg(string $src): ?array
         return reserva_bin_jpeg($bin);
     }
     return ['jpeg' => $jpeg, 'w' => $w, 'h' => $h, 'clara' => $clara];
+}
+
+/** @return array{rgb:string,mask?:string,w:int,h:int,clara:bool,flate:true}|null */
+function reserva_png_flate(string $bin): ?array
+{
+    if (strlen($bin) < 29 || !str_starts_with($bin, "\x89PNG\r\n\x1a\n")) {
+        return null;
+    }
+    $p = 8;
+    $n = strlen($bin);
+    $w = 0;
+    $h = 0;
+    $depth = 0;
+    $color = 0;
+    $interlace = 0;
+    $idat = '';
+    $plte = '';
+    $trns = '';
+    while ($p + 12 <= $n) {
+        $len = unpack('N', substr($bin, $p, 4))[1];
+        if ($len < 0 || $p + 12 + $len > $n) {
+            return null;
+        }
+        $chunk = substr($bin, $p + 4, 4);
+        $data = substr($bin, $p + 8, $len);
+        $p += 12 + $len;
+        if ($chunk === 'IHDR') {
+            if (strlen($data) < 13) {
+                return null;
+            }
+            $w = unpack('N', substr($data, 0, 4))[1];
+            $h = unpack('N', substr($data, 4, 4))[1];
+            $depth = ord($data[8]);
+            $color = ord($data[9]);
+            $interlace = ord($data[12]);
+        } elseif ($chunk === 'PLTE') {
+            $plte = $data;
+        } elseif ($chunk === 'tRNS') {
+            $trns = $data;
+        } elseif ($chunk === 'IDAT') {
+            $idat .= $data;
+        } elseif ($chunk === 'IEND') {
+            break;
+        }
+    }
+    $bpp = [0 => 1, 2 => 3, 3 => 1, 4 => 2, 6 => 4][$color] ?? 0;
+    if ($w < 2 || $h < 2 || $w > 2400 || $h > 2400 || $depth !== 8 || $interlace !== 0 || $bpp === 0 || $idat === '') {
+        return null;
+    }
+    $raw = zlib_decode($idat);
+    if (!is_string($raw)) {
+        return null;
+    }
+    $stride = $w * $bpp;
+    if (strlen($raw) < ($stride + 1) * $h) {
+        return null;
+    }
+    $prev = str_repeat("\0", $stride);
+    $linhas = '';
+    $off = 0;
+    for ($y = 0; $y < $h; $y++) {
+        $filter = ord($raw[$off]);
+        $off++;
+        $row = substr($raw, $off, $stride);
+        $off += $stride;
+        $out = '';
+        for ($i = 0; $i < $stride; $i++) {
+            $x = ord($row[$i]);
+            $a = $i >= $bpp ? ord($out[$i - $bpp]) : 0;
+            $b = ord($prev[$i]);
+            $c = $i >= $bpp ? ord($prev[$i - $bpp]) : 0;
+            if ($filter === 1) {
+                $x = ($x + $a) & 255;
+            } elseif ($filter === 2) {
+                $x = ($x + $b) & 255;
+            } elseif ($filter === 3) {
+                $x = ($x + intdiv($a + $b, 2)) & 255;
+            } elseif ($filter === 4) {
+                $paeth = $a + $b - $c;
+                $pa = abs($paeth - $a);
+                $pb = abs($paeth - $b);
+                $pc = abs($paeth - $c);
+                $pr = ($pa <= $pb && $pa <= $pc) ? $a : (($pb <= $pc) ? $b : $c);
+                $x = ($x + $pr) & 255;
+            } elseif ($filter !== 0) {
+                return null;
+            }
+            $out .= chr($x);
+        }
+        $linhas .= $out;
+        $prev = $out;
+    }
+    $rgb = '';
+    $alpha = '';
+    $opaco = true;
+    $claros = 0;
+    $escuros = 0;
+    for ($i = 0; $i < $w * $h; $i++) {
+        $o = $i * $bpp;
+        $r = 0;
+        $g = 0;
+        $b = 0;
+        $a = 255;
+        if ($color === 6) {
+            $r = ord($linhas[$o]);
+            $g = ord($linhas[$o + 1]);
+            $b = ord($linhas[$o + 2]);
+            $a = ord($linhas[$o + 3]);
+        } elseif ($color === 2) {
+            $r = ord($linhas[$o]);
+            $g = ord($linhas[$o + 1]);
+            $b = ord($linhas[$o + 2]);
+        } elseif ($color === 0) {
+            $r = $g = $b = ord($linhas[$o]);
+        } elseif ($color === 4) {
+            $r = $g = $b = ord($linhas[$o]);
+            $a = ord($linhas[$o + 1]);
+        } else {
+            $idx = ord($linhas[$o]);
+            $po = $idx * 3;
+            if ($po + 2 >= strlen($plte)) {
+                return null;
+            }
+            $r = ord($plte[$po]);
+            $g = ord($plte[$po + 1]);
+            $b = ord($plte[$po + 2]);
+            if ($trns !== '' && $idx < strlen($trns)) {
+                $a = ord($trns[$idx]);
+            }
+        }
+        $rgb .= chr($r) . chr($g) . chr($b);
+        $alpha .= chr($a);
+        if ($a < 255) {
+            $opaco = false;
+        }
+        if (($i % 17) === 0 && $a > 16) {
+            $lum = ($r * 0.299) + ($g * 0.587) + ($b * 0.114);
+            if ($lum >= 170) {
+                $claros++;
+            } else {
+                $escuros++;
+            }
+        }
+    }
+    $rgbC = gzcompress($rgb, 6);
+    if (!is_string($rgbC) || $rgbC === '') {
+        return null;
+    }
+    $saida = [
+        'rgb' => $rgbC,
+        'w' => $w,
+        'h' => $h,
+        'clara' => $claros > $escuros && $claros > 12,
+        'flate' => true,
+    ];
+    if (!$opaco) {
+        $mask = gzcompress($alpha, 6);
+        if (!is_string($mask) || $mask === '') {
+            return null;
+        }
+        $saida['mask'] = $mask;
+    }
+    return $saida;
 }
