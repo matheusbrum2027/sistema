@@ -140,11 +140,14 @@ final class ReservaPdfFolha
         $caixa = 56.0;
         $x = self::MARGEM;
         $logoY = $topo - 14 - $caixa;
-        $this->pagina->ret($x, $logoY, $caixa, $caixa, self::BRANCO);
         $logo = $this->logo();
-        if ($logo !== null) {
+        if ($logo !== null && !empty($logo['clara'])) {
+            $this->desenharImagem('ImLogo', $logo, $x, $logoY, $caixa, $caixa);
+        } elseif ($logo !== null) {
+            $this->pagina->ret($x, $logoY, $caixa, $caixa, self::BRANCO);
             $this->desenharImagem('ImLogo', $logo, $x + 3, $logoY + 3, $caixa - 6, $caixa - 6);
         } else {
+            $this->pagina->ret($x, $logoY, $caixa, $caixa, self::BRANCO);
             $marcaVazia = trim((string) ($this->settings['nome'] ?? '')) ?: 'FLN';
             $sigla = mb_strtoupper(mb_substr($marcaVazia, 0, 3));
             $this->pagina->ret($x + 6, $logoY + 6, $caixa - 12, $caixa - 12, self::ORANGE);
@@ -684,7 +687,7 @@ final class ReservaPdfFolha
     }
 }
 
-/** @return array{jpeg:string,w:int,h:int}|null */
+/** @return array{jpeg:string,w:int,h:int,clara?:bool}|null */
 function reserva_pdf_jpeg(string $src): ?array
 {
     if (!preg_match('#^data:image/[a-z0-9.+-]+;base64,([a-z0-9+/=\r\n]+)$#i', $src, $m)) {
@@ -711,13 +714,34 @@ function reserva_pdf_jpeg(string $src): ?array
         imagedestroy($im);
         return null;
     }
+    imagealphablending($im, false);
+    imagesavealpha($im, true);
+    $claros = 0;
+    $escuros = 0;
+    $passo = max(1, (int) floor(max($w, $h) / 80));
+    for ($y = 0; $y < $h; $y += $passo) {
+        for ($x = 0; $x < $w; $x += $passo) {
+            $rgba = imagecolorat($im, $x, $y);
+            $alfa = ($rgba >> 24) & 0x7F;
+            if ($alfa > 16) {
+                continue;
+            }
+            $lum = ((($rgba >> 16) & 255) * 0.299) + ((($rgba >> 8) & 255) * 0.587) + (($rgba & 255) * 0.114);
+            if ($lum >= 170) {
+                $claros++;
+            } else {
+                $escuros++;
+            }
+        }
+    }
+    $clara = $claros > $escuros && $claros > 12;
     $flat = imagecreatetruecolor($w, $h);
     if (!$flat) {
         imagedestroy($im);
         return null;
     }
-    $branco = imagecolorallocate($flat, 255, 255, 255);
-    imagefill($flat, 0, 0, $branco);
+    $fundo = $clara ? imagecolorallocate($flat, 26, 35, 50) : imagecolorallocate($flat, 255, 255, 255);
+    imagefill($flat, 0, 0, $fundo);
     imagealphablending($flat, true);
     imagecopy($flat, $im, 0, 0, 0, 0, $w, $h);
     ob_start();
@@ -728,5 +752,5 @@ function reserva_pdf_jpeg(string $src): ?array
     if (!is_string($jpeg) || strlen($jpeg) < 32 || !str_starts_with($jpeg, "\xFF\xD8")) {
         return reserva_bin_jpeg($bin);
     }
-    return ['jpeg' => $jpeg, 'w' => $w, 'h' => $h];
+    return ['jpeg' => $jpeg, 'w' => $w, 'h' => $h, 'clara' => $clara];
 }
