@@ -834,5 +834,5 @@ function ia_operador_excluir(array &$db, array $campos): string
         'transfer' => $trip,
         'lancamentos' => $lancs,
     ];
-    return 'Reserva #' . $id . ' foi cancelada. Dá para restaurar em Cancelados por até 30 dias.';
+    return 'Reserva #' . $id . ' foi cancelada. Ela fica em Cancelados, sem prazo.';
 }

@@ -61,58 +61,11 @@ function lixo_reservas_garantir(array &$db): void
     }
 }
 
-/** Remove do lixo itens com mais de 30 dias. Retorna quantos saíram. */
+/** O cancelamento fica em Cancelados sem prazo. Nada sai da lista sozinho. */
 function lixo_reservas_expirar(array &$db): int
 {
     lixo_reservas_garantir($db);
-    $tz = new DateTimeZone('America/Sao_Paulo');
-    $limite = (new DateTimeImmutable('now', $tz))->modify('-30 days');
-    $antes = count($db['lixo_reservas']);
-    $db['lixo_reservas'] = array_values(array_filter(
-        $db['lixo_reservas'],
-        static function ($item) use ($limite, $tz): bool {
-            if (!is_array($item) || !is_array($item['transfer'] ?? null)) {
-                return false;
-            }
-            $em = trim((string) ($item['excluida_em'] ?? ''));
-            if ($em === '') {
-                return false;
-            }
-            $dt = DateTimeImmutable::createFromFormat('Y-m-d H:i', $em, $tz)
-                ?: DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $em, $tz);
-            if (!$dt) {
-                try {
-                    $dt = new DateTimeImmutable($em, $tz);
-                } catch (Throwable) {
-                    return false;
-                }
-            }
-            return $dt >= $limite;
-        }
-    ));
-    $saiu = $antes - count($db['lixo_reservas']);
-    if ($saiu > 0) {
-        $GLOBALS['fln_lixo_novo'] = true;
-    }
-    return $saiu;
-}
-
-function lixo_dias_restantes(string $excluidaEm): int
-{
-    $tz = new DateTimeZone('America/Sao_Paulo');
-    $dt = DateTimeImmutable::createFromFormat('Y-m-d H:i', $excluidaEm, $tz)
-        ?: DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $excluidaEm, $tz);
-    if (!$dt) {
-        try {
-            $dt = new DateTimeImmutable($excluidaEm, $tz);
-        } catch (Throwable) {
-            return 0;
-        }
-    }
-    $limite = $dt->modify('+30 days');
-    $agora = new DateTimeImmutable('now', $tz);
-    $diff = (int) $agora->diff($limite)->format('%r%a');
-    return max(0, $diff);
+    return 0;
 }
 
 function agenda_legs(array $trip): array
@@ -1696,7 +1649,7 @@ function ops_dispatch(array &$db, string $action): ?array
                 'transfer' => $trip,
                 'lancamentos' => $lancs,
             ];
-            return [null, 'Reserva #' . $id . ' foi cancelada. Dá para restaurar em Cancelados por até 30 dias.'];
+            return [null, 'Reserva #' . $id . ' foi cancelada. Ela fica em Cancelados, sem prazo.'];
 
         case 'restaurar_lixo':
             lixo_reservas_garantir($db);

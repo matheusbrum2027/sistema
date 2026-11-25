@@ -7,11 +7,11 @@ $itens = $db['lixo_reservas'];
 usort($itens, static function (array $a, array $b): int {
     return strcmp((string) ($b['excluida_em'] ?? ''), (string) ($a['excluida_em'] ?? ''));
 });
-view_head('', 'Reservas canceladas ficam aqui por 30 dias. Depois a lista esvazia sozinha.');
+view_head('', 'Reservas canceladas ficam registradas aqui para sempre.');
 ?>
 <section class="card">
   <?php if ($itens === []): ?>
-    <?= empty_box('trash', 'Nenhuma reserva cancelada', 'Quando você cancelar uma reserva, ela aparece aqui para restaurar em até 30 dias.') ?>
+    <?= empty_box('trash', 'Nenhuma reserva cancelada', 'Quando você cancelar uma reserva, ela fica registrada aqui, sem prazo.') ?>
   <?php else: ?>
     <div class="table-wrap">
       <table class="table-lista">
@@ -23,7 +23,6 @@ view_head('', 'Reservas canceladas ficam aqui por 30 dias. Depois a lista esvazi
             <th>Data</th>
             <th>Valor</th>
             <th>Cancelada em</th>
-            <th>Restam</th>
             <th>Ações</th>
           </tr>
         </thead>
@@ -33,7 +32,6 @@ view_head('', 'Reservas canceladas ficam aqui por 30 dias. Depois a lista esvazi
               $trip = is_array($item['transfer'] ?? null) ? $item['transfer'] : [];
               $id = (int) ($item['id'] ?? $trip['id'] ?? 0);
               $em = (string) ($item['excluida_em'] ?? '');
-              $dias = lixo_dias_restantes($em);
             ?>
             <tr>
               <td data-label="Nº">#<?= $id ?></td>
@@ -50,7 +48,6 @@ view_head('', 'Reservas canceladas ficam aqui por 30 dias. Depois a lista esvazi
                     echo e($dtEm ? $dtEm->format('d/m/Y H:i') : $em);
                 }
               ?></td>
-              <td data-label="Restam"><?= $dias ?> dia<?= $dias === 1 ? '' : 's' ?></td>
               <td class="actions">
                 <form method="post" action="index.php" data-confirm="Restaurar a reserva #<?= $id ?>? Ela volta para a agenda e o financeiro.">
                   <?= csrf_fields('restaurar_lixo') ?>

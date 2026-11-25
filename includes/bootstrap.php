@@ -727,16 +727,8 @@ function normalize_db(array $db): array
     if (!isset($db['veiculos']) || !is_array($db['veiculos'])) {
         $db['veiculos'] = [];
     }
-    chat_store_garantir($db);
     lixo_reservas_garantir($db);
-    // Expira lixo no máx. 1x/dia — evita varrer a cada page load.
-    $hojeLixo = today()->format('Y-m-d');
-    if ((string) ($db['settings']['lixo_expurgo_em'] ?? '') !== $hojeLixo) {
-        if (lixo_reservas_expirar($db) >= 0) {
-            $db['settings']['lixo_expurgo_em'] = $hojeLixo;
-            $GLOBALS['fln_lixo_novo'] = true;
-        }
-    }
+    chat_store_garantir($db);
     if (!isset($db['seq']) || !is_array($db['seq'])) {
         $db['seq'] = [];
     }
