@@ -705,11 +705,15 @@ function pagamentos_da_reserva(array $trip): array
     if ($limpo !== []) {
         return $limpo;
     }
+    $valor = round(max(0, (float) ($trip['valor'] ?? 0)), 2);
     $meio = chave_meio_pagamento((string) ($trip['meio'] ?? ''));
-    if ($meio === '' || $meio === 'misto' || !isset($meios[$meio])) {
+    if ($meio === '' && !empty($trip['faturado']) && $valor > 0) {
+        $meio = 'faturado_empresa';
+    }
+    if ($meio === '' || $meio === 'misto' || !isset($meios[$meio]) || $valor <= 0) {
         return [];
     }
-    return [$meio => round(max(0, (float) ($trip['valor'] ?? 0)), 2)];
+    return [$meio => $valor];
 }
 
 function rotulo_forma_pgto(array $trip): string
@@ -845,7 +849,7 @@ function montar_reservas(array &$db, ?array $current): array
     if ($guardaValor) {
         $pagamentos = is_array($current) ? pagamentos_da_reserva($current) : [];
         $valor = is_array($current) ? (float) ($current['valor'] ?? 0) : 0.0;
-    } elseif (post('pagamentos_informados') !== '1' && is_array($current) && pagamentos_da_reserva($current) !== []) {
+    } elseif (post('pagamentos_informados') !== '1' && is_array($current)) {
         $pagamentos = pagamentos_da_reserva($current);
         $valor = (float) ($current['valor'] ?? 0);
     } else {
@@ -857,12 +861,18 @@ function montar_reservas(array &$db, ?array $current): array
             }
         }
         $manual = max(0, post_money('valor_manual'));
-        $valor = $manual > 0 ? $manual : $soma;
-        if ($valor <= 0 && $pagamentos === []) {
-            return ['Informe o valor total ou o valor de cada meio de pagamento.', []];
+        if (count($pagamentos) === 1 && $soma <= 0 && $manual > 0) {
+            $pagamentos[array_key_first($pagamentos)] = $manual;
+            $soma = $manual;
         }
-        if ($valor <= 0) {
-            $valor = $soma;
+        $valor = $manual > 0 ? $manual : $soma;
+        // Sem um valor novo, a edição não zera o preço nem apaga o meio que já estava gravado.
+        if (is_array($current) && $manual <= 0 && $soma <= 0 && (float) ($current['valor'] ?? 0) > 0) {
+            $pagamentos = pagamentos_da_reserva($current);
+            $valor = (float) ($current['valor'] ?? 0);
+        }
+        if ($valor <= 0 && $pagamentos === [] && !is_array($current)) {
+            return ['Informe o valor total ou o valor de cada meio de pagamento.', []];
         }
     }
     $quem = one_of(post('quem'), ['motorista', 'parceiro'], 'motorista');

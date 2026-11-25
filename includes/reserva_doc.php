@@ -187,9 +187,10 @@ function reserva_linhas(array $db, array $trip): array
         $linhas['Valor'] = brl((float) ($trip['valor'] ?? 0));
         $linhas['Repasse do motorista'] = brl((float) ($trip['repasse'] ?? 0));
         $pagos = [];
-        foreach (meios_pagamento() as $chave => $rotulo) {
-            if (isset($trip['pagamentos'][$chave])) {
-                $pagos[] = $rotulo . ' ' . brl((float) $trip['pagamentos'][$chave]);
+        foreach (pagamentos_da_reserva($trip) as $chave => $parte) {
+            $rotulo = meios_pagamento()[$chave] ?? $chave;
+            if ((float) $parte > 0) {
+                $pagos[] = $rotulo . ' ' . brl((float) $parte);
             }
         }
         if ($pagos !== []) {

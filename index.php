@@ -735,19 +735,8 @@ if (in_array($current, ['entrar', 'seja-motorista', 'aplicativo'], true) && !pre
     }
     $db = load_db(false, false, $modo, $de, $ate, $idTrip);
     $idEdit = $current === 'reservas' ? (int) ($_GET['edit'] ?? 0) : 0;
-    $meioLista = null;
-    $achouEdit = false;
-    if ($idEdit > 0) {
-        foreach ($db['transfers'] as $row) {
-            if ((int) ($row['id'] ?? 0) === $idEdit) {
-                $achouEdit = true;
-                $meioLista = (string) ($row['meio'] ?? '');
-                break;
-            }
-        }
-    }
-    // Forma única já vem na lista. A reserva inteira só falta no misto, no vazio ou fora do filtro.
-    $precisaReservaInteira = $idEdit > 0 && (!$achouEdit || $meioLista === '' || $meioLista === 'misto');
+    // A lista não traz o mapa de pagamentos. A edição precisa da reserva inteira para o valor e o meio virem preenchidos.
+    $precisaReservaInteira = $idEdit > 0;
     if ($precisaReservaInteira && store_remoto()) {
         $completa = null;
         try {

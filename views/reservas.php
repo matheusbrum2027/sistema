@@ -283,7 +283,7 @@ if ($edit && (float) $edit['valor'] > 0 && abs($somaPag - (float) $edit['valor']
 } elseif (!$edit && (float) ($pre['valor'] ?? 0) > 0) {
     $manualEdit = number_format((float) $pre['valor'], 2, ',', '');
 }
-$pagamentosVisiveis = !$edit || $pagEdit !== [] || trim((string) ($edit['meio'] ?? '')) === '';
+$pagamentosVisiveis = true;
 $trechosForm = [
     ['embarque' => '', 'desembarque' => '', 'data' => '', 'hora' => '', 'pax' => 1],
     ['embarque' => '', 'desembarque' => '', 'data' => '', 'hora' => '', 'pax' => 1],
@@ -568,7 +568,7 @@ $catEdit = in_array($catAtual, $catsOk, true) ? $catAtual : '';
       </label>
       <div class="total-line">
         <span>Valor Total (a receber do cliente)</span>
-        <strong id="total-reserva">R$ 0,00</strong>
+        <strong id="total-reserva"><?= e(brl($edit ? (float) ($edit['valor'] ?? 0) : (float) ($pre['valor'] ?? 0))) ?></strong>
       </div>
 
       <h3 class="sec-title">Formas de pagamento</h3>
