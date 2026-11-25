@@ -181,6 +181,20 @@ view_head('<button class="btn btn-primary" type="button" data-open-dialog="dlg-r
 <section class="card">
   <div class="table-wrap">
     <table class="table-reservas">
+      <colgroup>
+        <col class="c-num">
+        <col class="c-cli">
+        <col class="c-contato">
+        <col class="c-tipo">
+        <col class="c-cat">
+        <col class="c-rota">
+        <col class="c-quando">
+        <col class="c-mot">
+        <col class="c-valor">
+        <col class="c-pgto">
+        <col class="c-status">
+        <col class="c-acoes">
+      </colgroup>
       <thead><tr>
         <th><?= $thOrd('id', 'Nº') ?></th>
         <th><?= $thOrd('cliente', 'Cliente') ?></th>
@@ -188,10 +202,10 @@ view_head('<button class="btn btn-primary" type="button" data-open-dialog="dlg-r
         <th><?= $thOrd('tipo', 'Tipo') ?></th>
         <th><?= $thOrd('categoria', 'Categoria') ?></th>
         <th class="sem-ordem">Trajeto</th>
-        <th class="col-quando"><?= $thOrd('data', 'Data') ?></th>
+        <th><?= $thOrd('data', 'Data') ?></th>
         <th><?= $thOrd('motorista', 'Motorista') ?></th>
         <th><?= $thOrd('valor', 'Valor') ?></th>
-        <th class="col-pgto" title="Forma de pagamento"><?= $thOrd('pgto', 'Forma pgto') ?></th>
+        <th title="Forma de pagamento"><?= $thOrd('pgto', 'Forma pgto') ?></th>
         <th><?= $thOrd('status', 'Status') ?></th>
         <th class="sem-ordem">Ações</th>
       </tr></thead>
