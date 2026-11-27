@@ -441,6 +441,9 @@ $catEdit = in_array($catAtual, $catsOk, true) ? $catAtual : '';
           <label class="field">Cupom
             <input name="cupom" maxlength="40" value="<?= e($campo('cupom')) ?>" placeholder="FLN10">
           </label>
+          <label class="field full">Mensagem / Observações
+            <textarea name="mensagem" maxlength="8000" placeholder="Caixa do bloco da ida. A volta tem a caixa dela."><?= e($campo('mensagem')) ?></textarea>
+          </label>
           <label class="field full">Observações internas (só o administrador)
             <textarea name="obs_interna" maxlength="8000" placeholder="Anotação interna. Não sai no PDF nem no painel do motorista."><?= e($tipoForm !== 'hora' ? $campo('obs_interna') : '') ?></textarea>
             <?php if ($obsInternaFalhou): ?><span class="hint"><?= e($avisoObsInterna) ?></span><?php endif; ?>
@@ -469,6 +472,9 @@ $catEdit = in_array($catAtual, $catsOk, true) ? $catAtual : '';
           </label>
           <label class="field">Cupom
             <input name="cupom_volta" maxlength="40" placeholder="FLN10">
+          </label>
+          <label class="field full">Mensagem / Observações (volta)
+            <textarea name="mensagem_volta" maxlength="8000" placeholder="Caixa do bloco da volta."><?= e($voltaUnica ? $campo('mensagem_volta') : '') ?></textarea>
           </label>
           <label class="field full">Observações internas da volta (só o administrador)
             <textarea name="obs_interna_volta" maxlength="8000" placeholder="Anotação interna da volta. Não sai no PDF nem para o motorista."></textarea>
@@ -529,6 +535,12 @@ $catEdit = in_array($catAtual, $catsOk, true) ? $catAtual : '';
           </label>
           <label class="field full">Cupom
             <input name="cupom_hora" maxlength="40" value="<?= e($tipoForm === 'hora' ? $campo('cupom') : '') ?>" placeholder="FLN10">
+          </label>
+          <label class="field full">Mensagem / Observações (ida)
+            <textarea name="mensagem_hora" maxlength="8000" placeholder="Texto do cadastro na caixa da ida. Não entra no itinerário."><?= e($tipoForm === 'hora' ? $campo('mensagem') : '') ?></textarea>
+          </label>
+          <label class="field full">Itinerário / Observações
+            <textarea name="itinerario" maxlength="8000" placeholder="Roteiro da viagem por hora."><?= e($tipoForm === 'hora' ? $campo('itinerario') : '') ?></textarea>
           </label>
           <label class="field full">Observações internas (só o administrador)
             <textarea name="obs_interna_hora" maxlength="8000" placeholder="Anotação interna. Não sai no PDF nem no painel do motorista."><?= e($tipoForm === 'hora' ? $campo('obs_interna') : '') ?></textarea>
@@ -619,8 +631,8 @@ $catEdit = in_array($catAtual, $catsOk, true) ? $catAtual : '';
         </select>
         <span class="hint">Em Concluída, com repasse &gt; 0, gera automaticamente a despesa do motorista no Financeiro.</span>
       </label>
-      <label class="field">Observações para o motorista e o PDF
-        <textarea name="obs" maxlength="8000" placeholder="Uma informação por linha. O motorista e o cliente veem este texto no PDF.&#10;Ex.: Nome do passageiro&#10;Voo e horário"><?= e($campo('obs')) ?></textarea>
+      <label class="field">Observações
+        <textarea name="obs" maxlength="8000" placeholder="Caixa do rodapé. Uma informação por linha. O motorista e o cliente veem este texto."><?= e($campo('obs')) ?></textarea>
         <?php if ($obsFalhou): ?><span class="hint">Não foi possível carregar a observação. Ela não será alterada ao salvar.</span><?php endif; ?>
         <span class="hint">Só este texto sai no PDF e no painel do motorista. A observação interna fica no primeiro campo.</span>
       </label>

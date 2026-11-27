@@ -632,6 +632,9 @@ function blank_trip(int $id): array
         'no_funil' => true,
         'obs' => '',
         'obs_interna' => '',
+        'mensagem' => '',
+        'mensagem_volta' => '',
+        'itinerario' => '',
         'criado_em' => $hoje,
         'linha' => 'Principal',
         'documento' => '',
@@ -970,16 +973,18 @@ function montar_reservas(array &$db, ?array $current): array
         $base['cupom'] = clip(post('cupom_hora'), 40) ?: $base['cupom'];
         $base['qtd_horas'] = clip(post('qtd_horas'), 10);
         $base['trajetos'] = [];
-        $iti = clip(post('itinerario'), 8000);
-        if (!$preservaObs && $iti !== '' && $iti !== $obsPublica && !str_contains($obsPublica, $iti)) {
-            $base['obs'] = trim($obsPublica . "\n" . $iti);
-        }
+        $base['mensagem'] = clip(post('mensagem_hora'), 8000);
+        $base['mensagem_volta'] = '';
+        $base['itinerario'] = clip(post('itinerario'), 8000);
         if ($usaEquipe) {
             aplicar_equipe($db, $base, ids_equipe('hora'));
         }
         return [null, [$base]];
     }
     if ($tipo === 'trajetos') {
+        $base['mensagem'] = '';
+        $base['mensagem_volta'] = '';
+        $base['itinerario'] = '';
         $trechos = [];
         foreach ((array) ($_POST['trajetos'] ?? []) as $idx => $bruto) {
             if (!is_array($bruto)) {
@@ -1088,11 +1093,17 @@ function montar_reservas(array &$db, ?array $current): array
         $base['hora_volta'] = post_time('hora_volta') ?: (string) ($current['hora_volta'] ?? $base['hora']);
         $base['trajetos'] = [];
         $base['qtd_horas'] = '';
+        $base['mensagem'] = clip(post('mensagem'), 8000);
+        $base['mensagem_volta'] = clip(post('mensagem_volta'), 8000);
+        $base['itinerario'] = '';
         return [null, [$base]];
     }
     if ($tipo !== 'ida_volta' || $jaDupla) {
         $base['tipo'] = $current !== null && (string) ($current['tipo'] ?? '') === 'volta' ? 'volta' : 'ida';
         $base['conjunto'] = $tipo === 'ida_volta' ? 'ida_volta' : '';
+        $base['mensagem'] = clip(post('mensagem'), 8000);
+        $base['mensagem_volta'] = '';
+        $base['itinerario'] = '';
         if (trim((string) ($base['obs'] ?? '')) !== '') {
             unset($base['obs_de']);
         }
@@ -1126,6 +1137,12 @@ function montar_reservas(array &$db, ?array $current): array
     $volta['hora'] = $horaVolta;
     $volta['pax'] = $paxVolta > 0 ? max(1, min(40, $paxVolta)) : $pax;
     $volta['cupom'] = clip(post('cupom_volta'), 40);
+    $ida['mensagem'] = clip(post('mensagem'), 8000);
+    $ida['mensagem_volta'] = '';
+    $ida['itinerario'] = '';
+    $volta['mensagem'] = clip(post('mensagem_volta'), 8000);
+    $volta['mensagem_volta'] = '';
+    $volta['itinerario'] = '';
     $fixarObs($ida);
     $fixarObs($volta);
     if (!$preservaInterna) {

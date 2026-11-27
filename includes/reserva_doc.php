@@ -90,6 +90,18 @@ function reserva_rota_motorista(array $db, array $trip, string $trecho = ''): ar
     if ($obsPublica !== '') {
         $linhas['Observações'] = $obsPublica;
     }
+    $mensagem = (string) ($trip['mensagem'] ?? '');
+    if (trim($mensagem) !== '') {
+        $linhas['Mensagem'] = $mensagem;
+    }
+    $mensagemVolta = (string) ($trip['mensagem_volta'] ?? '');
+    if (trim($mensagemVolta) !== '') {
+        $linhas['Mensagem da volta'] = $mensagemVolta;
+    }
+    $itinerario = (string) ($trip['itinerario'] ?? '');
+    if (trim($itinerario) !== '') {
+        $linhas['Itinerário'] = $itinerario;
+    }
     return array_filter($linhas, static fn(string $v): bool => trim($v) !== '');
 }
 
@@ -196,6 +208,18 @@ function reserva_linhas(array $db, array $trip): array
         if ($pagos !== []) {
             $linhas['Pagamento'] = implode(' · ', $pagos);
         }
+    }
+    $mensagem = (string) ($trip['mensagem'] ?? '');
+    if (trim($mensagem) !== '') {
+        $linhas['Mensagem'] = $mensagem;
+    }
+    $mensagemVolta = (string) ($trip['mensagem_volta'] ?? '');
+    if (trim($mensagemVolta) !== '') {
+        $linhas['Mensagem da volta'] = $mensagemVolta;
+    }
+    $itinerario = (string) ($trip['itinerario'] ?? '');
+    if (trim($itinerario) !== '') {
+        $linhas['Itinerário'] = $itinerario;
     }
     if (!$ehMotorista && trim((string) ($trip['forma_detalhe'] ?? '')) !== '') {
         $linhas['Instrução de pagamento'] = trim((string) $trip['forma_detalhe']);
@@ -379,7 +403,11 @@ function reserva_obs_itens(array $db, array $trip): array
 
 function detalhe_linha(string $rotulo, string $valor): void
 {
-    $obs = $rotulo === 'Observações' || str_starts_with($rotulo, 'Observação da ');
+    $obs = $rotulo === 'Observações'
+        || $rotulo === 'Mensagem'
+        || $rotulo === 'Mensagem da volta'
+        || $rotulo === 'Itinerário'
+        || str_starts_with($rotulo, 'Observação da ');
     echo '<dt>' . e($rotulo) . '</dt>';
     echo '<dd' . ($obs ? ' class="obs-linha"' : '') . '><button type="button" class="copiar-dado no-print" data-copy="' . e($valor) . '" data-copy-keep="1" aria-label="Copiar ' . e($rotulo) . '">' . icon('copy') . '</button>';
     echo '<span>' . e($valor) . '</span>';
