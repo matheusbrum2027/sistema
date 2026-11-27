@@ -379,7 +379,7 @@ th {
 }
 td { padding: 12px 10px; border-bottom: 1px solid #eef0f3; vertical-align: middle; }
 .table-reservas { table-layout: fixed; width: 100%; min-width: 1280px; font-size: 12.5px; }
-.table-reservas col.c-num { width: 4%; }
+.table-reservas col.c-num { width: 7%; }
 .table-reservas col.c-cli { width: 11%; }
 .table-reservas col.c-contato { width: 9%; }
 .table-reservas col.c-tipo { width: 7%; }
@@ -390,9 +390,11 @@ td { padding: 12px 10px; border-bottom: 1px solid #eef0f3; vertical-align: middl
 .table-reservas col.c-valor { width: 5%; }
 .table-reservas col.c-pgto { width: 5%; }
 .table-reservas col.c-status { width: 6%; }
-.table-reservas col.c-acoes { width: 16%; }
+.table-reservas col.c-acoes { width: 13%; }
 .table-reservas th,
 .table-reservas td { padding: 8px 12px; line-height: 1.25; vertical-align: middle; overflow: hidden; }
+.table-reservas td:first-child { overflow: visible; }
+.table-reservas .num-reserva { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .table-reservas th { overflow: visible; }
 .th-ord {
   display: inline-flex; align-items: center; gap: 5px;
