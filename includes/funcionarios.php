@@ -21,7 +21,41 @@ function pode_ver_financeiro(): bool
     if ((int) ($_SESSION['funcionario_id'] ?? 0) <= 0) {
         return true;
     }
-    return !empty($_SESSION['ver_financeiro']);
+    return funcionario_financeiro_atual();
+}
+
+/** O desmarque vale na hora, sem esperar o funcionário sair e entrar de novo. */
+function funcionario_financeiro_atual(): bool
+{
+    static $lido = false;
+    static $valor = false;
+    if ($lido) {
+        return $valor;
+    }
+    $lido = true;
+    $id = (int) ($_SESSION['funcionario_id'] ?? 0);
+    if ($id <= 0) {
+        $valor = true;
+        return true;
+    }
+    try {
+        foreach (funcionarios_listar() as $func) {
+            if ((int) ($func['id'] ?? 0) !== $id) {
+                continue;
+            }
+            $flag = $func['ver_financeiro'] ?? false;
+            $valor = $flag === true || $flag === 1 || $flag === '1' || $flag === 't' || $flag === 'true';
+            $_SESSION['ver_financeiro'] = $valor;
+            return $valor;
+        }
+    } catch (Throwable) {
+        $valor = false;
+        $_SESSION['ver_financeiro'] = false;
+        return false;
+    }
+    $valor = false;
+    $_SESSION['ver_financeiro'] = false;
+    return false;
 }
 
 function funcionario_sem_financeiro(): bool
@@ -29,7 +63,7 @@ function funcionario_sem_financeiro(): bool
     return !empty($_SESSION['auth'])
         && (($_SESSION['role'] ?? '') === 'admin')
         && (int) ($_SESSION['funcionario_id'] ?? 0) > 0
-        && empty($_SESSION['ver_financeiro']);
+        && !pode_ver_financeiro();
 }
 
 function paginas_financeiras(): array

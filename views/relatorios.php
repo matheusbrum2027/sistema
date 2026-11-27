@@ -18,7 +18,10 @@ $arquivo = relatorio_arquivo_pdf($rel);
 $pdfHref = href('relatorios', ['baixar' => 'pdf'] + $keep);
 $motoristas = $db['motoristas'];
 usort($motoristas, static fn(array $a, array $b): int => strcasecmp((string) ($a['nome'] ?? ''), (string) ($b['nome'] ?? '')));
-view_head('<a class="btn btn-primary" href="' . e($pdfHref) . '" download="' . e($arquivo) . '" data-baixar-pdf="' . e($arquivo) . '">Baixar PDF</a>', 'Filtre o período e baixe o relatório em paisagem.');
+$botaoPdf = eh_master()
+    ? '<a class="btn btn-primary" href="' . e($pdfHref) . '" download="' . e($arquivo) . '" data-baixar-pdf="' . e($arquivo) . '">Baixar PDF</a>'
+    : '';
+view_head($botaoPdf, eh_master() ? 'Filtre o período e baixe o relatório em paisagem.' : 'Filtre o período. O download do relatório fica só com o administrador master.');
 ?>
 <form class="filters" method="get" action="index.php">
   <input type="hidden" name="p" value="relatorios">
@@ -87,4 +90,6 @@ view_head('<a class="btn btn-primary" href="' . e($pdfHref) . '" download="' . e
     <?= pager('relatorios', $pg, $keep) ?>
   <?php endif; ?>
 </section>
+<?php if (eh_master()): ?>
 <p class="help" style="margin-top:12px"><?= (int) $tot['lancamentos'] ?> lançamentos neste filtro entram no PDF, junto com o critério da consulta, a soma das reservas e o pro-labore. O arquivo sai sempre em paisagem.</p>
+<?php endif; ?>

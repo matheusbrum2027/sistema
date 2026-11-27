@@ -862,6 +862,12 @@ if ($current === 'agenda' && (string) ($_GET['baixar'] ?? '') === 'pdf') {
     exit;
 }
 if ($current === 'relatorios' && (string) ($_GET['baixar'] ?? '') === 'pdf') {
+    if (!eh_master()) {
+        http_response_code(403);
+        header('Content-Type: text/plain; charset=utf-8');
+        echo 'Este relatório fica só com o administrador master.';
+        exit;
+    }
     $consulta = relatorio_consulta($db);
     $pdf = relatorio_pdf_bytes($db, $consulta);
     $arquivo = relatorio_arquivo_pdf($consulta);
