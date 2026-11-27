@@ -19,6 +19,21 @@ if ($ord !== '' && $dir !== 'asc') {
 }
 $editId = (int) ($_GET['edit'] ?? 0);
 $edit = null;
+$listaPronta = is_array($GLOBALS['fln_lista'] ?? null) ? $GLOBALS['fln_lista'] : null;
+if ($listaPronta) {
+    $idsPagina = array_flip(array_map('intval', $GLOBALS['fln_lista_ids'] ?? []));
+    $rows = [];
+    foreach ($db['transfers'] as $t) {
+        $idLinha = (int) ($t['id'] ?? 0);
+        if ($editId > 0 && $idLinha === $editId) {
+            $edit = trip_com_obs($t);
+        }
+        if (!isset($idsPagina[$idLinha])) {
+            continue;
+        }
+        $rows[] = $t;
+    }
+} else {
 $rows = array_values(array_filter($db['transfers'], static function (array $t) use ($de, $ate, $estado, $mot, $fat, $q): bool {
     if ($de !== '' && $t['data'] < $de) {
         return false;
@@ -57,27 +72,32 @@ $textoOrd = static function (string $valor): string {
         'ú' => 'u', 'ç' => 'c',
     ]);
 };
-usort($rows, static function (array $a, array $b) use ($ord, $dir, $db, $textoOrd): int {
-    if ($ord === '') {
-        return ((int) $b['id']) <=> ((int) $a['id']);
-    }
-    $chave = static function (array $t) use ($ord, $db, $textoOrd): int|float|string {
-        return match ($ord) {
-            'id' => (int) $t['id'],
-            'cliente' => $textoOrd((string) ($t['cliente'] ?? '')),
-            'contato' => $textoOrd(trim((string) ($t['telefone'] ?? '')) !== '' ? (string) $t['telefone'] : (string) ($t['email'] ?? '')),
-            'tipo' => $textoOrd(trim(preg_replace('/\s+/u', ' ', strip_tags(tipo_badges($t))) ?? '')),
-            'categoria' => $textoOrd((string) ($t['categoria'] ?? '')),
-            'data' => trim((string) ($t['data'] ?? '')) === '' ? '' : ((string) $t['data'] . ' ' . substr((string) ($t['hora'] ?? ''), 0, 5)),
-            'motorista' => $textoOrd(nome_motorista($db, $t['motorista_id'] ?? 0)),
-            'valor' => (float) ($t['valor'] ?? 0),
-            'pgto' => $textoOrd(rotulo_forma_pgto($t)),
-            'status' => $textoOrd(status_label((string) ($t['status'] ?? ''))),
-            default => (int) $t['id'],
-        };
+$chaves = [];
+$nomesMot = [];
+foreach ($db['motoristas'] as $motLinha) {
+    $nomesMot[(int) ($motLinha['id'] ?? 0)] = (string) ($motLinha['nome'] ?? '');
+}
+foreach ($rows as $i => $t) {
+    $chaves[$i] = match ($ord) {
+        '', 'id' => (int) $t['id'],
+        'cliente' => $textoOrd((string) ($t['cliente'] ?? '')),
+        'contato' => $textoOrd(trim((string) ($t['telefone'] ?? '')) !== '' ? (string) $t['telefone'] : (string) ($t['email'] ?? '')),
+        'tipo' => $textoOrd(trim(preg_replace('/\s+/u', ' ', strip_tags(tipo_badges($t))) ?? '')),
+        'categoria' => $textoOrd((string) ($t['categoria'] ?? '')),
+        'data' => trim((string) ($t['data'] ?? '')) === '' ? '' : ((string) $t['data'] . ' ' . substr((string) ($t['hora'] ?? ''), 0, 5)),
+        'motorista' => $textoOrd($nomesMot[(int) ($t['motorista_id'] ?? 0)] ?? ''),
+        'valor' => (float) ($t['valor'] ?? 0),
+        'pgto' => $textoOrd(rotulo_forma_pgto($t)),
+        'status' => $textoOrd(status_label((string) ($t['status'] ?? ''))),
+        default => (int) $t['id'],
     };
-    $va = $chave($a);
-    $vb = $chave($b);
+}
+uksort($rows, static function (int $a, int $b) use ($ord, $dir, $chaves, $rows): int {
+    if ($ord === '') {
+        return ((int) $rows[$b]['id']) <=> ((int) $rows[$a]['id']);
+    }
+    $va = $chaves[$a];
+    $vb = $chaves[$b];
     $aVazio = $va === '';
     $bVazio = $vb === '';
     if ($aVazio !== $bVazio) {
@@ -88,8 +108,10 @@ usort($rows, static function (array $a, array $b) use ($ord, $dir, $db, $textoOr
     if ($cmp !== 0) {
         return $cmp * $sinal;
     }
-    return ((int) $b['id']) <=> ((int) $a['id']);
+    return ((int) $rows[$b]['id']) <=> ((int) $rows[$a]['id']);
 });
+$rows = array_values($rows);
+}
 foreach ($db['transfers'] as $t) {
     if ((int) $t['id'] === $editId) {
         $edit = trip_com_obs($t);
@@ -122,7 +144,23 @@ $campo = static function (string $chave) use ($edit, $pre): string {
     return (string) ($pre[$chave] ?? '');
 };
 $solForm = (int) ($convertendo['id'] ?? 0);
-$pg = slice_page($rows);
+if ($listaPronta) {
+    $totalLista = (int) ($listaPronta['total'] ?? count($rows));
+    $porLista = max(1, (int) ($listaPronta['por'] ?? 10));
+    $pageLista = max(1, (int) ($listaPronta['page'] ?? 1));
+    $pagesLista = max(1, (int) ceil($totalLista / $porLista));
+    $offsetLista = ($pageLista - 1) * $porLista;
+    $pg = [
+        'rows' => $rows,
+        'page' => min($pageLista, $pagesLista),
+        'pages' => $pagesLista,
+        'total' => $totalLista,
+        'from' => $totalLista === 0 ? 0 : $offsetLista + 1,
+        'to' => min($totalLista, $offsetLista + count($rows)),
+    ];
+} else {
+    $pg = slice_page($rows);
+}
 $consulta = array_filter(['de' => $de, 'ate' => $ate, 'estado' => $estado, 'motorista' => $mot ?: null, 'faturado' => $fat, 'q' => $q]);
 $keep = $consulta;
 if ($ord !== '') {
@@ -138,7 +176,7 @@ $thOrd = static function (string $chave, string $titulo) use ($ord, $dir, $consu
     $sentido = $ativo ? ($dir === 'desc' ? 'decrescente' : 'crescente') : 'ordenar';
     return '<a class="' . $classe . '" href="' . e(href('reservas', $consulta + ['ord' => $chave, 'dir' => $proxima])) . '" aria-label="' . e($titulo . ', ' . $sentido) . '">' . e($titulo) . '<i class="' . $seta . '" aria-hidden="true"></i></a>';
 };
-view_head('<button class="btn btn-primary" type="button" data-open-dialog="dlg-reserva">+ Criar Reserva</button>', 'Transfer (' . count($db['transfers']) . ')');
+view_head('<button class="btn btn-primary" type="button" data-open-dialog="dlg-reserva">+ Criar Reserva</button>', 'Transfer (' . (int) $pg['total'] . ')');
 ?>
 <?php if ($solNegada): ?>
   <div class="flash flash-err" role="alert">A conversão só abre depois das duas confirmações na lista de solicitações.</div>

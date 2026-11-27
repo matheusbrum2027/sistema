@@ -126,9 +126,9 @@ function store_cota_local(string $chave, int $limite): bool
 }
 
 /** Cópia local da última leitura. A mesma versão não volta a sair do banco. */
-function store_copia_chave(bool $completo, string $modo, string $de, string $ate, int $idTrip): string
+function store_copia_chave(bool $completo, string $modo, string $de, string $ate, int $idTrip, string $extra = ''): string
 {
-    return hash('sha256', store_base() . '|' . ($completo ? '1' : '0') . '|' . $modo . '|' . $de . '|' . $ate . '|' . $idTrip);
+    return hash('sha256', store_base() . '|' . ($completo ? '1' : '0') . '|' . $modo . '|' . $de . '|' . $ate . '|' . $idTrip . '|' . $extra);
 }
 
 function store_copia_mem(): array
@@ -261,22 +261,40 @@ function store_nota_gravar(int $id, ?string $obs, ?string $interna): void
     @file_put_contents($dir . DIRECTORY_SEPARATOR . $id . '.json', $json, LOCK_EX);
 }
 
-function store_ler(bool $completo = true, string $modo = '', string $de = '', string $ate = '', int $idTrip = 0, bool $usarVista = true): ?array
+function store_ler(bool $completo = true, string $modo = '', string $de = '', string $ate = '', int $idTrip = 0, bool $usarVista = true, array $lista = []): ?array
 {
     // A casca traz usuário, senha e 2FA. Uma cópia local da versão antiga pedia o código depois de desligar.
     if ($modo === 'casca') {
         $usarVista = false;
     }
-    $chave = store_copia_chave($completo, $modo, $de, $ate, $idTrip);
+    $extra = $lista === [] ? '' : hash('sha256', (string) json_encode($lista));
+    $chave = store_copia_chave($completo, $modo, $de, $ate, $idTrip, $extra);
     $copia = $usarVista ? store_copia_ler($chave) : null;
     $vista = (int) ($copia['versao'] ?? 0);
-    $pesada = !$completo && in_array($modo, ['corridas', 'financeiro'], true);
+    $pesada = $lista === [] && !$completo && in_array($modo, ['corridas', 'financeiro'], true);
     if ($pesada && $vista <= 0 && !store_cota_local('lista', 40)) {
         throw new BancoIndisponivel('Muitas leituras da lista nesta hora.');
     }
-    if ($completo || $modo === '') {
+    $r = null;
+    if ($lista !== []) {
+        $argsLista = $lista;
+        $argsLista['p_base'] = store_base();
+        if ($vista > 0) {
+            $argsLista['p_vista'] = $vista;
+        }
+        try {
+            $r = store_rpc('fln_ler_lista', $argsLista, 12);
+        } catch (BancoIndisponivel $e) {
+            $msg = $e->getMessage();
+            $ausente = str_contains($msg, 'fln_ler_lista') || str_contains($msg, 'PGRST202') || str_contains($msg, 'schema cache');
+            if (!$ausente) {
+                throw $e;
+            }
+        }
+    }
+    if ($r === null && ($completo || $modo === '')) {
         $r = store_rpc($completo ? 'fln_ler' : 'fln_ler_leve', ['p_base' => store_base()], 40);
-    } else {
+    } elseif ($r === null) {
         $args = [
             'p_base' => store_base(),
             'p_modo' => $modo,
@@ -314,7 +332,7 @@ function store_ler(bool $completo = true, string $modo = '', string $de = '', st
             return $copia['dados'];
         }
         if ($usarVista) {
-            return store_ler($completo, $modo, $de, $ate, $idTrip, false);
+            return store_ler($completo, $modo, $de, $ate, $idTrip, false, $lista);
         }
         throw new BancoIndisponivel('Muitas leituras da lista nesta hora.');
     }

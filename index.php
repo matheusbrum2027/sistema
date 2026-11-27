@@ -747,7 +747,47 @@ if (in_array($current, ['entrar', 'seja-motorista', 'aplicativo'], true) && !pre
         $de = $iniAnterior->format('Y-m-d');
         $ate = $fimFaixa->format('Y-m-d');
     }
-    $db = load_db(false, false, $modo, $de, $ate, $idTrip);
+    $lista = [];
+    if ($current === 'reservas') {
+        $ordensLista = ['id', 'cliente', 'contato', 'tipo', 'categoria', 'data', 'motorista', 'valor', 'pgto', 'status'];
+        $ordLista = (string) ($_GET['ord'] ?? '');
+        if (!in_array($ordLista, $ordensLista, true)) {
+            $ordLista = '';
+        }
+        $dirLista = (string) ($_GET['dir'] ?? '');
+        if ($ordLista !== '' && $dirLista !== 'asc') {
+            $dirLista = 'desc';
+        }
+        $estadoLista = (string) ($_GET['estado'] ?? '');
+        if (!in_array($estadoLista, ['', 'pendente', 'reserva', 'andamento', 'concluida', 'cancelada'], true)) {
+            $estadoLista = '';
+        }
+        $fatLista = (string) ($_GET['faturado'] ?? '');
+        if (!in_array($fatLista, ['', 'sim', 'nao'], true)) {
+            $fatLista = '';
+        }
+        $lista = [
+            'p_de' => $de,
+            'p_ate' => $ate,
+            'p_pag' => max(1, (int) ($_GET['pag'] ?? 1)),
+            'p_por' => 10,
+            'p_ord' => $ordLista,
+            'p_dir' => $ordLista === '' ? 'desc' : $dirLista,
+            'p_estado' => $estadoLista,
+            'p_mot' => max(0, (int) ($_GET['motorista'] ?? 0)),
+            'p_fat' => $fatLista,
+            'p_q' => mb_substr(trim((string) ($_GET['q'] ?? '')), 0, 80),
+        ];
+    }
+    $db = load_db(false, false, $modo, $de, $ate, $idTrip, $lista);
+    if ($lista !== [] && is_array($GLOBALS['fln_lista'] ?? null)) {
+        $GLOBALS['fln_lista_ids'] = [];
+        foreach ($db['transfers'] as $linhaLista) {
+            if (is_array($linhaLista)) {
+                $GLOBALS['fln_lista_ids'][] = (int) ($linhaLista['id'] ?? 0);
+            }
+        }
+    }
     $idEdit = $current === 'reservas' ? (int) ($_GET['edit'] ?? 0) : 0;
     // A lista não traz o mapa de pagamentos. A edição precisa da reserva inteira para o valor e o meio virem preenchidos.
     $precisaReservaInteira = $idEdit > 0;

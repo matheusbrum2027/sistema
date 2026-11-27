@@ -636,6 +636,10 @@ function normalize_db(array $db): array
     if ($menu !== '') {
         $GLOBALS['fln_menu'] = true;
     }
+    if (isset($db['_lista']) && is_array($db['_lista'])) {
+        $GLOBALS['fln_lista'] = $db['_lista'];
+    }
+    unset($db['_lista']);
     if (isset($db['transfers']['c'], $db['transfers']['r']) && is_array($db['transfers']['c']) && is_array($db['transfers']['r'])) {
         $db['transfers'] = transfers_expandir($db['transfers']);
     }
@@ -884,7 +888,7 @@ function fln_ritmo(string $acao, int $limite, int $janela): bool
     return $ok;
 }
 
-function load_db(bool $fresh = false, bool $completo = false, string $modo = '', string $de = '', string $ate = '', int $idTrip = 0): array
+function load_db(bool $fresh = false, bool $completo = false, string $modo = '', string $de = '', string $ate = '', int $idTrip = 0, array $lista = []): array
 {
     if (!$fresh && $modo === '' && empty($GLOBALS['fln_menu']) && ($cache = db_request_cache()) !== null && (!$completo || db_cache_completo())) {
         perf_count('db_cache_hits');
@@ -892,7 +896,7 @@ function load_db(bool $fresh = false, bool $completo = false, string $modo = '',
     }
     $inicio = microtime(true);
     if (store_remoto()) {
-        $dados = store_ler($completo, $modo, $de, $ate, $idTrip);
+        $dados = store_ler($completo, $modo, $de, $ate, $idTrip, true, $lista);
         if ($dados === null) {
             $inicial = normalize_db(seed_data());
             try {
