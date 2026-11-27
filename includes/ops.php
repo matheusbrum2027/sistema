@@ -866,10 +866,14 @@ function montar_reservas(array &$db, ?array $current): array
             $soma = $manual;
         }
         $valor = $manual > 0 ? $manual : $soma;
-        // Sem um valor novo, a edição não zera o preço nem apaga o meio que já estava gravado.
-        if (is_array($current) && $manual <= 0 && $soma <= 0 && (float) ($current['valor'] ?? 0) > 0) {
-            $pagamentos = pagamentos_da_reserva($current);
-            $valor = (float) ($current['valor'] ?? 0);
+        if (is_array($current)) {
+            $guardados = pagamentos_da_reserva($current);
+            if ($pagamentos === [] && $guardados !== []) {
+                $pagamentos = $guardados;
+            }
+            if ($valor <= 0 && (float) ($current['valor'] ?? 0) > 0) {
+                $valor = (float) ($current['valor'] ?? 0);
+            }
         }
         if ($valor <= 0 && $pagamentos === [] && !is_array($current)) {
             return ['Informe o valor total ou o valor de cada meio de pagamento.', []];
@@ -888,6 +892,9 @@ function montar_reservas(array &$db, ?array $current): array
         }
     }
     $status = one_of(post('status'), ['pendente', 'reserva', 'andamento', 'concluida', 'cancelada'], (string) ($current['status'] ?? 'pendente'));
+    if (is_array($current) && (string) ($current['status'] ?? '') === 'cancelada' && $status !== 'cancelada' && post('status_visto') !== 'cancelada') {
+        $status = 'cancelada';
+    }
     $repasse = $guardaValor && is_array($current) ? (float) ($current['repasse'] ?? 0) : max(0, post_money('repasse'));
     $faturado = $guardaValor && is_array($current) ? !empty($current['faturado']) : post('faturado') === 'sim';
     $pax = max(1, min(40, (int) post('pax') ?: 1));

@@ -356,6 +356,15 @@
   function irParaPagina(url) {
     location.assign(url);
   }
+  function ehDesafioSeguranca(resposta, html) {
+    const marca = (resposta && resposta.headers ? (resposta.headers.get('cf-mitigated') || '') : '').toLowerCase();
+    if (marca === 'challenge') return true;
+    const trecho = String(html || '').slice(0, 2500).toLowerCase();
+    return trecho.includes('cf-challenge')
+      || trecho.includes('challenge-platform')
+      || trecho.includes('just a moment')
+      || (trecho.includes('um momento') && trecho.includes('cloudflare'));
+  }
   async function abrirSemRecarregar(url, gravar) {
     const seq = ++navSeq;
     navOcupado = true;
@@ -378,12 +387,15 @@
       });
       if (seq !== navSeq) return;
       const tipo = resposta.headers.get('content-type') || '';
+      const html = tipo.includes('text/html') ? await resposta.text() : '';
+      if (seq !== navSeq) return;
+      if (ehDesafioSeguranca(resposta, html)) {
+        return;
+      }
       if (!resposta.ok || !tipo.includes('text/html')) {
         if (!mostrou) irParaPagina(url);
         return;
       }
-      const html = await resposta.text();
-      if (seq !== navSeq) return;
       guardarPagina(resposta.url || url, html);
       if (mostrou && html === guardado) return;
       if (!pintarPagina(html, resposta.url || url, gravar && !mostrou) && !mostrou) {

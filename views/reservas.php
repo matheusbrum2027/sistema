@@ -278,7 +278,7 @@ foreach ($pagEdit as $parte) {
     $somaPag += (float) $parte;
 }
 $manualEdit = '';
-if ($edit && (float) $edit['valor'] > 0 && abs($somaPag - (float) $edit['valor']) > 0.009) {
+if ($edit && (float) ($edit['valor'] ?? 0) > 0) {
     $manualEdit = number_format((float) $edit['valor'], 2, ',', '');
 } elseif (!$edit && (float) ($pre['valor'] ?? 0) > 0) {
     $manualEdit = number_format((float) $pre['valor'], 2, ',', '');
@@ -601,8 +601,9 @@ $catEdit = in_array($catAtual, $catsOk, true) ? $catAtual : '';
       <p class="hint">Os valores e o faturamento ficam com o administrador. Esta alteração não mexe neles.</p>
       <?php endif; ?>
       <label class="field">Status da reserva
+        <?php if ($edit): ?><input type="hidden" name="status_visto" value="<?= e((string) ($edit['status'] ?? '')) ?>"><?php endif; ?>
         <select name="status" data-status-inicial="<?= e((string) ($edit['status'] ?? 'pendente')) ?>">
-          <?php foreach (['pendente' => 'Pendente', 'reserva' => 'Reserva', 'andamento' => 'Em andamento', 'concluida' => 'Concluída'] as $k => $lab): ?>
+          <?php foreach (['pendente' => 'Pendente', 'reserva' => 'Reserva', 'andamento' => 'Em andamento', 'concluida' => 'Concluída', 'cancelada' => 'Cancelada'] as $k => $lab): ?>
             <option value="<?= e($k) ?>"<?= ($edit['status'] ?? 'pendente') === $k ? ' selected' : '' ?>><?= e($lab) ?></option>
           <?php endforeach; ?>
         </select>
@@ -1068,25 +1069,30 @@ foreach ($db['motoristas'] as $m) {
     const n = parseFloat(s);
     return Number.isFinite(n) ? n : 0;
   }
-  function syncTotal() {
+  function syncTotal(ev) {
     let soma = 0;
     form.querySelectorAll('[data-pag]').forEach((box) => {
       if (!box.checked) return;
       const campo = box.closest('.pay-line')?.querySelector('input[name^="pag_valor_"]');
       soma += lerDinheiro(campo?.value);
     });
-    const manual = lerDinheiro(document.getElementById('valor-manual').value);
+    const manualEl = document.getElementById('valor-manual');
+    const veioDoPagamento = ev && ev.target && (ev.target.matches('[data-pag]') || ev.target.matches('[name^="pag_valor_"]'));
+    if (veioDoPagamento && manualEl && soma > 0) {
+      manualEl.value = soma.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+    const manual = lerDinheiro(manualEl ? manualEl.value : '');
     const n = manual > 0 ? manual : soma;
-    totalEl.textContent = n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    if (totalEl) totalEl.textContent = n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   }
   tipo.addEventListener('change', syncTipo);
   quem.addEventListener('change', syncQuem);
   form.querySelectorAll('[name=origem_cliente]').forEach((r) => r.addEventListener('change', syncOrigem));
   form.addEventListener('input', (ev) => {
-    if (ev.target.matches('[data-pag], [name^="pag_valor_"], #valor-manual')) syncTotal();
+    if (ev.target.matches('[data-pag], [name^="pag_valor_"], #valor-manual')) syncTotal(ev);
   });
   form.addEventListener('change', (ev) => {
-    if (ev.target.matches('[data-pag]')) syncTotal();
+    if (ev.target.matches('[data-pag]')) syncTotal(ev);
   });
   function semAcento(s) {
     return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();

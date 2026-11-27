@@ -347,6 +347,16 @@ function reserva_obs_itens(array $db, array $trip): array
         $trip = trip_com_obs($trip);
     }
     $propria = obs_so_publica((string) ($trip['obs'] ?? ''), (string) ($trip['obs_interna'] ?? ''));
+    if (function_exists('usuario_e_motorista') && usuario_e_motorista()) {
+        $itens = [];
+        if ($propria !== '') {
+            $itens[] = ['aviso' => '', 'texto' => $propria];
+        }
+        if ($cacheId > 0) {
+            $cache[$cacheId] = $itens;
+        }
+        return $itens;
+    }
     $de = (string) ($trip['obs_de'] ?? '');
     $irma = reserva_irma_ida_volta($db, $trip);
     $textoIrma = $irma !== null

@@ -704,8 +704,13 @@ function com_db(string $acao, callable $alterar, bool $leve = false): mixed
                 $db = store_db_para_gravar((int) post('id'));
                 $enxuta = true;
             } catch (Throwable $e) {
-                if (str_contains($e->getMessage(), 'cota de leitura')) {
-                    throw $e instanceof BancoIndisponivel ? $e : new BancoIndisponivel($e->getMessage());
+                $msgLeitura = $e->getMessage();
+                if (str_contains($msgLeitura, 'cota de leitura')) {
+                    throw $e instanceof BancoIndisponivel ? $e : new BancoIndisponivel($msgLeitura);
+                }
+                if (str_contains($msgLeitura, 'statement timeout') || str_contains($msgLeitura, 'canceling statement')) {
+                    usleep(200000 * ($tentativa + 1));
+                    continue;
                 }
                 $db = load_db(true, true);
             }
@@ -730,6 +735,14 @@ function com_db(string $acao, callable $alterar, bool $leve = false): mixed
         } catch (BancoConflito) {
             db_request_cache(null, true);
             usleep(40000 * ($tentativa + 1));
+        } catch (Throwable $e) {
+            $msgGrava = $e->getMessage();
+            if (str_contains($msgGrava, 'statement timeout') || str_contains($msgGrava, 'canceling statement')) {
+                db_request_cache(null, true);
+                usleep(200000 * ($tentativa + 1));
+                continue;
+            }
+            throw $e;
         }
     }
     throw new BancoIndisponivel('O banco de dados está ocupado. Tente de novo.');
