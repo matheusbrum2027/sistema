@@ -44,13 +44,23 @@ foreach ($db['automacoes'] as $autoRow) {
   <title><?= e($route['title']) ?> · <?= e($brand) ?></title>
   <?php if (!$partial): ?>
   <script>
+  window.flnPassarVerificacao = function (url) {
+    try {
+      var agora = Date.now();
+      var ultimo = Number(sessionStorage.getItem('fln_cf') || 0);
+      if (agora - ultimo < 25000) return false;
+      sessionStorage.setItem('fln_cf', String(agora));
+    } catch (err) { /* segue para a navegação */ }
+    window.location.assign(url || window.location.href);
+    return true;
+  };
   (function () {
     var ua = navigator.userAgent || '';
     var ipad = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
     if (/Android|iPhone|iPad|iPod/i.test(ua) || ipad) return;
     var link = document.createElement('link');
     link.rel = 'manifest';
-    link.href = 'index.php?p=manifest';
+    link.href = 'manifest.json';
     document.head.appendChild(link);
   })();
   </script>

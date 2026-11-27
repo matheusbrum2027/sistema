@@ -396,7 +396,14 @@
       }
       prefetchCtrl = new AbortController();
       fetch(proxima, { credentials: 'same-origin', headers: { 'X-Requested-With': 'fetch' }, cache: 'no-store', signal: prefetchCtrl.signal })
-        .then((resposta) => resposta.ok && (resposta.headers.get('content-type') || '').includes('text/html') ? resposta.text() : '')
+        .then((resposta) => {
+          if (ehDesafioSeguranca(resposta, '')) {
+            filaPrefetch.length = 0;
+            if (window.flnPassarVerificacao) window.flnPassarVerificacao(location.href);
+            return '';
+          }
+          return resposta.ok && (resposta.headers.get('content-type') || '').includes('text/html') ? resposta.text() : '';
+        })
         .then((html) => guardarPagina(proxima, html))
         .catch(() => {})
         .finally(() => window.setTimeout(passo, 80));
@@ -447,6 +454,7 @@
       const html = tipo.includes('text/html') ? await resposta.text() : '';
       if (seq !== navSeq) return;
       if (ehDesafioSeguranca(resposta, html)) {
+        if (window.flnPassarVerificacao) window.flnPassarVerificacao(url);
         return;
       }
       if (!resposta.ok || !tipo.includes('text/html')) {

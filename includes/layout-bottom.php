@@ -21,7 +21,7 @@ declare(strict_types=1);
     <button class="btn btn-danger" type="button" id="confirma-sim">Sim</button>
   </footer>
 </dialog>
-<script src="assets/js/app.js?v=52"></script>
+<script src="assets/js/app.js?v=53"></script>
 <?php if (($_SESSION['role'] ?? '') === 'motorista' && !empty($_SESSION['auth'])): ?>
 <script src="assets/js/painel-motorista.js?v=4"></script>
 <?php endif; ?>
@@ -235,9 +235,9 @@ declare(strict_types=1);
 </aside>
 <link rel="stylesheet" href="assets/vendor/leaflet/leaflet.css?v=2">
 <script src="assets/vendor/leaflet/leaflet.js?v=2"></script>
-<script src="assets/js/chat.js?v=18"></script>
+<script src="assets/js/chat.js?v=19"></script>
 <script src="assets/js/mapa.js?v=9"></script>
-<script src="assets/js/push.js?v=9"></script>
+<script src="assets/js/push.js?v=10"></script>
 <?php endif; ?>
 <?php endif; ?>
 </body>

@@ -308,6 +308,12 @@
     const desde = Number(localStorage.getItem('fln-aviso-ultimo') || 0);
     try {
       const resposta = await fetch('index.php?p=aviso&desde=' + encodeURIComponent(String(desde)), { credentials: 'same-origin', cache: 'no-store' });
+      const marca = (resposta.headers.get('cf-mitigated') || '').toLowerCase();
+      const tipo = (resposta.headers.get('content-type') || '').toLowerCase();
+      if (resposta.status === 403 && (marca === 'challenge' || tipo.includes('text/html'))) {
+        if (window.flnPassarVerificacao) window.flnPassarVerificacao(location.href);
+        return;
+      }
       if (!resposta.ok) return;
       const json = await resposta.json();
       const itens = Array.isArray(json.itens) ? json.itens : [];

@@ -271,6 +271,15 @@
         credentials: 'same-origin',
         cache: 'no-store',
       });
+      const marca = (resposta.headers.get('cf-mitigated') || '').toLowerCase();
+      const tipo = (resposta.headers.get('content-type') || '').toLowerCase();
+      if (resposta.status === 403 && (marca === 'challenge' || tipo.includes('text/html'))) {
+        authFail = true;
+        pararPoll();
+        if (fundoTimer) window.clearInterval(fundoTimer);
+        if (window.flnPassarVerificacao) window.flnPassarVerificacao(location.href);
+        return;
+      }
       const dados = await resposta.json();
       atualizarStatus(dados);
       if (!dados.ok) {
