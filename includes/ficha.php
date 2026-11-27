@@ -229,98 +229,141 @@ function ficha_cliente_dialog(array $db, array $cliente): string
     return (string) ob_get_clean();
 }
 
+function ficha_data_txt(string $iso): string
+{
+    $iso = trim($iso);
+    if ($iso === '') {
+        return 'Não informado';
+    }
+    return function_exists('br_date') ? br_date($iso) : $iso;
+}
+
+function ficha_cnh_txt(string $iso): string
+{
+    $iso = trim($iso);
+    if ($iso === '') {
+        return 'Não informada';
+    }
+    $txt = ficha_data_txt($iso);
+    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $iso) === 1 && $iso < date('Y-m-d')) {
+        return $txt . ' · vencida';
+    }
+    return $txt;
+}
+
+function ficha_desde_txt(array $mot): string
+{
+    $iso = trim((string) ($mot['criado_em'] ?? ''));
+    if (preg_match('/^\d{4}-\d{2}-\d{2}/', $iso) !== 1) {
+        return 'Não informado';
+    }
+    return ficha_data_txt(substr($iso, 0, 10));
+}
+
 function ficha_motorista_dialog(array $db, array $mot, bool $aberto = false): string
 {
     $id = (int) ($mot['id'] ?? 0);
     $nome = (string) ($mot['nome'] ?? '');
     $email = mb_strtolower(trim((string) ($mot['email'] ?? $mot['usuario'] ?? '')));
+    $login = mb_strtolower(trim((string) ($mot['usuario'] ?? $mot['email'] ?? '')));
     $cidade = ficha_cidade($mot);
     $endereco = ficha_endereco($mot);
+    $cep = trim((string) ($mot['cep'] ?? ''));
     $pagamento = ficha_pagamento($mot);
     $status = ficha_status_frota($mot);
     $ativo = (string) ($mot['status'] ?? 'ativo') === 'ativo';
     $link = link_motorista($mot);
-    $arquivo = 'Dossie ' . $nome . '.pdf';
-    $docs = [
-        'Foto de perfil' => ['foto', 'foto_perfil'],
-        'CNH — frente' => ['cnh_frente', 'cnh_foto'],
-        'CNH — verso' => ['cnh_verso'],
-        'Comprovante de residência' => ['comprovante', 'residencia'],
-    ];
-    $validade = trim((string) ($mot['cnh_validade'] ?? ''));
-    $nasc = trim((string) ($mot['nascimento'] ?? ''));
+    $empresa = trim((string) ($db['settings']['nome'] ?? 'Transfer FLN'));
+    if ($empresa === '') {
+        $empresa = 'Transfer FLN';
+    }
+    $obs = trim((string) ($mot['obs'] ?? ''));
+    $banco = trim((string) ($mot['banco'] ?? ''));
+    $agencia = trim((string) ($mot['agencia'] ?? ''));
+    $conta = trim((string) ($mot['conta'] ?? ''));
 
     ob_start();
     ?>
 <dialog id="dlg-dossie-<?= $id ?>" class="dlg-ficha dlg-dossie" <?= $aberto ? 'open' : '' ?>>
-  <header class="dialog-h">
-    <div>
-      <h2>Dossiê do motorista</h2>
-      <p class="hint">Relatório com dados cadastrais. O QR do PDF confirma que o motorista é da frota, sem endereço nem documentos.</p>
+  <header class="dialog-h dossie-h">
+    <div class="dossie-marca">
+      <img src="index.php?p=marca&amp;k=logo" alt="" width="44" height="44" onerror="this.remove()">
+      <div>
+        <h2>Dossiê do motorista</h2>
+        <p class="hint"><?= e($empresa) ?> · <?= e(dossie_id($mot)) ?> · <?= e(date('d/m/Y')) ?></p>
+      </div>
     </div>
     <div class="dialog-tools">
-      <a class="btn btn-primary btn-sm" href="<?= e(href('mot-cadastros', ['baixar' => 'dossie', 'id' => $id])) ?>">Exportar ficha completa</a>
+      <a class="btn btn-primary btn-sm" href="<?= e(href('mot-cadastros', ['baixar' => 'dossie', 'id' => $id])) ?>">Exportar PDF</a>
       <button class="dlg-x" type="button" data-close-dialog aria-label="Fechar">×</button>
     </div>
   </header>
-  <div class="dialog-b ficha">
-    <p class="ficha-selo">Documento gerado em <?= e(date('d/m/Y')) ?> · <?= e(dossie_id($mot)) ?></p>
-    <div class="ficha-hero">
+  <div class="dialog-b ficha dossie">
+    <section class="dossie-hero">
       <span class="ficha-avatar" aria-hidden="true"><?= e(ficha_iniciais($nome)) ?></span>
-      <div>
+      <div class="dossie-ident">
         <h3 class="ficha-nome"><?= e($nome) ?></h3>
         <p class="ficha-tags">
-          <span class="tag">Cadastrado</span>
           <span class="tag <?= $ativo ? 'tag-ok' : 'tag-wait' ?>"><?= e($status) ?></span>
           <span class="tag <?= portal_label($mot) === 'Pendente' ? 'tag-wait' : 'tag-ok' ?>"><?= e(portal_label($mot)) ?></span>
+          <span class="tag">CNH <?= e(ficha_texto($mot, 'categoria', 'sem categoria')) ?></span>
         </p>
-        <ul class="ficha-lista">
-          <li><span>CPF</span><b><?= e(ficha_texto($mot, 'cpf')) ?></b></li>
-          <li><span>Telefone</span><b><?= e(ficha_texto($mot, 'telefone')) ?></b></li>
-          <li><span>E-mail</span><b><?= e($email !== '' ? $email : '—') ?></b></li>
-        </ul>
+        <p class="dossie-linha"><?= e(ficha_texto($mot, 'telefone', 'Telefone não informado')) ?> · <?= e($email !== '' ? $email : 'E-mail não informado') ?></p>
       </div>
+    </section>
+
+    <div class="dossie-cols">
+      <section class="dossie-bloco">
+        <h3>Identificação</h3>
+        <dl>
+          <div><dt>CPF</dt><dd><?= e(ficha_texto($mot, 'cpf', 'Não informado')) ?></dd></div>
+          <div><dt>RG</dt><dd><?= e(ficha_texto($mot, 'rg', 'Não informado')) ?></dd></div>
+          <div><dt>Nascimento</dt><dd><?= e(ficha_data_txt((string) ($mot['nascimento'] ?? ''))) ?></dd></div>
+          <div><dt>Login do portal</dt><dd><?= e($login !== '' ? $login : 'Não informado') ?></dd></div>
+        </dl>
+      </section>
+      <section class="dossie-bloco">
+        <h3>Endereço</h3>
+        <dl>
+          <div class="dossie-largo"><dt>Logradouro</dt><dd><?= e($endereco !== '' ? $endereco : 'Não informado') ?></dd></div>
+          <div><dt>Cidade / UF</dt><dd><?= e($cidade !== '' ? $cidade : 'Não informada') ?></dd></div>
+          <div><dt>CEP</dt><dd><?= e($cep !== '' ? $cep : 'Não informado') ?></dd></div>
+        </dl>
+      </section>
+      <section class="dossie-bloco">
+        <h3>CNH e frota</h3>
+        <dl>
+          <div><dt>Número</dt><dd><?= e(ficha_texto($mot, 'cnh', 'Não informado')) ?></dd></div>
+          <div><dt>Categoria</dt><dd><?= e(ficha_texto($mot, 'categoria', 'Não informada')) ?></dd></div>
+          <div><dt>Validade</dt><dd><?= e(ficha_cnh_txt((string) ($mot['cnh_validade'] ?? ''))) ?></dd></div>
+          <div><dt>Na frota desde</dt><dd><?= e(ficha_desde_txt($mot)) ?></dd></div>
+        </dl>
+      </section>
+      <section class="dossie-bloco">
+        <h3>Repasse</h3>
+        <dl>
+          <div><dt>Forma</dt><dd><?= e($pagamento !== '' ? $pagamento : 'Não informada') ?></dd></div>
+          <div><dt>Chave PIX</dt><dd><?= e(ficha_texto($mot, 'pix', 'Não informada')) ?></dd></div>
+          <div><dt>Banco</dt><dd><?= e($banco !== '' ? $banco : 'Não informado') ?></dd></div>
+          <div><dt>Agência / conta</dt><dd><?= e(trim($agencia . ($agencia !== '' && $conta !== '' ? ' · ' : '') . $conta) ?: 'Não informada') ?></dd></div>
+        </dl>
+      </section>
     </div>
 
-    <h3 class="ficha-sec">Informações principais</h3>
-    <dl class="ficha-grade">
-      <div><dt>Cidade / UF</dt><dd><?= e($cidade !== '' ? $cidade : '—') ?></dd></div>
-      <div><dt>CNH</dt><dd><?= e(ficha_texto($mot, 'cnh')) ?></dd></div>
-      <div><dt>Categoria</dt><dd><?= e(ficha_texto($mot, 'categoria')) ?></dd></div>
-      <div><dt>Validade da CNH</dt><dd><?= e($validade !== '' ? br_date($validade) : '—') ?></dd></div>
-      <div><dt>Tipo de pagamento</dt><dd><?= e($pagamento !== '' ? $pagamento : '—') ?></dd></div>
-      <div><dt>Situação</dt><dd><?= e($status) ?></dd></div>
-    </dl>
-
-    <h3 class="ficha-sec">Dados complementares</h3>
-    <dl class="ficha-grade">
-      <div><dt>RG</dt><dd><?= e(ficha_texto($mot, 'rg')) ?></dd></div>
-      <div><dt>Nascimento</dt><dd><?= e($nasc !== '' ? br_date($nasc) : '—') ?></dd></div>
-      <div><dt>CEP</dt><dd><?= e(ficha_texto($mot, 'cep')) ?></dd></div>
-      <div><dt>Endereço</dt><dd><?= e($endereco !== '' ? $endereco : '—') ?></dd></div>
-      <div><dt>Chave PIX</dt><dd><?= e(ficha_texto($mot, 'pix')) ?></dd></div>
-      <div><dt>Banco</dt><dd><?= e(trim((string) ($mot['banco'] ?? '') . ' ' . (string) ($mot['agencia'] ?? '') . ' ' . (string) ($mot['conta'] ?? '')) ?: '—') ?></dd></div>
-    </dl>
-    <?php if (trim((string) ($mot['obs'] ?? '')) !== ''): ?>
-      <div class="ficha-box"><span>Observações</span><p><?= e((string) $mot['obs']) ?></p></div>
+    <?php if ($obs !== ''): ?>
+      <section class="dossie-bloco dossie-obs"><h3>Observações</h3><p><?= e($obs) ?></p></section>
     <?php endif; ?>
 
-    <h3 class="ficha-sec">Documentos</h3>
-    <ul class="ficha-docs">
-      <?php foreach ($docs as $rotulo => $chaves): $anexo = ficha_doc_anexado($mot, $chaves); ?>
-        <li><span><?= e($rotulo) ?></span><b class="<?= $anexo ? 'is-ok' : 'is-no' ?>"><?= $anexo ? 'Anexado' : 'Não anexado' ?></b></li>
-      <?php endforeach; ?>
-    </ul>
-
-    <h3 class="ficha-sec">Portal do motorista</h3>
-    <p class="hint">Login: <strong><?= e(mb_strtolower(trim((string) ($mot['usuario'] ?? $mot['email'] ?? ''))) ?: '—') ?></strong>. A senha gravada não fica exposta. Gerar outra invalida a atual e mostra a nova só uma vez na faixa do topo, por 1 minuto.</p>
-    <div class="ficha-acoes">
-      <a class="btn btn-sm" href="<?= e($link) ?>" target="_blank" rel="noopener">Abrir em nova guia</a>
-      <button class="btn btn-sm" type="button" data-copy="<?= e($link) ?>">Copiar link</button>
-      <a class="btn btn-sm" href="<?= e(href('mot-cadastros', ['edit' => $id])) ?>">Editar</a>
-      <form method="post" action="index.php" data-confirm="Gerar nova senha temporária para <?= e($nome) ?>? A atual deixa de valer e a nova fica na faixa do topo por 1 minuto."><?= csrf_fields('reset_senha_motorista') ?><input type="hidden" name="id" value="<?= $id ?>"><button class="btn btn-sm" type="submit">Redefinir senha</button></form>
-    </div>
-    <p class="hint">O PDF sai com o nome <?= e($arquivo) ?>.</p>
+    <section class="dossie-bloco dossie-portal">
+      <h3>Acesso ao painel</h3>
+      <p class="hint">A senha gravada não aparece aqui. Gerar outra invalida a atual e mostra a nova na faixa do topo por 1 minuto. O PDF leva a logo, o cadastro e o QR de confirmação da frota.</p>
+      <div class="ficha-acoes">
+        <a class="btn btn-sm" href="<?= e($link) ?>" target="_blank" rel="noopener">Abrir portal</a>
+        <button class="btn btn-sm" type="button" data-copy="<?= e($link) ?>">Copiar link</button>
+        <a class="btn btn-sm" href="<?= e(href('mot-cadastros', ['edit' => $id])) ?>">Editar cadastro</a>
+        <form method="post" action="index.php" data-confirm="Gerar nova senha temporária para <?= e($nome) ?>? A atual deixa de valer e a nova fica na faixa do topo por 1 minuto."><?= csrf_fields('reset_senha_motorista') ?><input type="hidden" name="id" value="<?= $id ?>"><button class="btn btn-sm" type="submit">Redefinir senha</button></form>
+      </div>
+    </section>
   </div>
 </dialog>
     <?php

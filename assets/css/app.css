@@ -3029,7 +3029,35 @@ dialog.dlg-ficha[open] .dialog-b {
   touch-action: pan-y;
 }
 dialog.dlg-ficha.dlg-dossie[open],
-dialog.dlg-ficha.dlg-dossie:modal { width: min(560px, 100vw) !important; }
+dialog.dlg-ficha.dlg-dossie:modal {
+  width: min(920px, calc(100vw - 32px)) !important;
+  max-height: calc(100dvh - 24px) !important;
+  overflow: hidden !important;
+}
+.dossie-h { gap: 12px; align-items: center; }
+.dossie-marca { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.dossie-marca img {
+  width: 44px; height: 44px; object-fit: contain; background: #152033; border-radius: 6px; padding: 4px;
+}
+.dossie-marca h2 { margin: 0; font-size: 16px; }
+.dossie { gap: 14px; }
+.dossie-hero {
+  display: flex; gap: 14px; align-items: center;
+  padding: 12px; border: 1px solid var(--line); background: var(--card);
+}
+.dossie-ident { min-width: 0; }
+.dossie-linha { margin: 0; color: var(--muted); font-size: 13px; word-break: break-word; }
+.dossie-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.dossie-bloco { border: 1px solid var(--line); background: var(--card); padding: 12px; min-width: 0; }
+.dossie-bloco h3 {
+  margin: 0 0 10px; font-size: 12px; letter-spacing: .04em; text-transform: uppercase; color: var(--orange-dark);
+}
+.dossie-bloco dl { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; margin: 0; }
+.dossie-bloco dt { color: var(--muted); font-size: 11px; font-weight: 700; }
+.dossie-bloco dd { margin: 2px 0 0; font-weight: 650; word-break: break-word; }
+.dossie-largo { grid-column: 1 / -1; }
+.dossie-obs p { margin: 0; white-space: pre-wrap; }
+.dossie-portal .hint { margin: 0 0 8px; }
 .ficha { display: flex; flex-direction: column; gap: 12px; }
 .ficha-nome { margin: 0; font-size: 20px; line-height: 1.2; }
 .ficha-tipo, .ficha-selo { margin: 0; color: var(--muted); font-size: 12px; }
@@ -3074,7 +3102,9 @@ dialog.dlg-ficha.dlg-dossie:modal { width: min(560px, 100vw) !important; }
     height: auto !important;
     max-height: none !important;
   }
-  .ficha-grade { grid-template-columns: 1fr; }
+  .ficha-grade, .dossie-cols, .dossie-bloco dl { grid-template-columns: 1fr; }
+  .dossie-h { align-items: flex-start; }
+  .dossie-hero { align-items: flex-start; }
 }
 @media (display-mode: standalone), (display-mode: fullscreen) {
   body:has(.app)::before,
