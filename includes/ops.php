@@ -916,10 +916,27 @@ function montar_reservas(array &$db, ?array $current): array
     $base['pax'] = $pax;
     $obsPublica = clip(post('obs'), 8000);
     $obsInterna = $tipo === 'hora' ? clip(post('obs_interna_hora'), 8000) : clip(post('obs_interna'), 8000);
+    $preservaObs = is_array($current) && post('obs_ok') !== '1';
+    $preservaInterna = is_array($current) && post('obs_interna_ok') !== '1';
+    $fixarObs = static function (array &$item) use ($preservaObs, $preservaInterna, $obsPublica, $obsInterna): void {
+        if ($preservaObs) {
+            unset($item['obs']);
+        } else {
+            $item['obs'] = $obsPublica;
+        }
+        if ($preservaInterna) {
+            unset($item['obs_interna']);
+        } else {
+            $item['obs_interna'] = $obsInterna;
+        }
+        if ($preservaObs && $preservaInterna) {
+            unset($item['obs_tocada']);
+        } else {
+            $item['obs_tocada'] = true;
+        }
+    };
     $base['cupom'] = clip(post('cupom'), 40);
-    $base['obs'] = $obsPublica;
-    $base['obs_interna'] = $obsInterna;
-    $base['obs_tocada'] = true;
+    $fixarObs($base);
     $base['esconder_valores'] = $guardaValor && is_array($current) ? !empty($current['esconder_valores']) : post('esconder') === '1';
     $usaEquipe = post('equipe_modo') === '1';
     if ($usaEquipe) {
@@ -954,7 +971,7 @@ function montar_reservas(array &$db, ?array $current): array
         $base['qtd_horas'] = clip(post('qtd_horas'), 10);
         $base['trajetos'] = [];
         $iti = clip(post('itinerario'), 8000);
-        if ($iti !== '' && $iti !== $obsPublica && !str_contains($obsPublica, $iti)) {
+        if (!$preservaObs && $iti !== '' && $iti !== $obsPublica && !str_contains($obsPublica, $iti)) {
             $base['obs'] = trim($obsPublica . "\n" . $iti);
         }
         if ($usaEquipe) {
@@ -1109,13 +1126,13 @@ function montar_reservas(array &$db, ?array $current): array
     $volta['hora'] = $horaVolta;
     $volta['pax'] = $paxVolta > 0 ? max(1, min(40, $paxVolta)) : $pax;
     $volta['cupom'] = clip(post('cupom_volta'), 40);
-    $ida['obs'] = $obsPublica;
-    $volta['obs'] = $obsPublica;
-    $ida['obs_interna'] = $obsInterna;
-    $volta['obs_interna'] = clip(post('obs_interna_volta'), 8000);
+    $fixarObs($ida);
+    $fixarObs($volta);
+    if (!$preservaInterna) {
+        $volta['obs_interna'] = clip(post('obs_interna_volta'), 8000);
+        $volta['obs_tocada'] = true;
+    }
     unset($ida['obs_de'], $volta['obs_de']);
-    $ida['obs_tocada'] = true;
-    $volta['obs_tocada'] = true;
     $volta['motorista_id'] = $motoristaVolta;
     if ($usaEquipe) {
         aplicar_equipe($db, $ida, ids_equipe('ida'));

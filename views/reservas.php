@@ -355,6 +355,13 @@ $catEdit = in_array($catAtual, $catsOk, true) ? $catAtual : '';
         <div class="box box-warn">Conversão da solicitação #<?= (int) $convertendo['id'] ?>. É obrigatório atribuir um motorista da frota. Sem motorista o cadastro não é concluído.</div>
       <?php endif; ?>
       <?= csrf_fields($edit ? 'update_transfer' : 'add_transfer') ?>
+      <?php
+        $obsInternaFalhou = is_array($edit) && !empty($edit['obs_interna_falhou']);
+        $obsFalhou = is_array($edit) && !empty($edit['obs_falhou']);
+        $avisoObsInterna = 'Não foi possível carregar a observação interna. Ela não será alterada ao salvar.';
+      ?>
+      <input type="hidden" name="obs_interna_ok" value="<?= $obsInternaFalhou ? '0' : '1' ?>">
+      <input type="hidden" name="obs_ok" value="<?= $obsFalhou ? '0' : '1' ?>">
       <?php if ($edit): ?><input type="hidden" name="id" value="<?= (int) $edit['id'] ?>"><?php endif; ?>
       <?php if ($solForm > 0): ?><input type="hidden" name="solicitacao_id" value="<?= (int) $solForm ?>"><?php endif; ?>
       <input type="hidden" name="cliente_id" id="cliente-id" value="<?= (int) ($edit['cliente_id'] ?? 0) ?>">
@@ -436,6 +443,7 @@ $catEdit = in_array($catAtual, $catsOk, true) ? $catAtual : '';
           </label>
           <label class="field full">Observações internas (só o administrador)
             <textarea name="obs_interna" maxlength="8000" placeholder="Anotação interna. Não sai no PDF nem no painel do motorista."><?= e($tipoForm !== 'hora' ? $campo('obs_interna') : '') ?></textarea>
+            <?php if ($obsInternaFalhou): ?><span class="hint"><?= e($avisoObsInterna) ?></span><?php endif; ?>
             <span class="hint">Este campo não aparece para o motorista nem no PDF.</span>
           </label>
         </div>
@@ -464,6 +472,7 @@ $catEdit = in_array($catAtual, $catsOk, true) ? $catAtual : '';
           </label>
           <label class="field full">Observações internas da volta (só o administrador)
             <textarea name="obs_interna_volta" maxlength="8000" placeholder="Anotação interna da volta. Não sai no PDF nem para o motorista."></textarea>
+            <?php if ($obsInternaFalhou): ?><span class="hint"><?= e($avisoObsInterna) ?></span><?php endif; ?>
           </label>
         </div>
       </div>
@@ -523,6 +532,7 @@ $catEdit = in_array($catAtual, $catsOk, true) ? $catAtual : '';
           </label>
           <label class="field full">Observações internas (só o administrador)
             <textarea name="obs_interna_hora" maxlength="8000" placeholder="Anotação interna. Não sai no PDF nem no painel do motorista."><?= e($tipoForm === 'hora' ? $campo('obs_interna') : '') ?></textarea>
+            <?php if ($obsInternaFalhou): ?><span class="hint"><?= e($avisoObsInterna) ?></span><?php endif; ?>
             <span class="hint">O roteiro que o motorista e o cliente precisam ver fica no campo de baixo.</span>
           </label>
         </div>
@@ -611,6 +621,7 @@ $catEdit = in_array($catAtual, $catsOk, true) ? $catAtual : '';
       </label>
       <label class="field">Observações para o motorista e o PDF
         <textarea name="obs" maxlength="8000" placeholder="Uma informação por linha. O motorista e o cliente veem este texto no PDF.&#10;Ex.: Nome do passageiro&#10;Voo e horário"><?= e($campo('obs')) ?></textarea>
+        <?php if ($obsFalhou): ?><span class="hint">Não foi possível carregar a observação. Ela não será alterada ao salvar.</span><?php endif; ?>
         <span class="hint">Só este texto sai no PDF e no painel do motorista. A observação interna fica no primeiro campo.</span>
       </label>
     </div>

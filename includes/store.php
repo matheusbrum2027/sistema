@@ -491,13 +491,29 @@ function trip_com_obs(array $trip): array
             store_nota_gravar($id, (string) ($par['obs'] ?? ''), (string) ($par['interna'] ?? ''));
         }
     }
-    if (!is_array($par)) {
+    if (!is_array($par) || !empty($par['limite'])) {
         if (!$temObs) {
-            $trip['obs'] = store_anotacao($id);
+            $carregouObs = false;
+            try {
+                $lida = store_rpc('fln_anotacao', ['p_id' => $id, 'p_base' => store_base()], 8);
+                if (is_string($lida)) {
+                    $trip['obs'] = $lida;
+                    $carregouObs = true;
+                }
+            } catch (Throwable) {
+                $carregouObs = false;
+            }
+            if (!$carregouObs) {
+                $trip['obs_falhou'] = true;
+                if (!array_key_exists('obs', $trip)) {
+                    $trip['obs'] = '';
+                }
+            }
         }
         if (!$temInterna) {
             $trip['obs_interna'] = '';
         }
+        $trip['obs_interna_falhou'] = true;
         return $trip;
     }
     if (!$temObs) {

@@ -323,9 +323,6 @@ function obs_so_publica(string $publica, string $interna): string
     if ($publica === '' || $interna === '') {
         return $publica;
     }
-    if ($publica === $interna) {
-        return '';
-    }
     if (mb_strlen($interna) < 8 || !str_contains($publica, $interna)) {
         return $publica;
     }
