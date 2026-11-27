@@ -320,7 +320,7 @@ function obs_so_publica(string $publica, string $interna): string
 {
     $publica = trim($publica);
     $interna = trim($interna);
-    if ($publica === '' || $interna === '') {
+    if ($publica === '' || $interna === '' || $publica === $interna) {
         return $publica;
     }
     if (mb_strlen($interna) < 8 || !str_contains($publica, $interna)) {
