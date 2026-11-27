@@ -359,8 +359,8 @@ $classe2fa = $estado2fa === 'on' ? 'ok' : ($estado2fa === 'setup' ? 'warn' : 'of
     </ul>
   <?php endif; ?>
   <ol class="cfg-passos">
-    <li><strong>Painel administrativo, Android.</strong> Instale o <a href="assets/app/fln-painel.apk?v=4" data-apk>APK do painel</a>, versão 1.2. Ele abre direto este sistema. Se já havia um endereço antigo salvo, a versão nova troca para o painel atual. Se o Chrome pedir para instalar o site, cancele.</li>
-    <li><strong>Motorista já cadastrado.</strong> O aplicativo da operação, versão 1.3, fica na página <a href="<?= e(href('aplicativo')) ?>">Aplicativo do motorista</a>. É esse arquivo que a equipe baixa e instala por cima da versão anterior.</li>
+    <li><strong>Painel administrativo, Android.</strong> Instale o <a href="assets/app/fln-painel.apk?v=5" data-apk>APK do painel</a>, versão 1.3. Ele abre direto este sistema. Se já havia um endereço antigo salvo, a versão nova troca para o painel atual. Se o Chrome pedir para instalar o site, cancele.</li>
+    <li><strong>Motorista já cadastrado.</strong> O aplicativo da operação, versão 1.4, fica na página <a href="<?= e(href('aplicativo')) ?>">Aplicativo do motorista</a>. É esse arquivo que a equipe baixa e instala por cima da versão anterior.</li>
     <li><strong>iPhone.</strong> No Safari, nesta página, use Compartilhar → Adicionar à Tela de Início uma única vez. Se já existirem dois ícones, apague um e fique com o FLN Transfer.</li>
     <li><strong>Computador.</strong> No Chrome, toque em Ativar neste aparelho. Instalar aplicativo, quando aparecer, é só para o computador.</li>
     <li><strong>Teste.</strong> Feche o painel, bloqueie a tela e toque em Testar som e vibração.</li>

@@ -230,7 +230,21 @@ if ((string) ($_GET['p'] ?? '') === 'aviso_apk') {
             echo json_encode(['ok' => false], JSON_UNESCAPED_UNICODE);
             exit;
         }
-        echo json_encode($out, JSON_UNESCAPED_UNICODE);
+        $papelApk = (string) ($out['papel'] ?? '');
+        $midApk = (int) ($out['motorista_id'] ?? 0);
+        $itensApk = [];
+        if ($papelApk === 'admin' || $papelApk === 'motorista') {
+            foreach (is_array($out['itens'] ?? null) ? $out['itens'] : [] as $itemApk) {
+                if (is_array($itemApk) && aviso_item_para($itemApk, $papelApk, $midApk)) {
+                    $itensApk[] = aviso_apk_enxuto($itemApk);
+                }
+            }
+        }
+        echo json_encode([
+            'ok' => true,
+            'itens' => $itensApk,
+            'ultimo' => (int) ($out['ultimo'] ?? $desde),
+        ], JSON_UNESCAPED_UNICODE);
     } catch (Throwable) {
         http_response_code(503);
         echo json_encode(['ok' => false, 'erro' => 'indisponivel']);

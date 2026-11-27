@@ -350,6 +350,26 @@ function aviso_item_para(array $item, string $papel, int $motoristaId): bool
     return $audiencia !== 'motorista';
 }
 
+/** Texto que o celular pode mostrar. Sem a lista de outros motoristas e sem endereço externo. */
+function aviso_apk_enxuto(array $item): array
+{
+    $url = trim((string) ($item['url'] ?? ''));
+    $seguro = str_starts_with($url, 'index.php?')
+        && !str_contains($url, '://')
+        && !str_contains($url, '\\')
+        && !str_contains($url, '..');
+    return [
+        'id' => (int) ($item['id'] ?? 0),
+        'tipo' => (string) ($item['tipo'] ?? ''),
+        'titulo' => (string) ($item['titulo'] ?? ''),
+        'corpo' => (string) ($item['corpo'] ?? ''),
+        'url' => $seguro ? $url : 'index.php?p=agenda',
+        'som' => !empty($item['som']),
+        'vibrar' => !empty($item['vibrar']),
+        'em' => (string) ($item['em'] ?? ''),
+    ];
+}
+
 function push_aparelho_recebe(array $ap, array $item): bool
 {
     $papel = (string) ($ap['papel'] ?? 'admin');
