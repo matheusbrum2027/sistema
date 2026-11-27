@@ -313,12 +313,12 @@ function ficha_motorista_dialog(array $db, array $mot, bool $aberto = false): st
     </ul>
 
     <h3 class="ficha-sec">Portal do motorista</h3>
-    <p class="hint">Login: <strong><?= e(mb_strtolower(trim((string) ($mot['usuario'] ?? $mot['email'] ?? ''))) ?: '—') ?></strong>. A senha gravada não fica exposta. Gerar outra invalida a atual e mostra a nova só uma vez no aviso verde.</p>
+    <p class="hint">Login: <strong><?= e(mb_strtolower(trim((string) ($mot['usuario'] ?? $mot['email'] ?? ''))) ?: '—') ?></strong>. A senha gravada não fica exposta. Gerar outra invalida a atual e mostra a nova só uma vez na faixa do topo, por 1 minuto.</p>
     <div class="ficha-acoes">
       <a class="btn btn-sm" href="<?= e($link) ?>" target="_blank" rel="noopener">Abrir em nova guia</a>
       <button class="btn btn-sm" type="button" data-copy="<?= e($link) ?>">Copiar link</button>
       <a class="btn btn-sm" href="<?= e(href('mot-cadastros', ['edit' => $id])) ?>">Editar</a>
-      <form method="post" action="index.php" data-confirm="Gerar nova senha temporária para <?= e($nome) ?>? A atual deixa de valer e a nova aparece só uma vez no aviso verde."><?= csrf_fields('reset_senha_motorista') ?><input type="hidden" name="id" value="<?= $id ?>"><button class="btn btn-sm" type="submit">Redefinir senha</button></form>
+      <form method="post" action="index.php" data-confirm="Gerar nova senha temporária para <?= e($nome) ?>? A atual deixa de valer e a nova fica na faixa do topo por 1 minuto."><?= csrf_fields('reset_senha_motorista') ?><input type="hidden" name="id" value="<?= $id ?>"><button class="btn btn-sm" type="submit">Redefinir senha</button></form>
     </div>
     <p class="hint">O PDF sai com o nome <?= e($arquivo) ?>.</p>
   </div>

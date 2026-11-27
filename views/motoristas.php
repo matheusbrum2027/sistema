@@ -24,7 +24,7 @@ $dossies = $pg['rows'];
 if (is_array($ver) && !in_array((int) $ver['id'], array_map(static fn(array $m): int => (int) $m['id'], $dossies), true)) {
     $dossies[] = $ver;
 }
-view_head('<button class="btn btn-primary" type="button" data-open-dialog="dlg-mot">+ Novo motorista</button>', 'O login é o e-mail, quando existir. Sem e-mail, o sistema cria um usuário e mostra a senha temporária uma única vez no aviso verde. O link único abre a mesma tela de login.');
+view_head('<button class="btn btn-primary" type="button" data-open-dialog="dlg-mot">+ Novo motorista</button>', 'O login é o e-mail, quando existir. Sem e-mail, o sistema cria um usuário. A senha temporária aparece uma única vez na faixa fixa do topo, por 1 minuto. O link único abre a mesma tela de login.');
 ?>
 <form class="filters" method="get" action="index.php">
   <input type="hidden" name="p" value="mot-cadastros">
@@ -51,7 +51,7 @@ view_head('<button class="btn btn-primary" type="button" data-open-dialog="dlg-m
               <button class="btn btn-sm" type="button" data-open-dialog="dlg-dossie-<?= (int) $mot['id'] ?>">Detalhes</button>
               <a class="btn btn-sm" href="<?= e(href('mot-cadastros', ['edit' => $mot['id']])) ?>">Editar</a>
               <button class="btn btn-sm" type="button" data-copy="<?= e(link_motorista($mot)) ?>" title="<?= e(link_motorista($mot)) ?>">Copiar link</button>
-              <form method="post" action="index.php" data-confirm="Gerar nova senha temporária para <?= e((string) $mot['nome']) ?>? A atual deixa de valer e a nova aparece só uma vez no aviso verde."><?= csrf_fields('reset_senha_motorista') ?><input type="hidden" name="id" value="<?= (int) $mot['id'] ?>"><button class="btn btn-sm" type="submit">Senha</button></form>
+              <form method="post" action="index.php" data-confirm="Gerar nova senha temporária para <?= e((string) $mot['nome']) ?>? A atual deixa de valer e a nova fica na faixa do topo por 1 minuto."><?= csrf_fields('reset_senha_motorista') ?><input type="hidden" name="id" value="<?= (int) $mot['id'] ?>"><button class="btn btn-sm" type="submit">Senha</button></form>
             </td>
           </tr>
         <?php endforeach; ?>
@@ -68,7 +68,7 @@ view_head('<button class="btn btn-primary" type="button" data-open-dialog="dlg-m
     <header class="dialog-h dlg-top">
       <div>
         <h2><?= $edit ? 'Editar motorista' : 'Cadastrar motorista' ?></h2>
-        <p>Obrigatório: nome, CPF e telefone. O e-mail, quando informado, vira o login. A senha temporária aparece só uma vez no aviso verde.</p>
+        <p>Obrigatório: nome, CPF e telefone. O e-mail, quando informado, vira o login. A senha temporária aparece só uma vez na faixa fixa do topo, por 1 minuto.</p>
       </div>
       <button class="dlg-x" type="button" data-close-dialog aria-label="Fechar">×</button>
     </header>
@@ -130,9 +130,9 @@ view_head('<button class="btn btn-primary" type="button" data-open-dialog="dlg-m
           <label class="field full">Observações <textarea name="obs" maxlength="800" placeholder="Anotações internas"><?= e($edit['obs'] ?? '') ?></textarea></label>
         </div>
         <?php if ($edit && (($edit['email'] ?? '') !== '' || ($edit['usuario'] ?? '') !== '')): ?>
-          <p class="hint">Login do portal: <strong><?= e(mb_strtolower(trim((string) ($edit['usuario'] ?? $edit['email'])))) ?></strong>. A senha gravada não é reexibida. Para trocar, preencha Nova senha ou use o botão Senha na lista. O aviso verde mostra a senha só nessa hora.</p>
+          <p class="hint">Login do portal: <strong><?= e(mb_strtolower(trim((string) ($edit['usuario'] ?? $edit['email'])))) ?></strong>. A senha gravada não é reexibida. Para trocar, preencha Nova senha ou use o botão Senha na lista. A faixa do topo mostra a senha só nessa hora, por 1 minuto.</p>
         <?php else: ?>
-          <p class="hint">Ao salvar, o login fica sendo o e-mail ou um usuário gerado. A senha temporária aparece só uma vez no aviso verde, e o link único abre a tela de login.</p>
+          <p class="hint">Ao salvar, o login fica sendo o e-mail ou um usuário gerado. A senha temporária aparece só uma vez na faixa fixa do topo, por 1 minuto, e o link único abre a tela de login.</p>
         <?php endif; ?>
       </div>
       <div data-form-pane="pagamento" hidden>

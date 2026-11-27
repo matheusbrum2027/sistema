@@ -298,6 +298,56 @@ function render_flash(): string
     return '<div class="flash flash-' . e($type) . '" role="status">' . e((string) $message) . '</div>';
 }
 
+/** A senha do motorista fica numa faixa fixa, não no aviso verde. Vale só na próxima tela. */
+function senha_gerada_marcar(string $nome, string $login, string $senha, string $link, string $extra = ''): void
+{
+    $senha = trim($senha);
+    if ($senha === '') {
+        return;
+    }
+    $GLOBALS['fln_senha_pronta'] = [
+        'nome' => clip($nome, 80),
+        'login' => clip($login, 120),
+        'senha' => clip($senha, 72),
+        'link' => clip($link, 240),
+        'extra' => clip($extra, 180),
+    ];
+}
+
+function render_senha_gerada(): string
+{
+    $item = $GLOBALS['fln_senha_gerada'] ?? null;
+    unset($GLOBALS['fln_senha_gerada']);
+    if (!is_array($item)) {
+        return '';
+    }
+    $senha = trim((string) ($item['senha'] ?? ''));
+    $login = trim((string) ($item['login'] ?? ''));
+    if ($senha === '' || $login === '') {
+        return '';
+    }
+    $nome = trim((string) ($item['nome'] ?? ''));
+    $extra = trim((string) ($item['extra'] ?? ''));
+    $link = trim((string) ($item['link'] ?? ''));
+    $html = '<div class="senha-barra" data-senha-barra data-segundos="60" role="status" aria-live="polite">';
+    $html .= '<div class="senha-barra-topo"><strong>Senha temporária</strong><span data-senha-tempo>1:00</span></div>';
+    $html .= '<p>' . ($nome !== '' ? e($nome) . ' · ' : '') . 'Copie o acesso agora. Esta faixa fica fixa por 1 minuto e não volta.</p>';
+    $html .= '<div class="senha-barra-grade">';
+    $html .= '<label>Login <input readonly value="' . e($login) . '" autocomplete="off" spellcheck="false"></label>';
+    $html .= '<label>Senha <input readonly data-senha-valor value="' . e($senha) . '" autocomplete="off" spellcheck="false"></label>';
+    $html .= '<button type="button" data-senha-copiar>Copiar senha</button>';
+    $html .= '</div>';
+    if ($extra !== '') {
+        $html .= '<p class="senha-barra-extra">' . e($extra) . '</p>';
+    }
+    $base = rtrim(base_url(), '/');
+    if ($link !== '' && str_starts_with($link, $base . '/')) {
+        $html .= '<a href="' . e($link) . '">Abrir o portal do motorista</a>';
+    }
+    $html .= '</div>';
+    return $html;
+}
+
 function login_aplicar_sessao(string $role, int $motoristaId = 0, int $funcionarioId = 0, bool $verFinanceiro = true): void
 {
     $_SESSION['auth'] = true;
@@ -341,6 +391,10 @@ function sessao_preparar_get(string $pagina, array $db): void
     if (!empty($_SESSION['flash']) && is_array($_SESSION['flash'])) {
         $GLOBALS['fln_flash'] = $_SESSION['flash'];
         unset($_SESSION['flash']);
+    }
+    if (!empty($_SESSION['senha_gerada']) && is_array($_SESSION['senha_gerada'])) {
+        $GLOBALS['fln_senha_gerada'] = $_SESSION['senha_gerada'];
+        unset($_SESSION['senha_gerada']);
     }
     // Renova o prazo da sessão no banco no máximo a cada 30 minutos.
     $agora = time();
@@ -496,7 +550,7 @@ function email_motorista_em_uso(array $db, string $email, int $ignoreId = 0): bo
     return false;
 }
 
-/** Token de senha do motorista — o admin vê só uma vez (no flash de criação/reset). */
+/** Token de senha do motorista — o admin vê só uma vez, na faixa fixa do topo. */
 function token_senha_motorista(): string
 {
     $alfa = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -2054,7 +2108,12 @@ function handle_post(): void
             unset($_SESSION['solicitacao_liberada']);
         }
     }
-    flash($msg);
+    if (!empty($GLOBALS['fln_senha_pronta']) && is_array($GLOBALS['fln_senha_pronta'])) {
+        $_SESSION['senha_gerada'] = $GLOBALS['fln_senha_pronta'];
+        unset($GLOBALS['fln_senha_pronta']);
+    } else {
+        flash($msg);
+    }
     redirect(url_sem_dialogo(safe_back(href('agenda'))));
 }
 

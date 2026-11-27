@@ -65,7 +65,7 @@ foreach ($db['automacoes'] as $autoRow) {
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="assets/css/app.css?v=128">
+  <link rel="stylesheet" href="assets/css/app.css?v=129">
   <?php endif; ?>
 </head>
 <?php
@@ -82,6 +82,7 @@ if ($notifLigado) {
 }
 ?>
 <body data-page="<?= e($current) ?>" data-papel="<?= e((string) ($_SESSION['role'] ?? '')) ?>" data-mid="<?= (int) ($_SESSION['motorista_id'] ?? 0) ?>" data-autorefresh="<?= $auto ? '1' : '0' ?>"<?php if ($notifLigado): ?> data-notif="1" data-vapid="<?= e((string) ($db['settings']['vapid_public'] ?? '')) ?>" data-aviso="<?= $avisoUltimo ?>" data-som="<?= empty($db['settings']['notif_som']) && array_key_exists('notif_som', $db['settings']) ? '0' : '1' ?>" data-vibrar="<?= empty($db['settings']['notif_vibrar']) && array_key_exists('notif_vibrar', $db['settings']) ? '0' : '1' ?>"<?php endif; ?>>
+<?= render_senha_gerada() ?>
 <?php if ($partial): ?>
   <header class="topbar" data-shell-nav>
     <div class="topbar-brand"></div>

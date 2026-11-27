@@ -1570,7 +1570,10 @@ function ops_dispatch(array &$db, string $action): ?array
             $avisoSenha = $senhaClara !== ''
                 ? $senhaClara
                 : (senha_e_hash((string) ($mot['senha'] ?? '')) ? '' : (string) $mot['senha']);
-            return [null, 'Motorista cadastrado. Login: ' . $mot['usuario'] . ' · Senha temporária (copie agora, aparece só esta vez): ' . $avisoSenha . ' · Link do portal: ' . link_motorista($mot)];
+            if ($avisoSenha !== '') {
+                senha_gerada_marcar((string) $mot['nome'], (string) $mot['usuario'], $avisoSenha, link_motorista($mot), 'Cadastro gravado.');
+            }
+            return [null, 'Motorista cadastrado. Login: ' . $mot['usuario'] . '.'];
 
         case 'update_motorista':
             $i = index_of($db['motoristas'], (int) post('id'));
@@ -1600,12 +1603,22 @@ function ops_dispatch(array &$db, string $action): ?array
             }
             $db['motoristas'][$i] = $mot;
             $sync = sincronizar_motorista_nas_reservas($db, $antes, $db['motoristas'][$i]);
-            $msg = 'Motorista atualizado. Login: ' . $db['motoristas'][$i]['usuario'] . '. Link do portal: ' . link_motorista($db['motoristas'][$i]);
-            if ($senhaClara !== '') {
-                $msg .= ' · Senha nova (copie agora, aparece só esta vez): ' . $senhaClara;
-            }
+            $extra = '';
             if ($sync > 0) {
-                $msg .= ' · ' . $sync . ' reserva' . ($sync === 1 ? '' : 's') . ' atribuída' . ($sync === 1 ? '' : 's') . ' já refletem o nome/telefone novos.';
+                $extra = $sync . ' reserva' . ($sync === 1 ? '' : 's') . ' atribuída' . ($sync === 1 ? '' : 's') . ' já refletem o nome e o telefone novos.';
+            }
+            if ($senhaClara !== '') {
+                senha_gerada_marcar(
+                    (string) $db['motoristas'][$i]['nome'],
+                    (string) $db['motoristas'][$i]['usuario'],
+                    $senhaClara,
+                    link_motorista($db['motoristas'][$i]),
+                    $extra !== '' ? 'Cadastro atualizado. ' . $extra : 'Cadastro atualizado.'
+                );
+            }
+            $msg = 'Motorista atualizado. Login: ' . $db['motoristas'][$i]['usuario'] . '. Link do portal: ' . link_motorista($db['motoristas'][$i]);
+            if ($extra !== '') {
+                $msg .= ' ' . $extra;
             }
             return [null, $msg];
 
@@ -1627,7 +1640,8 @@ function ops_dispatch(array &$db, string $action): ?array
                 return ['A senha não foi gerada. Tente de novo.', ''];
             }
             $db['motoristas'][$i] = $mot;
-            return [null, 'Nova senha temporária de ' . $mot['nome'] . ' (copie agora, aparece só esta vez): login ' . $mot['usuario'] . ' · senha ' . $clara . ' · Link: ' . link_motorista($mot)];
+            senha_gerada_marcar((string) $mot['nome'], (string) $mot['usuario'], $clara, link_motorista($mot), 'A senha anterior deixou de valer.');
+            return [null, 'Senha temporária gerada.'];
 
         case 'add_lancamento':
         case 'edit_lancamento':

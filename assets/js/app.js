@@ -47,6 +47,62 @@
       window.setTimeout(fechar, erro ? 8000 : 4500);
     });
   }
+  function armarSenhaBarra() {
+    const barra = document.querySelector('[data-senha-barra]');
+    if (!barra || barra.dataset.armed === '1') return;
+    barra.dataset.armed = '1';
+    const medir = () => {
+      if (!barra.isConnected) return;
+      document.body.classList.add('senha-barra-on');
+      document.body.style.setProperty('--senha-barra-h', barra.offsetHeight + 'px');
+    };
+    medir();
+    window.addEventListener('resize', medir);
+    let resta = parseInt(barra.getAttribute('data-segundos') || '60', 10);
+    if (!Number.isFinite(resta) || resta < 1) resta = 60;
+    const relogio = barra.querySelector('[data-senha-tempo]');
+    const pintar = () => {
+      const seg = Math.max(0, resta);
+      const m = Math.floor(seg / 60);
+      const s = String(seg % 60).padStart(2, '0');
+      if (relogio) relogio.textContent = m + ':' + s;
+    };
+    pintar();
+    const id = window.setInterval(() => {
+      resta -= 1;
+      if (resta <= 0) {
+        window.clearInterval(id);
+        window.removeEventListener('resize', medir);
+        barra.classList.add('is-saindo');
+        window.setTimeout(() => {
+          barra.remove();
+          document.body.classList.remove('senha-barra-on');
+          document.body.style.removeProperty('--senha-barra-h');
+        }, 280);
+        return;
+      }
+      pintar();
+    }, 1000);
+    barra.querySelector('[data-senha-copiar]')?.addEventListener('click', async () => {
+      const campo = barra.querySelector('[data-senha-valor]');
+      const valor = campo instanceof HTMLInputElement ? campo.value : '';
+      if (valor === '') return;
+      const botao = barra.querySelector('[data-senha-copiar]');
+      try {
+        await navigator.clipboard.writeText(valor);
+      } catch (err) {
+        if (campo instanceof HTMLInputElement) {
+          campo.focus();
+          campo.select();
+          document.execCommand('copy');
+        }
+      }
+      if (botao instanceof HTMLButtonElement) {
+        botao.textContent = 'Copiado';
+        window.setTimeout(() => { botao.textContent = 'Copiar senha'; }, 1500);
+      }
+    });
+  }
 
   let searchTimer = 0;
   document.addEventListener('input', (event) => {
@@ -159,6 +215,7 @@
   let pageTimer = 0;
   function iniciarPagina() {
     avisarFlash(document);
+    armarSenhaBarra();
     window.clearInterval(pageTimer);
     pageTimer = 0;
     const tick = document.getElementById('tick');
@@ -287,7 +344,7 @@
   }
   function guardarPagina(url, html) {
     const chave = chavePagina(url);
-    if (!chave || !html || html.includes('auth-wrap') || html.includes('class="flash') || !html.includes('class="content"')) return;
+    if (!chave || !html || html.includes('auth-wrap') || html.includes('class="flash') || html.includes('data-senha-barra') || !html.includes('class="content"')) return;
     cachePaginas.set(chave, html);
     if (cachePaginas.size > 24) cachePaginas.delete(cachePaginas.keys().next().value);
   }
