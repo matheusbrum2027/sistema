@@ -732,6 +732,17 @@ function normalize_db(array $db): array
     if (!isset($db['seq']['aviso'])) {
         $db['seq']['aviso'] = 1;
     }
+    if (!isset($db['notas']) || !is_array($db['notas'])) {
+        $db['notas'] = [];
+    }
+    $db['notas'] = array_values(array_filter($db['notas'], 'is_array'));
+    if (!isset($db['seq']['nota'])) {
+        $maxNota = 0;
+        foreach ($db['notas'] as $nota) {
+            $maxNota = max($maxNota, (int) ($nota['id'] ?? 0));
+        }
+        $db['seq']['nota'] = $maxNota + 1;
+    }
     push_vapid_garantir($db);
     foreach ($db['motoristas'] as &$mot) {
         if (empty($mot['usuario'])) {

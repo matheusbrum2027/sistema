@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 defined('APP') || exit;
-$notas = $db['notas'];
+$notas = is_array($db['notas'] ?? null) ? $db['notas'] : [];
 usort($notas, static fn(array $a, array $b): int => strcmp((string) $b['criado_em'], (string) $a['criado_em']));
 $total = count($notas);
 $fmtNota = static function (string $raw): string {

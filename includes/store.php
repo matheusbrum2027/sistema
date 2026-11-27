@@ -704,6 +704,7 @@ function com_db(string $acao, callable $alterar, bool $leve = false): mixed
         'conectar_whatsapp', 'excluir_instancia_whatsapp', 'status_whatsapp',
         'sheets_sync_now', 'drive_backup_now', 'drive_desconectar', 'drive_oauth_salvar', 'drive_cron',
         'add_cliente', 'update_cliente', 'add_veiculo', 'update_veiculo',
+        'add_nota', 'delete_nota',
         'add_motorista', 'update_motorista', 'reset_senha_motorista', 'candidatura_motorista', 'marca_fln',
     ];
     if (!$leve && in_array($acao, $cadastro, true)) {
