@@ -17,6 +17,7 @@ require_once __DIR__ . '/chat.php';
 require_once __DIR__ . '/ops.php';
 require_once __DIR__ . '/push.php';
 require_once __DIR__ . '/reserva_doc.php';
+require_once __DIR__ . '/reserva_ficha.php';
 require_once __DIR__ . '/pdf_simples.php';
 require_once __DIR__ . '/qr_codigo.php';
 require_once __DIR__ . '/ficha.php';

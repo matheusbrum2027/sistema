@@ -416,57 +416,25 @@ function detalhe_linha(string $rotulo, string $valor): void
 
 function reserva_detalhes(array $db, array $trip): void
 {
-    if (function_exists('trip_com_obs')) {
-        $trip = trip_com_obs($trip);
+    $ficha = reserva_ficha($db, $trip, function_exists('usuario_e_motorista') && usuario_e_motorista());
+    echo '<div class="ficha-reserva">';
+    reserva_ficha_bloco('Informações do Cliente', $ficha['cliente']);
+    reserva_ficha_bloco('Detalhes da Viagem', $ficha['viagem']);
+    foreach ($ficha['trechos'] as $trecho) {
+        reserva_ficha_bloco((string) $trecho['titulo'], $trecho['linhas']);
     }
-    $obsItens = reserva_obs_itens($db, $trip);
-    if (usuario_e_motorista()) {
-        $esconde = !empty($trip['esconder_valores']);
-        $valorCobrado = $trip['valor'] ?? 0;
-        $pagamentos = $trip['pagamentos'] ?? [];
-        $trip = trip_sem_dados_cliente($trip);
-        if (!$esconde) {
-            $trip['valor'] = $valorCobrado;
-            $trip['pagamentos'] = is_array($pagamentos) ? $pagamentos : [];
-            $trip['esconder_valores'] = false;
-        }
+    reserva_ficha_bloco('Valores e Pagamento', $ficha['valores']);
+    reserva_ficha_bloco('Motoristas e repasses', $ficha['motoristas']);
+    if (trim($ficha['observacoes']) !== '') {
+        echo '<section class="ficha-bloco"><h3>Observações</h3><div class="ficha-pre">' . reserva_texto_html($ficha['observacoes']) . '</div></section>';
     }
-    echo '<dl class="detalhe-lista">';
-    foreach (reserva_linhas($db, $trip) as $rotulo => $valor) {
-        if ($rotulo === 'Observações' || str_starts_with((string) $rotulo, 'Observação da ')) {
-            continue;
-        }
-        detalhe_linha((string) $rotulo, (string) $valor);
-    }
-    foreach ($obsItens as $item) {
-        echo '<dt>Observações</dt>';
-        echo '<dd class="obs-linha obs-par">';
-        if ($item['aviso'] !== '') {
-            echo '<span class="obs-par-tag">' . e($item['aviso']) . '</span>';
-        }
-        echo '<span>' . e($item['texto']) . '</span>';
-        echo '</dd>';
-    }
-    if (!usuario_e_motorista()) {
-        $interna = trim((string) ($trip['obs_interna'] ?? ''));
-        if ($interna !== '') {
-            echo '<dt>Observações internas</dt>';
-            echo '<dd class="obs-linha obs-par"><span class="obs-par-tag">Só o administrador</span><span>' . e($interna) . '</span></dd>';
-        }
-    }
-    if ((string) ($trip['tipo'] ?? '') === 'trajetos' && is_array($trip['trajetos'] ?? null)) {
-        foreach ($trip['trajetos'] as $i => $trecho) {
-            $texto = (string) ($trecho['embarque'] ?? '') . ' → ' . (string) ($trecho['desembarque'] ?? '') . ' · ' . br_date((string) ($trecho['data'] ?? '')) . ' ' . (string) ($trecho['hora'] ?? '') . ' · ' . (int) ($trecho['pax'] ?? 1) . ' passageiros';
-            detalhe_linha('Trajeto ' . (int) ($i + 1), $texto);
-        }
-    }
-    echo '</dl>';
+    echo '</div>';
 }
 
 function reserva_midia_src(array $s, string $chave): string
 {
     $src = trim((string) ($s[$chave] ?? ''));
-    if ($src !== '') {
+    if ($src !== '' && preg_match('#^data:image/#i', $src) === 1) {
         return $src;
     }
     static $cache = [];
@@ -482,7 +450,23 @@ function reserva_midia_src(array $s, string $chave): string
         $src = '';
     }
     $cache[$chave] = is_string($src) ? trim($src) : '';
+    if ($cache[$chave] === '' && $chave === 'assinatura') {
+        $cache[$chave] = reserva_assinatura_arquivo();
+    }
     return $cache[$chave];
+}
+
+function reserva_assinatura_arquivo(): string
+{
+    $caminho = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'assets' . DIRECTORY_SEPARATOR . 'brand' . DIRECTORY_SEPARATOR . 'assinatura-matheus-brum.jpg';
+    if (!is_file($caminho)) {
+        return '';
+    }
+    $bin = file_get_contents($caminho);
+    if (!is_string($bin) || strlen($bin) < 32 || !str_starts_with($bin, "\xFF\xD8")) {
+        return '';
+    }
+    return 'data:image/jpeg;base64,' . base64_encode($bin);
 }
 
 /** @return array{jpeg:string,w:int,h:int}|null */
@@ -757,10 +741,7 @@ function reserva_assinatura(array $s, array $trip): void
     if ($nome === '') {
         $nome = trim((string) ($s['rep_legal'] ?? ''));
     }
-    $assinatura = trim((string) ($s['assinatura'] ?? ''));
-    if ($assinatura === '' && !empty($s['tem_assinatura'])) {
-        $assinatura = 'index.php?p=marca&k=assinatura&v=' . (int) ($s['marca_v'] ?? 1);
-    }
+    $assinatura = reserva_midia_src($s, 'assinatura');
     $arquivo = reserva_nome_pdf($trip);
     $documento = trim((string) ($trip['documento'] ?? ''));
     echo '<footer class="doc-sign">';
@@ -779,12 +760,12 @@ function reserva_assinatura(array $s, array $trip): void
 function reserva_nome_pdf(array $trip): string
 {
     $cliente = trim((string) ($trip['cliente'] ?? ''));
-    $cliente = preg_replace('/[^\p{L}\p{N} ._()-]+/u', '', $cliente) ?? '';
-    $cliente = trim(preg_replace('/\s+/u', ' ', $cliente) ?? '');
+    $cliente = preg_replace('/[^\p{L}\p{N}]+/u', '-', $cliente) ?? '';
+    $cliente = trim((string) $cliente, '-');
     if ($cliente === '') {
-        $cliente = 'Cliente';
+        $cliente = 'cliente';
     }
-    return $cliente . ' - Reserva ' . (int) ($trip['id'] ?? 0);
+    return 'reserva-transfer-' . (int) ($trip['id'] ?? 0) . '-' . mb_strtolower($cliente);
 }
 
 /** PDF de confirmação: nunca leva o repasse. O valor do cliente sai só com "Esconder valores". */
@@ -799,10 +780,10 @@ function reserva_linhas_confirmacao(array $linhas, array $trip): array
 
 function reserva_arquivo_pdf(array $trip): string
 {
-    $nome = str_replace(['\\', '/', ':', '*', '?', '"', '<', '>', '|'], ' ', reserva_nome_pdf($trip));
-    $nome = trim(preg_replace('/\s+/u', ' ', $nome) ?? '');
+    $nome = str_replace(['\\', '/', ':', '*', '?', '"', '<', '>', '|'], '-', reserva_nome_pdf($trip));
+    $nome = trim($nome, " .-");
     if ($nome === '') {
-        $nome = 'Reserva ' . (int) ($trip['id'] ?? 0);
+        $nome = 'reserva-transfer-' . (int) ($trip['id'] ?? 0);
     }
     return $nome . '.pdf';
 }
@@ -1043,6 +1024,54 @@ function reserva_bloco_contrato(string $titulo, string $texto): void
     }
 }
 
+function reserva_tabela_rica(array $linhas): void
+{
+    echo '<table class="doc-table"><tbody>';
+    foreach ($linhas as $rotulo => $valor) {
+        echo '<tr><th scope="row">' . e((string) $rotulo) . '</th><td class="doc-pre">' . reserva_texto_html((string) $valor) . '</td></tr>';
+    }
+    echo '</tbody></table>';
+}
+
+function reserva_folha_confirmacao(array $db, array $trip): void
+{
+    $ficha = reserva_ficha($db, $trip, function_exists('usuario_e_motorista') && usuario_e_motorista());
+    $pdf = is_array($ficha['pdf'] ?? null) ? $ficha['pdf'] : [];
+    echo '<h3 class="doc-sec-title">Informações do serviço</h3>';
+    reserva_tabela_rica(is_array($pdf['servico'] ?? null) ? $pdf['servico'] : []);
+    $cartoes = array_merge(
+        is_array($pdf['cartoes'] ?? null) ? $pdf['cartoes'] : [],
+        is_array($pdf['cartoes2'] ?? null) ? $pdf['cartoes2'] : []
+    );
+    if ($cartoes !== []) {
+        echo '<div class="doc-facts">';
+        foreach ($cartoes as $cartao) {
+            if (!is_array($cartao)) {
+                continue;
+            }
+            echo '<div class="doc-fact"><span>' . e((string) ($cartao[0] ?? '')) . '</span><strong>' . e((string) ($cartao[1] ?? '')) . '</strong></div>';
+        }
+        echo '</div>';
+    }
+    echo '<h3 class="doc-sec-title">Preço</h3>';
+    if (!empty($pdf['oculto'])) {
+        echo '<p class="doc-foot">' . e((string) ($pdf['frase'] ?? '')) . '</p>';
+    } else {
+        reserva_tabela_rica(is_array($pdf['preco'] ?? null) ? $pdf['preco'] : []);
+    }
+    echo '<h3 class="doc-sec-title">Informações sobre pagamento</h3>';
+    reserva_tabela_rica(is_array($pdf['pagamento'] ?? null) ? $pdf['pagamento'] : []);
+    foreach (is_array($pdf['extras'] ?? null) ? $pdf['extras'] : [] as $extra) {
+        if (!is_array($extra)) {
+            continue;
+        }
+        echo '<h3 class="doc-sec-title">' . e((string) ($extra['titulo'] ?? '')) . '</h3>';
+        reserva_tabela_rica(is_array($extra['linhas'] ?? null) ? $extra['linhas'] : []);
+    }
+    echo '<h3 class="doc-sec-title">Detalhes completos da reserva</h3>';
+    reserva_tabela_rica(is_array($pdf['detalhes'] ?? null) ? $pdf['detalhes'] : []);
+}
+
 function reserva_folha(array $db, array $trip): void
 {
     $trip = trip_com_obs($trip);
@@ -1067,17 +1096,8 @@ function reserva_folha(array $db, array $trip): void
 
     echo '<article class="reserva-folha" data-pdf-nome="' . e(reserva_nome_pdf($trip)) . '">';
     echo '<section class="folha-dados doc-page">';
-    reserva_cabecalho_empresa($s, 'Reserva #' . $id, 'Documento');
-    reserva_destaques($db, $trip);
-    echo '<h3 class="doc-sec-title">Dados da reserva</h3>';
-    reserva_tabela(reserva_linhas_confirmacao(reserva_linhas($db, $trip), $trip));
-    if ((string) ($trip['tipo'] ?? '') === 'trajetos' && is_array($trip['trajetos'] ?? null) && $trip['trajetos'] !== []) {
-        echo '<h3 class="doc-sec-title">Trajetos</h3><ol class="doc-stops">';
-        foreach ($trip['trajetos'] as $trecho) {
-            echo '<li><strong>' . e((string) ($trecho['embarque'] ?? '')) . ' → ' . e((string) ($trecho['desembarque'] ?? '')) . '</strong><span>' . e(br_date((string) ($trecho['data'] ?? ''))) . ' ' . e((string) ($trecho['hora'] ?? '')) . ' · ' . (int) ($trecho['pax'] ?? 1) . ' passageiros</span></li>';
-        }
-        echo '</ol>';
-    }
+    reserva_cabecalho_empresa($s, 'Reserva #' . $id, 'Confirmação da Reserva');
+    reserva_folha_confirmacao($db, $trip);
     if (trim((string) ($s['comp_rodape'] ?? '')) !== '') {
         echo '<p class="doc-foot">' . e((string) $s['comp_rodape']) . '</p>';
     }
@@ -1112,20 +1132,24 @@ function reserva_dialogos(array $db, array $trip, bool $admin, string $contexto 
     $legsCom = agenda_legs($trip);
     ?>
     <dialog id="dlg-ver-<?= $id ?>" class="dlg-detalhe">
-      <header class="dialog-h">
-        <h2>Detalhes da reserva #<?= $id ?></h2>
+      <header class="dialog-h ficha-topo">
+        <div>
+          <p class="ficha-kicker">Detalhes da Reserva</p>
+          <h2>Reserva #<?= $id ?></h2>
+        </div>
         <button class="dlg-x" type="button" data-close-dialog aria-label="Fechar">×</button>
       </header>
       <div class="dialog-b"><?php reserva_detalhes($db, $trip); ?></div>
       <footer class="dlg-foot">
+        <p class="ficha-criada">Criada em <?= e(reserva_criada_txt($trip)) ?></p>
         <?php if ($admin): ?>
           <a class="btn btn-sm" href="<?= e(href('reservas', ['edit' => $id])) ?>" data-editar-reserva="<?= $id ?>">Editar</a>
           <?php if (count($legsCom) > 1): ?>
             <?php foreach ($legsCom as $legCom): ?>
-              <button class="btn btn-sm" type="button" data-open-dialog="dlg-com-<?= $id ?>-<?= e((string) $legCom['kind']) ?>">Comunicar <?= e((string) $legCom['label']) ?></button>
+              <button class="btn btn-sm" type="button" data-open-dialog="dlg-com-<?= $id ?>-<?= e((string) $legCom['kind']) ?>">Comunicar</button>
             <?php endforeach; ?>
           <?php else: ?>
-            <button class="btn btn-sm" type="button" data-open-dialog="dlg-com-<?= $id ?>">Comunicar corrida</button>
+            <button class="btn btn-sm" type="button" data-open-dialog="dlg-com-<?= $id ?>">Comunicar</button>
           <?php endif; ?>
           <?php if ($contexto === 'reservas'): ?>
             <form method="post" action="index.php" data-confirm="Cancelar a reserva #<?= $id ?> de <?= e((string) $trip['cliente']) ?>? Ela sai da agenda e do financeiro em aberto e fica em Cancelados, sem prazo.">
@@ -1155,7 +1179,7 @@ function reserva_dialogos(array $db, array $trip, bool $admin, string $contexto 
           </form>
         <?php endif; ?>
         <?php if (reserva_pode_pdf($trip)): ?>
-          <a class="btn btn-sm btn-primary" href="index.php?p=agenda&amp;baixar=pdf&amp;id=<?= $id ?>" download="<?= e(reserva_arquivo_pdf($trip)) ?>" data-baixar-pdf="<?= e(reserva_arquivo_pdf($trip)) ?>">Baixar PDF</a>
+          <a class="btn btn-sm btn-primary" href="index.php?p=agenda&amp;baixar=pdf&amp;id=<?= $id ?>" download="<?= e(reserva_arquivo_pdf($trip)) ?>" data-baixar-pdf="<?= e(reserva_arquivo_pdf($trip)) ?>">Download</a>
           <button class="btn btn-sm" type="button" data-open-dialog="dlg-pdf-<?= $id ?>">Prévia</button>
         <?php endif; ?>
       </footer>
@@ -1242,13 +1266,13 @@ function reserva_dialogos(array $db, array $trip, bool $admin, string $contexto 
         <header class="dialog-h no-print">
           <h2>Pré-visualização da reserva #<?= $id ?></h2>
           <div class="dialog-tools">
-            <a class="btn btn-sm btn-primary" href="index.php?p=agenda&amp;baixar=pdf&amp;id=<?= $id ?>" download="<?= e(reserva_arquivo_pdf($trip)) ?>" data-baixar-pdf="<?= e(reserva_arquivo_pdf($trip)) ?>">Baixar PDF</a>
+            <a class="btn btn-sm btn-primary" href="index.php?p=agenda&amp;baixar=pdf&amp;id=<?= $id ?>" download="<?= e(reserva_arquivo_pdf($trip)) ?>" data-baixar-pdf="<?= e(reserva_arquivo_pdf($trip)) ?>">Download</a>
             <button class="dlg-x" type="button" data-close-dialog aria-label="Fechar">×</button>
           </div>
         </header>
         <div class="dialog-b"><?php reserva_folha($db, $trip); ?></div>
         <footer class="dlg-foot no-print">
-          <a class="btn btn-primary" href="index.php?p=agenda&amp;baixar=pdf&amp;id=<?= $id ?>" download="<?= e(reserva_arquivo_pdf($trip)) ?>" data-baixar-pdf="<?= e(reserva_arquivo_pdf($trip)) ?>">Baixar PDF</a>
+          <a class="btn btn-primary" href="index.php?p=agenda&amp;baixar=pdf&amp;id=<?= $id ?>" download="<?= e(reserva_arquivo_pdf($trip)) ?>" data-baixar-pdf="<?= e(reserva_arquivo_pdf($trip)) ?>">Download</a>
           <button class="btn" type="button" data-close-dialog>Fechar</button>
         </footer>
       </dialog>

@@ -1092,10 +1092,52 @@ html[data-theme="dark"] .wa-hibernado { background: #313846; color: var(--muted)
 code { font-size: 11px; word-break: break-all; }
 dialog.dlg-detalhe[open],
 dialog.dlg-detalhe:modal {
-  width: fit-content !important;
+  top: 50% !important;
+  left: 50% !important;
+  right: auto !important;
+  bottom: auto !important;
+  transform: translate(-50%, -50%) !important;
+  width: min(820px, calc(100vw - 48px)) !important;
   min-width: min(360px, calc(100vw - 48px));
-  max-width: min(520px, calc(100vw - 48px)) !important;
+  max-width: min(820px, calc(100vw - 48px)) !important;
+  max-height: calc(100dvh - 32px) !important;
 }
+dialog.dlg-detalhe .dialog-h {
+  background: #1a2332;
+  color: #fff;
+  border-bottom: 3px solid #f26b1a;
+}
+dialog.dlg-detalhe .dialog-h h2 { color: #fff; font-size: 18px; margin: 0; }
+dialog.dlg-detalhe .ficha-kicker {
+  margin: 0 0 2px;
+  color: #f26b1a;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+dialog.dlg-detalhe .dlg-x { color: #fff; }
+.ficha-bloco { margin: 0 0 16px; }
+.ficha-bloco h3 {
+  margin: 0 0 8px;
+  color: #f26b1a;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.ficha-lista { display: grid; gap: 8px; margin: 0; }
+.ficha-lista > div {
+  display: grid;
+  grid-template-columns: minmax(120px, 180px) minmax(0, 1fr);
+  gap: 8px 12px;
+  align-items: start;
+}
+.ficha-lista dt { margin: 0; color: var(--muted); font-size: 12px; font-weight: 700; }
+.ficha-lista dd { margin: 0; font-size: 14px; }
+.ficha-pre { white-space: pre-wrap; word-break: break-word; }
+.ficha-pre a { color: #f26b1a; text-decoration: underline; }
+.ficha-criada { margin: 0; color: var(--muted); font-size: 12px; flex: 1 1 100%; }
 dialog.dlg-detalhe .detalhe-lista { grid-template-columns: max-content minmax(0, 1fr); }
 dialog.dlg-detalhe .obs-linha > span { white-space: pre-wrap; }
 .detalhe-lista dd.obs-par { display: grid; gap: 6px; align-items: start; }
@@ -1887,9 +1929,15 @@ html[data-theme="dark"] .nav-scroll::-webkit-scrollbar-thumb { background: #4650
   }
   dialog.dlg-detalhe[open],
   dialog.dlg-detalhe:modal {
-    width: auto !important;
+    top: 50% !important;
+    left: 50% !important;
+    right: auto !important;
+    bottom: auto !important;
+    transform: translate(-50%, -50%) !important;
+    width: min(820px, calc(100vw - 16px)) !important;
     min-width: 0 !important;
-    max-width: none !important;
+    max-width: calc(100vw - 16px) !important;
+    max-height: calc(100dvh - 16px) !important;
   }
   .topbar { height: auto; flex-wrap: wrap; align-items: center; padding: 8px 10px; row-gap: 8px; }
   .topbar-brand { min-width: 0; flex: 1 1 auto; }

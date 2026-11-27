@@ -57,11 +57,8 @@ final class ReservaPdfFolha
 
     public function bytes(): string
     {
-        $this->abrir('Documento', 'Reserva #' . $this->reservaId);
-        $this->destaques();
-        $this->secao('Dados da reserva');
-        $this->tabela(reserva_linhas_confirmacao(reserva_linhas($this->db, $this->trip), $this->trip));
-        $this->trajetos();
+        $this->abrir('Confirmação da Reserva', 'Reserva #' . $this->reservaId);
+        $this->confirmacao();
         $nota = trim((string) ($this->settings['comp_rodape'] ?? ''));
         if ($nota !== '') {
             $this->paragrafo($nota, 8.5, false, [0.247, 0.282, 0.337]);
@@ -199,6 +196,59 @@ final class ReservaPdfFolha
         $this->y -= 46;
     }
 
+    private function confirmacao(): void
+    {
+        $ficha = reserva_ficha($this->db, $this->trip, function_exists('usuario_e_motorista') && usuario_e_motorista());
+        $pdf = is_array($ficha['pdf'] ?? null) ? $ficha['pdf'] : [];
+        $this->secao('Informações do serviço');
+        $this->tabela(is_array($pdf['servico'] ?? null) ? $pdf['servico'] : []);
+        $this->faixaCartoes(is_array($pdf['cartoes'] ?? null) ? $pdf['cartoes'] : []);
+        $this->faixaCartoes(is_array($pdf['cartoes2'] ?? null) ? $pdf['cartoes2'] : []);
+        $this->secao('Preço');
+        if (!empty($pdf['oculto'])) {
+            $this->paragrafo((string) ($pdf['frase'] ?? 'Os valores cobrados ao cliente não estão visíveis.'), 10, false, self::INK);
+            $this->y -= 8;
+        } else {
+            $this->tabela(is_array($pdf['preco'] ?? null) ? $pdf['preco'] : []);
+        }
+        $this->secao('Informações sobre pagamento');
+        $this->tabela(is_array($pdf['pagamento'] ?? null) ? $pdf['pagamento'] : []);
+        foreach (is_array($pdf['extras'] ?? null) ? $pdf['extras'] : [] as $extra) {
+            if (!is_array($extra)) {
+                continue;
+            }
+            $this->secao((string) ($extra['titulo'] ?? ''));
+            $linhas = is_array($extra['linhas'] ?? null) ? $extra['linhas'] : [];
+            if ($linhas !== []) {
+                $this->tabela($linhas);
+            }
+        }
+        $this->secao('Detalhes completos da reserva');
+        $this->tabela(is_array($pdf['detalhes'] ?? null) ? $pdf['detalhes'] : []);
+    }
+
+    /** @param list<array{0:string,1:string}> $itens */
+    private function faixaCartoes(array $itens): void
+    {
+        $itens = array_values(array_filter($itens, static fn($item): bool => is_array($item) && isset($item[0])));
+        if ($itens === []) {
+            return;
+        }
+        $gap = 8.0;
+        $largura = self::LARGURA - (self::MARGEM * 2);
+        foreach (array_chunk($itens, 3) as $faixa) {
+            $n = count($faixa);
+            $w = ($largura - ($gap * ($n - 1))) / $n;
+            $this->garantir(48);
+            $x = self::MARGEM;
+            foreach ($faixa as $item) {
+                $this->cartao($x, $w, 42, (string) $item[0], (string) ($item[1] ?? ''));
+                $x += $w + $gap;
+            }
+            $this->y -= 50;
+        }
+    }
+
     private function destaques(): void
     {
         $quando = br_date((string) ($this->trip['data'] ?? ''));
@@ -291,7 +341,6 @@ final class ReservaPdfFolha
                 $cabem = (int) floor($disponivel / 12);
                 if ($cabem < 1) {
                     $this->continuar();
-                    $this->secao('Dados da reserva');
                     continue;
                 }
                 $fatia = min($cabem, $total - $inicio);
@@ -481,12 +530,18 @@ final class ReservaPdfFolha
         $this->pagina->txt(self::MARGEM, $this->y - 12, 8, 'CONTRATANTE', true, self::MUTED);
         $this->pagina->txt($x2, $this->y - 12, 8, 'CONTRATADA', true, self::MUTED);
         $linhaY = $this->y - 78;
-        $jpeg = reserva_assinatura_jpeg($this->settings);
-        if ($jpeg !== null) {
-            $this->imagens['ImAss'] = $jpeg;
-            $escala = min(190 / max(1, $jpeg['w']), 52 / max(1, $jpeg['h']));
-            $iw = $jpeg['w'] * $escala;
-            $ih = $jpeg['h'] * $escala;
+        $imagem = reserva_assinatura_jpeg($this->settings);
+        if ($imagem === null) {
+            $src = reserva_midia_src($this->settings, 'assinatura');
+            if ($src !== '') {
+                $imagem = reserva_pdf_jpeg($src);
+            }
+        }
+        if (is_array($imagem) && (int) ($imagem['w'] ?? 0) > 1 && (int) ($imagem['h'] ?? 0) > 1) {
+            $this->imagens['ImAss'] = $imagem;
+            $escala = min(190 / max(1, (int) $imagem['w']), 52 / max(1, (int) $imagem['h']));
+            $iw = (int) $imagem['w'] * $escala;
+            $ih = (int) $imagem['h'] * $escala;
             $this->pagina->imagemNome('ImAss', $x2 + (($largura - $iw) / 2), $linhaY + 2, $iw, $ih);
         }
         $this->pagina->linha(self::MARGEM, $linhaY, self::MARGEM + $largura, $linhaY, self::INK);
