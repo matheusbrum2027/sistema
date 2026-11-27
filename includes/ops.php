@@ -2047,6 +2047,9 @@ function ops_dispatch(array &$db, string $action): ?array
                 return ['Informe um domínio válido, como www.cliente.com.br.', ''];
             }
             $lista = webhook_dominios($db);
+            if (count($lista) >= 20) {
+                return ['A lista aceita no máximo 20 domínios.', ''];
+            }
             foreach ($lista as $item) {
                 if ((string) $item['host'] === $host) {
                     return ['Este domínio já está autorizado.', ''];
@@ -2212,19 +2215,49 @@ function webhook_dominios(array $db): array
 function webhook_dominio_normalizar(string $bruto): string
 {
     $bruto = strtolower(trim($bruto));
-    if ($bruto === '' || str_contains($bruto, ' ') || str_contains($bruto, '*')) {
+    if ($bruto === '' || preg_match('/[\s\*@\\\\%\x00-\x1f]/', $bruto) === 1) {
         return '';
     }
     if (!str_contains($bruto, '://')) {
         $bruto = 'https://' . $bruto;
     }
-    $host = parse_url($bruto, PHP_URL_HOST);
-    if (!is_string($host) || $host === '') {
+    $partes = parse_url($bruto);
+    if (!is_array($partes)) {
         return '';
     }
-    $host = strtolower(rtrim($host, '.'));
-    if ($host === 'localhost' || filter_var($host, FILTER_VALIDATE_IP)) {
-        return $host;
+    $scheme = strtolower((string) ($partes['scheme'] ?? ''));
+    if ($scheme !== 'https' && $scheme !== 'http') {
+        return '';
+    }
+    if (isset($partes['user']) || isset($partes['pass'])) {
+        return '';
+    }
+    $porta = $partes['port'] ?? null;
+    if ($porta !== null && (int) $porta !== 443) {
+        return '';
+    }
+    $host = strtolower(rtrim((string) ($partes['host'] ?? ''), '.'));
+    if ($host === '' || str_contains($host, ':')) {
+        return '';
+    }
+    if (function_exists('idn_to_ascii')) {
+        $ascii = idn_to_ascii($host, IDNA_DEFAULT, INTL_IDNA_VARIANT_UTS46);
+        if (is_string($ascii) && $ascii !== '') {
+            $host = strtolower($ascii);
+        }
+    }
+    if (preg_match('/[^\x21-\x7e]/', $host) === 1 || strlen($host) > 253) {
+        return '';
+    }
+    if (
+        $host === 'localhost'
+        || str_ends_with($host, '.localhost')
+        || str_ends_with($host, '.local')
+        || str_ends_with($host, '.internal')
+        || str_ends_with($host, '.localdomain')
+        || filter_var($host, FILTER_VALIDATE_IP)
+    ) {
+        return '';
     }
     if (!preg_match('/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,24}$/', $host)) {
         return '';
@@ -2235,23 +2268,37 @@ function webhook_dominio_normalizar(string $bruto): string
 function webhook_host_requisicao(): string
 {
     $origem = trim((string) ($_SERVER['HTTP_ORIGIN'] ?? ''));
-    if ($origem === '' || strtolower($origem) === 'null') {
+    if (strtolower($origem) === 'null') {
+        return '';
+    }
+    if ($origem === '') {
         $origem = trim((string) ($_SERVER['HTTP_REFERER'] ?? ''));
     }
-    if ($origem === '' || strtolower($origem) === 'null') {
+    if ($origem === '' || strtolower($origem) === 'null' || preg_match('#^https://#i', $origem) !== 1) {
         return '';
     }
     return webhook_dominio_normalizar($origem);
 }
 
-function webhook_cors_autorizada(): void
+function webhook_cors_valor(array $db): string
 {
+    if (!webhook_origem_autorizada($db)) {
+        return '';
+    }
     $host = webhook_host_requisicao();
-    if ($host === '') {
+    if ($host === '' || preg_match('/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,24}$/', $host) !== 1) {
+        return '';
+    }
+    return 'https://' . $host;
+}
+
+function webhook_cors_autorizada(array $db): void
+{
+    $origem = webhook_cors_valor($db);
+    if ($origem === '') {
         return;
     }
-    $scheme = strtolower((string) parse_url(trim((string) ($_SERVER['HTTP_ORIGIN'] ?? '')), PHP_URL_SCHEME));
-    header('Access-Control-Allow-Origin: ' . ($scheme === 'http' ? 'http' : 'https') . '://' . $host);
+    header('Access-Control-Allow-Origin: ' . $origem);
     header('Vary: Origin');
     header('Access-Control-Allow-Methods: POST, OPTIONS');
     header('Access-Control-Allow-Headers: Content-Type');
@@ -2602,6 +2649,11 @@ function handle_public_hook(string $secret): never
         exit;
     }
     $raw = file_get_contents('php://input') ?: '';
+    if (strlen($raw) > 65536) {
+        http_response_code(413);
+        echo json_encode(['ok' => false, 'erro' => 'Pedido grande demais.']);
+        exit;
+    }
     $data = json_decode($raw, true);
     if (!is_array($data)) {
         $data = $_POST;
@@ -2616,6 +2668,18 @@ function handle_public_hook(string $secret): never
     };
     $tipoHook = (string) ($auto['tipo_hook'] ?? 'Transfer Executivo');
     if ($tipoHook === 'Motorista') {
+        if (!webhook_origem_autorizada($db)) {
+            http_response_code(403);
+            echo json_encode(['ok' => false, 'erro' => 'Origem não autorizada.']);
+            exit;
+        }
+        if (!fln_ritmo('hook_motorista', 20, 600)) {
+            http_response_code(429);
+            header('Retry-After: 60');
+            echo json_encode(['ok' => false, 'erro' => 'Muitos pedidos agora. Espere um instante.']);
+            exit;
+        }
+        webhook_cors_autorizada($db);
         $nome = $pick($data, ['nome', 'name']);
         $telefone = $pick($data, ['telefone', 'phone', 'whatsapp']);
         if ($nome === '' || $telefone === '') {
@@ -2654,7 +2718,7 @@ function handle_public_hook(string $secret): never
             echo json_encode(['ok' => false, 'erro' => 'Origem não autorizada.']);
             exit;
         }
-        webhook_cors_autorizada();
+        webhook_cors_autorizada($db);
         http_response_code(204);
         exit;
     }
@@ -2672,7 +2736,13 @@ function handle_public_hook(string $secret): never
         echo json_encode(['ok' => false, 'erro' => 'Origem não autorizada.']);
         exit;
     }
-    webhook_cors_autorizada();
+    if (!fln_ritmo('hook_reserva', 30, 600)) {
+        http_response_code(429);
+        header('Retry-After: 60');
+        echo json_encode(['ok' => false, 'erro' => 'Muitos pedidos agora. Espere um instante.']);
+        exit;
+    }
+    webhook_cors_autorizada($db);
     $cliente = $pick($data, ['cliente', 'nome', 'name']);
     $tipoBruto = strtolower($pick($data, ['tipo', 'type']) ?: 'ida');
     $tipoHookViagem = match ($tipoBruto) {

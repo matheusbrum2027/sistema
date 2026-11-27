@@ -89,7 +89,16 @@ function acao_financeira(string $acao): bool
 
 function acao_somente_master(string $acao): bool
 {
-    return in_array($acao, ['save_settings', 'funcionario_salvar', 'funcionario_apagar', 'reset_demo', 'remove_logo'], true);
+    return in_array($acao, [
+        'save_settings',
+        'funcionario_salvar',
+        'funcionario_apagar',
+        'reset_demo',
+        'remove_logo',
+        'add_webhook_dominio',
+        'update_webhook_dominio',
+        'delete_webhook_dominio',
+    ], true);
 }
 
 function funcionario_usuario_erro(string $usuario, string $master): string

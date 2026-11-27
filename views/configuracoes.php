@@ -309,7 +309,7 @@ $classe2fa = $estado2fa === 'on' ? 'ok' : ($estado2fa === 'setup' ? 'warn' : 'of
     <label class="field">Novo domínio <input name="dominio" required maxlength="120" placeholder="www.cliente.com.br"></label>
     <div class="form-actions"><button class="btn btn-primary" type="submit">Autorizar domínio</button></div>
   </form>
-  <p class="hint">Cadastre o host exato, com ou sem www. O painel aceita https://www.site.com.br e guarda só www.site.com.br. Chamada sem Origin ou Referer desse host é rejeitada.</p>
+  <p class="hint">Cadastre o host exato, com ou sem www. O painel aceita https://www.site.com.br e guarda só www.site.com.br. A chamada precisa vir em HTTPS, com Origin ou Referer desse host. IP, localhost, porta diferente e POST direto na URL são recusados. No máximo 20 domínios.</p>
 </section>
 
 <section class="card cfg-card" id="notificacoes">
