@@ -94,7 +94,7 @@ $ano = (int) date('Y');
         <div data-reveal>
           <div class="sm-label">Depois do login</div>
           <h2>A tela é a sua agenda</h2>
-          <p class="sm-section-lead">O aplicativo mostra as corridas atribuídas a você, o clima e o câmbio no topo, e o PDF da rota. A observação interna da operação não aparece.</p>
+          <p class="sm-section-lead">O aplicativo mostra as corridas atribuídas a você, o clima e o câmbio no topo. A observação interna da operação não aparece.</p>
           <p class="sm-section-lead" style="margin-top:1rem">Ainda não tem usuário? A inscrição continua na <a href="<?= e(href('seja-motorista')) ?>">página da operação</a>.</p>
         </div>
         <div class="sm-acc" data-reveal>
