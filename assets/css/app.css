@@ -1179,7 +1179,15 @@ dialog.dlg-detalhe .ficha-kicker {
   letter-spacing: .08em;
   text-transform: uppercase;
 }
-dialog.dlg-detalhe .dlg-x { color: #fff; }
+dialog.dlg-detalhe .dlg-x {
+  color: #1a2332;
+  background: #fff;
+  border-color: #fff;
+  width: 40px;
+  height: 40px;
+  font-size: 24px;
+  font-weight: 700;
+}
 .ficha-reserva { display: grid; gap: 12px; min-width: 0; }
 .ficha-hero {
   display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
@@ -1274,6 +1282,9 @@ dialog.dlg-detalhe .obs-linha > span { white-space: pre-wrap; }
 .dlg-status-btn {
   width: 100%; min-height: 48px; border-radius: 10px;
   font-size: 15px; font-weight: 700;
+}
+.dlg-voltar {
+  width: 100%; min-height: 48px; border-radius: 10px; flex: 1 1 100%;
 }
 dialog.dlg-reserva[open],
 dialog.dlg-reserva:modal { width: min(760px, calc(100vw - 48px)) !important; }

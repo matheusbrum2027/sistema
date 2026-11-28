@@ -127,6 +127,36 @@
     if (!(dlg instanceof HTMLDialogElement)) return;
     dlg.setAttribute('closedby', dlg.id === 'dlg-confirma' ? 'none' : 'closerequest');
   }
+  let fechandoPorHistorico = false;
+  let voltandoDoDialogo = false;
+  function dialogosAbertos() {
+    return [...document.querySelectorAll('dialog[open]')].filter((dlg) => dlg.id !== 'dlg-confirma');
+  }
+  function abrirModal(dlg) {
+    if (!(dlg instanceof HTMLDialogElement) || dlg.id === 'dlg-confirma') return;
+    travarCliqueFora(dlg);
+    if (dlg.open) return;
+    dlg.showModal();
+    if (dlg.dataset.hist === '1') return;
+    dlg.dataset.hist = '1';
+    history.pushState({ flnDialog: dlg.id }, '');
+  }
+  function descartarDialogos() {
+    fechandoPorHistorico = true;
+    dialogosAbertos().forEach((dlg) => dlg.close());
+    fechandoPorHistorico = false;
+    if (history.state && history.state.flnDialog) {
+      history.replaceState({ url: location.href }, '', location.href);
+    }
+  }
+  document.addEventListener('close', (event) => {
+    const dlg = event.target;
+    if (!(dlg instanceof HTMLDialogElement) || dlg.dataset.hist !== '1') return;
+    delete dlg.dataset.hist;
+    if (fechandoPorHistorico) return;
+    voltandoDoDialogo = true;
+    history.back();
+  }, true);
 
   function abrirDialogos(root) {
     root.querySelectorAll('dialog[open]').forEach((dlg) => {
@@ -241,8 +271,7 @@
       const id = deep.getAttribute('data-reserva-deep-link');
       carregarReserva(id, 'dlg-ver-' + id).then((dlg) => {
         if (!dlg || dlg.open) return;
-        travarCliqueFora(dlg);
-        dlg.showModal();
+        abrirModal(dlg);
       }).catch(() => {});
     }
     calIniciar();
@@ -430,6 +459,7 @@
       || (trecho.includes('um momento') && trecho.includes('cloudflare'));
   }
   async function abrirSemRecarregar(url, gravar) {
+    descartarDialogos();
     const seq = ++navSeq;
     navOcupado = true;
     if (navCtrl) navCtrl.abort();
@@ -692,8 +722,7 @@
         const fichaId = abrir.getAttribute('data-ficha-id');
         const mostrar = (dlg) => {
           if (!dlg) return;
-          travarCliqueFora(dlg);
-          dlg.showModal();
+          abrirModal(dlg);
         };
         const dlg = document.getElementById(alvo);
         if (dlg) mostrar(dlg);
@@ -798,6 +827,17 @@
     abrirSemRecarregar(destino.href, true);
   });
   window.addEventListener('popstate', () => {
+    if (voltandoDoDialogo) {
+      voltandoDoDialogo = false;
+      return;
+    }
+    const aberto = dialogosAbertos().find((dlg) => dlg.dataset.hist === '1');
+    if (aberto) {
+      fechandoPorHistorico = true;
+      aberto.close();
+      fechandoPorHistorico = false;
+      return;
+    }
     abrirSemRecarregar(location.href, false);
   });
   abrirDialogos(document);

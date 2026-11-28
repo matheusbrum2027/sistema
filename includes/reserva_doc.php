@@ -445,7 +445,8 @@ function reserva_ficha_cartao(string $titulo, array $linhas, string $destaque = 
 
 function reserva_detalhes(array $db, array $trip): void
 {
-    $ficha = reserva_ficha($db, $trip, function_exists('usuario_e_motorista') && usuario_e_motorista());
+    $painelMotorista = function_exists('usuario_e_motorista') && usuario_e_motorista();
+    $ficha = reserva_ficha($db, $trip, $painelMotorista);
     $status = (string) ($trip['status'] ?? 'pendente');
     $cliente = (string) ($ficha['cliente']['Cliente'] ?? '—');
     $tipo = (string) ($ficha['viagem']['Tipo de Viagem'] ?? '');
@@ -494,6 +495,9 @@ function reserva_detalhes(array $db, array $trip): void
             if (!reserva_campo_longo((string) $rotulo)) {
                 continue;
             }
+            if ($painelMotorista && !str_contains(mb_strtolower((string) $rotulo), 'itiner')) {
+                continue;
+            }
             echo '<div class="ficha-texto"><span>' . e((string) $rotulo) . '</span><div>' . reserva_campo_html($valor) . '</div></div>';
         }
         echo '</section>';
@@ -502,8 +506,15 @@ function reserva_detalhes(array $db, array $trip): void
     reserva_ficha_cartao('Valores e pagamento', $ficha['valores'], 'Valor Total');
     reserva_ficha_cartao('Motoristas e repasses', $ficha['motoristas']);
     echo '</div>';
-    if (trim($ficha['observacoes']) !== '') {
-        echo '<section class="ficha-card"><h3>Observações</h3><div class="ficha-texto"><div>' . reserva_texto_html($ficha['observacoes']) . '</div></div></section>';
+    $textoObs = trim((string) ($ficha['observacoes'] ?? ''));
+    if ($painelMotorista && $textoObs === '') {
+        $textoObs = trim((string) ($trip['mensagem'] ?? ''));
+        if ($textoObs === '') {
+            $textoObs = trim((string) ($trip['mensagem_volta'] ?? ''));
+        }
+    }
+    if ($textoObs !== '') {
+        echo '<section class="ficha-card"><h3>Observações</h3><div class="ficha-texto"><div>' . reserva_texto_html($textoObs) . '</div></div></section>';
     }
     echo '</div>';
 }
@@ -1243,6 +1254,7 @@ function reserva_dialogos(array $db, array $trip, bool $admin, string $contexto 
           </form>
           <?php endif; ?>
         <?php else: ?>
+          <button class="btn dlg-voltar" type="button" data-close-dialog>Voltar</button>
           <form class="dlg-status" method="post" action="index.php" data-confirm="Alterar o status da reserva #<?= $id ?>?">
             <?= csrf_fields('set_transfer_status') ?>
             <input type="hidden" name="id" value="<?= $id ?>">
