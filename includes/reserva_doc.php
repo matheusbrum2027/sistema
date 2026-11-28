@@ -414,19 +414,96 @@ function detalhe_linha(string $rotulo, string $valor): void
     echo '</dd>';
 }
 
+function reserva_campo_html(mixed $valor): string
+{
+    if (is_array($valor)) {
+        return (string) ($valor['html'] ?? '');
+    }
+    return e((string) $valor);
+}
+
+function reserva_campo_longo(string $rotulo): bool
+{
+    $rotulo = mb_strtolower($rotulo);
+    return str_contains($rotulo, 'mensagem')
+        || str_contains($rotulo, 'itiner')
+        || str_contains($rotulo, 'observa');
+}
+
+function reserva_ficha_cartao(string $titulo, array $linhas, string $destaque = ''): void
+{
+    if ($linhas === []) {
+        return;
+    }
+    echo '<section class="ficha-card"><h3>' . e($titulo) . '</h3><dl class="ficha-fatos">';
+    foreach ($linhas as $rotulo => $valor) {
+        $classe = $destaque !== '' && (string) $rotulo === $destaque ? ' class="is-total"' : '';
+        echo '<div' . $classe . '><dt>' . e((string) $rotulo) . '</dt><dd>' . reserva_campo_html($valor) . '</dd></div>';
+    }
+    echo '</dl></section>';
+}
+
 function reserva_detalhes(array $db, array $trip): void
 {
     $ficha = reserva_ficha($db, $trip, function_exists('usuario_e_motorista') && usuario_e_motorista());
+    $status = (string) ($trip['status'] ?? 'pendente');
+    $cliente = (string) ($ficha['cliente']['Cliente'] ?? '—');
+    $tipo = (string) ($ficha['viagem']['Tipo de Viagem'] ?? '');
+    $categoria = (string) ($ficha['viagem']['Categoria do veículo'] ?? '');
     echo '<div class="ficha-reserva">';
-    reserva_ficha_bloco('Informações do Cliente', $ficha['cliente']);
-    reserva_ficha_bloco('Detalhes da Viagem', $ficha['viagem']);
-    foreach ($ficha['trechos'] as $trecho) {
-        reserva_ficha_bloco((string) $trecho['titulo'], $trecho['linhas']);
+    echo '<div class="ficha-hero">';
+    echo '<div class="ficha-hero-id"><p class="ficha-hero-nome">' . e($cliente) . '</p>';
+    echo '<p class="ficha-hero-sub">' . e($tipo) . ($categoria !== '' && $categoria !== '—' ? ' · ' . e($categoria) : '') . '</p></div>';
+    echo '<span class="badge badge-' . e($status) . '">' . e(reserva_status_rotulo($status)) . '</span>';
+    echo '</div>';
+    echo '<dl class="ficha-meta">';
+    foreach (['Telefone', 'Email', 'CPF/CNPJ', 'Quem Viaja'] as $chave) {
+        if (!array_key_exists($chave, $ficha['cliente'])) {
+            continue;
+        }
+        echo '<div><dt>' . e($chave) . '</dt><dd>' . e((string) $ficha['cliente'][$chave]) . '</dd></div>';
     }
-    reserva_ficha_bloco('Valores e Pagamento', $ficha['valores']);
-    reserva_ficha_bloco('Motoristas e repasses', $ficha['motoristas']);
+    echo '</dl>';
+    foreach ($ficha['trechos'] as $trecho) {
+        $linhas = is_array($trecho['linhas'] ?? null) ? $trecho['linhas'] : [];
+        echo '<section class="ficha-card"><h3>' . e((string) ($trecho['titulo'] ?? 'Trajeto')) . '</h3>';
+        $embarque = $linhas['Embarque'] ?? $linhas['Endereço Início'] ?? null;
+        $desembarque = $linhas['Desembarque'] ?? $linhas['Ponto Encerramento'] ?? null;
+        if ($embarque !== null || $desembarque !== null) {
+            echo '<div class="ficha-rota">';
+            if ($embarque !== null) {
+                echo '<div class="ficha-ponto"><span>Embarque</span><strong>' . reserva_campo_html($embarque) . '</strong></div>';
+            }
+            if ($desembarque !== null) {
+                echo '<div class="ficha-ponto is-fim"><span>Desembarque</span><strong>' . reserva_campo_html($desembarque) . '</strong></div>';
+            }
+            echo '</div>';
+        }
+        echo '<dl class="ficha-fatos">';
+        foreach ($linhas as $rotulo => $valor) {
+            if (in_array((string) $rotulo, ['Embarque', 'Desembarque', 'Endereço Início', 'Ponto Encerramento'], true)) {
+                continue;
+            }
+            if (reserva_campo_longo((string) $rotulo)) {
+                continue;
+            }
+            echo '<div><dt>' . e((string) $rotulo) . '</dt><dd>' . reserva_campo_html($valor) . '</dd></div>';
+        }
+        echo '</dl>';
+        foreach ($linhas as $rotulo => $valor) {
+            if (!reserva_campo_longo((string) $rotulo)) {
+                continue;
+            }
+            echo '<div class="ficha-texto"><span>' . e((string) $rotulo) . '</span><div>' . reserva_campo_html($valor) . '</div></div>';
+        }
+        echo '</section>';
+    }
+    echo '<div class="ficha-par">';
+    reserva_ficha_cartao('Valores e pagamento', $ficha['valores'], 'Valor Total');
+    reserva_ficha_cartao('Motoristas e repasses', $ficha['motoristas']);
+    echo '</div>';
     if (trim($ficha['observacoes']) !== '') {
-        echo '<section class="ficha-bloco"><h3>Observações</h3><div class="ficha-pre">' . reserva_texto_html($ficha['observacoes']) . '</div></section>';
+        echo '<section class="ficha-card"><h3>Observações</h3><div class="ficha-texto"><div>' . reserva_texto_html($ficha['observacoes']) . '</div></div></section>';
     }
     echo '</div>';
 }
@@ -1140,8 +1217,9 @@ function reserva_dialogos(array $db, array $trip, bool $admin, string $contexto 
         <button class="dlg-x" type="button" data-close-dialog aria-label="Fechar">×</button>
       </header>
       <div class="dialog-b"><?php reserva_detalhes($db, $trip); ?></div>
-      <footer class="dlg-foot">
+      <footer class="dlg-foot ficha-acoes">
         <p class="ficha-criada">Criada em <?= e(reserva_criada_txt($trip)) ?></p>
+        <div class="ficha-botoes">
         <?php if ($admin): ?>
           <a class="btn btn-sm" href="<?= e(href('reservas', ['edit' => $id])) ?>" data-editar-reserva="<?= $id ?>">Editar</a>
           <?php if (count($legsCom) > 1): ?>
@@ -1182,6 +1260,7 @@ function reserva_dialogos(array $db, array $trip, bool $admin, string $contexto 
           <a class="btn btn-sm btn-primary" href="index.php?p=agenda&amp;baixar=pdf&amp;id=<?= $id ?>" download="<?= e(reserva_arquivo_pdf($trip)) ?>" data-baixar-pdf="<?= e(reserva_arquivo_pdf($trip)) ?>">Download</a>
           <button class="btn btn-sm" type="button" data-open-dialog="dlg-pdf-<?= $id ?>">Prévia</button>
         <?php endif; ?>
+        </div>
       </footer>
     </dialog>
     <?php if ($admin):

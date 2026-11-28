@@ -1160,10 +1160,10 @@ dialog.dlg-detalhe:modal {
   right: auto !important;
   bottom: auto !important;
   transform: translate(-50%, -50%) !important;
-  width: min(820px, calc(100vw - 48px)) !important;
-  min-width: min(360px, calc(100vw - 48px));
-  max-width: min(820px, calc(100vw - 48px)) !important;
-  max-height: calc(100dvh - 32px) !important;
+  width: min(960px, calc(100vw - 32px)) !important;
+  min-width: min(360px, calc(100vw - 32px));
+  max-width: min(960px, calc(100vw - 32px)) !important;
+  max-height: calc(100dvh - 24px) !important;
 }
 dialog.dlg-detalhe .dialog-h {
   background: #1a2332;
@@ -1180,27 +1180,75 @@ dialog.dlg-detalhe .ficha-kicker {
   text-transform: uppercase;
 }
 dialog.dlg-detalhe .dlg-x { color: #fff; }
-.ficha-bloco { margin: 0 0 16px; }
-.ficha-bloco h3 {
-  margin: 0 0 8px;
-  color: #f26b1a;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: .06em;
-  text-transform: uppercase;
+.ficha-reserva { display: grid; gap: 12px; min-width: 0; }
+.ficha-hero {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+  padding: 12px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--hover);
 }
+.ficha-hero-id { min-width: 0; }
+.ficha-hero-nome { margin: 0; font-size: 18px; font-weight: 700; line-height: 1.25; overflow-wrap: anywhere; }
+.ficha-hero-sub { margin: 4px 0 0; color: var(--muted); font-size: 12px; font-weight: 600; }
+.ficha-meta, .ficha-fatos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 16px; margin: 0; }
+.ficha-meta > div, .ficha-fatos > div { min-width: 0; display: grid; gap: 2px; }
+.ficha-meta dt, .ficha-fatos dt { margin: 0; color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .04em; }
+.ficha-meta dd, .ficha-fatos dd { margin: 0; font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+.ficha-fatos .is-total dd { color: var(--orange-dark); font-size: 16px; }
+.ficha-card { margin: 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); min-width: 0; }
+.ficha-card h3, .ficha-bloco h3 {
+  margin: 0 0 10px; color: #f26b1a; font-size: 11px; font-weight: 700; letter-spacing: .06em;
+}
+.ficha-rota { display: grid; gap: 0; margin: 0 0 10px; }
+.ficha-ponto { display: grid; grid-template-columns: 14px minmax(0, 1fr); gap: 4px 10px; position: relative; padding: 0 0 10px 0; }
+.ficha-ponto::before {
+  content: ""; grid-row: 1 / span 2; width: 9px; height: 9px; margin-top: 3px; border-radius: 50%;
+  background: var(--orange); box-shadow: 0 0 0 3px var(--orange-soft);
+}
+.ficha-ponto::after {
+  content: ""; position: absolute; left: 4px; top: 16px; bottom: 0; width: 1px; background: var(--line-strong);
+}
+.ficha-ponto.is-fim { padding-bottom: 0; }
+.ficha-ponto.is-fim::before { background: var(--blue); box-shadow: 0 0 0 3px var(--blue-soft); }
+.ficha-ponto.is-fim::after { display: none; }
+.ficha-ponto span { color: var(--muted); font-size: 11px; font-weight: 700; }
+.ficha-ponto strong { font-size: 13px; font-weight: 650; line-height: 1.35; overflow-wrap: anywhere; }
+.ficha-texto { margin-top: 10px; padding: 10px 12px; border-radius: 8px; background: var(--hover); min-width: 0; }
+.ficha-texto span { display: block; margin-bottom: 6px; color: var(--muted); font-size: 11px; font-weight: 700; }
+.ficha-texto div {
+  white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word;
+  font-size: 13px; line-height: 1.55; text-transform: none !important;
+}
+.ficha-par { display: grid; grid-template-columns: 1.2fr .8fr; gap: 12px; min-width: 0; }
+.ficha-bloco { margin: 0 0 16px; }
 .ficha-lista { display: grid; gap: 8px; margin: 0; }
 .ficha-lista > div {
-  display: grid;
-  grid-template-columns: minmax(120px, 180px) minmax(0, 1fr);
-  gap: 8px 12px;
-  align-items: start;
+  display: grid; grid-template-columns: minmax(120px, 180px) minmax(0, 1fr); gap: 8px 12px; align-items: start; min-width: 0;
 }
 .ficha-lista dt { margin: 0; color: var(--muted); font-size: 12px; font-weight: 700; }
-.ficha-lista dd { margin: 0; font-size: 14px; }
-.ficha-pre { white-space: pre-wrap; word-break: break-word; }
-.ficha-pre a { color: #f26b1a; text-decoration: underline; }
-.ficha-criada { margin: 0; color: var(--muted); font-size: 12px; flex: 1 1 100%; }
+.ficha-lista dd { margin: 0; font-size: 14px; min-width: 0; overflow-wrap: anywhere; }
+.ficha-pre { white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
+.ficha-pre a, .ficha-texto a { color: #f26b1a; text-decoration: underline; text-transform: none !important; }
+.ficha-criada { margin: 0; color: var(--muted); font-size: 12px; flex: 1 1 auto; min-width: 140px; }
+.ficha-botoes { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+dialog.dlg-detalhe[open],
+dialog.dlg-detalhe:modal {
+  height: auto !important;
+  max-height: min(880px, calc(100dvh - 24px)) !important;
+  overflow: hidden !important;
+}
+dialog.dlg-detalhe > .dialog-b {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  padding: 14px;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+}
+dialog.dlg-detalhe > .dlg-foot { flex: 0 0 auto !important; position: static !important; }
+dialog.dlg-detalhe .dlg-foot { align-items: center; }
+@media (max-width: 720px) {
+  .ficha-meta, .ficha-fatos, .ficha-par { grid-template-columns: 1fr; }
+  .ficha-hero { flex-direction: column; }
+}
 dialog.dlg-detalhe .detalhe-lista { grid-template-columns: max-content minmax(0, 1fr); }
 dialog.dlg-detalhe .obs-linha > span { white-space: pre-wrap; }
 .detalhe-lista dd.obs-par { display: grid; gap: 6px; align-items: start; }
@@ -1997,7 +2045,7 @@ html[data-theme="dark"] .nav-scroll::-webkit-scrollbar-thumb { background: #4650
     right: auto !important;
     bottom: auto !important;
     transform: translate(-50%, -50%) !important;
-    width: min(820px, calc(100vw - 16px)) !important;
+    width: min(960px, calc(100vw - 16px)) !important;
     min-width: 0 !important;
     max-width: calc(100vw - 16px) !important;
     max-height: calc(100dvh - 16px) !important;
