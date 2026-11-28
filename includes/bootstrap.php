@@ -38,6 +38,7 @@ require_once __DIR__ . '/funcionarios.php';
 require_once __DIR__ . '/integridade.php';
 require_once __DIR__ . '/sheets.php';
 require_once __DIR__ . '/drive.php';
+require_once __DIR__ . '/rastreio.php';
 
 date_default_timezone_set('America/Sao_Paulo');
 
@@ -1746,6 +1747,9 @@ function handle_post(): void
     $action = post('action');
     if ($action === '') {
         return;
+    }
+    if (in_array($action, ['criar_rastreio', 'encerrar_rastreio', 'comunicar_rastreio'], true)) {
+        rastreio_post_admin();
     }
 
     if ($action === 'drive_oauth_start') {

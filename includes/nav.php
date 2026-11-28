@@ -84,6 +84,14 @@ function navigation(): array
                         nav_item('veiculos', 'Veículos', 'car', 'Frota para o cálculo das corridas.', 'views/veiculos.php'),
                     ],
                 ],
+                [
+                    'id' => 'geolocalizacao',
+                    'label' => 'Geolocalização',
+                    'icon' => 'pin',
+                    'items' => [
+                        nav_item('rastreio', 'Rastreio', 'pin', 'Link da viagem para o cliente ou o motorista, só com reserva que ainda vai acontecer.', 'views/rastreio.php'),
+                    ],
+                ],
             ],
         ],
         [
@@ -183,6 +191,17 @@ function route_map(): array
         'icon' => 'users',
         'subtitle' => '',
         'view' => 'views/seja-motorista.php',
+        'filters' => false,
+        'group' => '',
+        'bare' => true,
+        'site' => true,
+    ];
+    $map['rastrear'] = [
+        'id' => 'rastrear',
+        'title' => 'Rastreio da viagem',
+        'icon' => 'pin',
+        'subtitle' => '',
+        'view' => 'views/rastrear.php',
         'filters' => false,
         'group' => '',
         'bare' => true,

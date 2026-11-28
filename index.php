@@ -51,7 +51,8 @@ if (isset($_GET['captcha_novo'])) {
 header('X-Frame-Options: DENY');
 header('X-Content-Type-Options: nosniff');
 header('Referrer-Policy: same-origin');
-header('Permissions-Policy: camera=(), microphone=(), geolocation=()');
+$geoPainel = (string) ($_GET['p'] ?? '') === 'rastrear' ? 'geolocation=(self)' : 'geolocation=()';
+header('Permissions-Policy: camera=(), microphone=(), ' . $geoPainel);
 header('Cache-Control: private, no-store');
 $httpsPainel = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
     || (strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https');
@@ -59,6 +60,25 @@ if ($httpsPainel) {
     header('Strict-Transport-Security: max-age=15552000');
 }
 header("Content-Security-Policy: default-src 'self'; img-src 'self' data: blob: https://pps.whatsapp.net https://*.whatsapp.net https://tile.openstreetmap.org https://unpkg.com https://challenges.cloudflare.com; media-src 'self'; style-src 'self' https://fonts.googleapis.com https://unpkg.com 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com data:; script-src 'self' https://unpkg.com https://static.cloudflareinsights.com https://challenges.cloudflare.com 'unsafe-inline'; connect-src 'self' https://tile.openstreetmap.org https://api.open-meteo.com https://air-quality-api.open-meteo.com https://economia.awesomeapi.com.br https://cloudflareinsights.com https://static.cloudflareinsights.com https://challenges.cloudflare.com; worker-src 'self' blob:; frame-src 'self' blob: https://challenges.cloudflare.com; child-src 'self' blob: https://challenges.cloudflare.com; object-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://www.driverflntransfer.app https://driverflntransfer.app https://accounts.google.com");
+$pedidoPagina = (string) ($_GET['p'] ?? '');
+if ($pedidoPagina === 'rastrear' && (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST')) {
+    header('Content-Type: application/json; charset=utf-8');
+    header('Cache-Control: private, no-store');
+    if (!fln_ritmo('rastreio_publico', 40, 60)) {
+        http_response_code(429);
+        header('Retry-After: 15');
+        echo '{"ok":false,"erro":"ritmo"}';
+        exit;
+    }
+    session_write_close();
+    rastreio_publico_responder();
+    exit;
+}
+if ($pedidoPagina === 'rastreio' && (string) ($_GET['acao'] ?? '') === 'pontos') {
+    session_write_close();
+    rastreio_json_pontos();
+    exit;
+}
 if ((string) ($_GET['p'] ?? '') === 'marca') {
     $chave = (string) ($_GET['k'] ?? '');
     if (!in_array($chave, ['logo', 'logo_lateral', 'favicon', 'assinatura'], true)) {
@@ -501,14 +521,14 @@ if (!isset($routes[$current]) || $current === 'abrangencia') {
     $current = 'agenda';
 }
 $role = (string) ($_SESSION['role'] ?? 'admin');
-$paginasPublicas = ['entrar', 'seja-motorista', 'aplicativo', 'verificar'];
+$paginasPublicas = ['entrar', 'seja-motorista', 'aplicativo', 'verificar', 'rastrear'];
 if (!in_array($current, $paginasPublicas, true) && empty($_SESSION['auth'])) {
     redirect(href('entrar'));
 }
 if ($current === 'entrar' && !empty($_SESSION['auth'])) {
     redirect(href('agenda'));
 }
-if ($role === 'motorista' && !in_array($current, ['entrar', 'agenda', 'seja-motorista', 'aplicativo', 'verificar'], true)) {
+if ($role === 'motorista' && !in_array($current, ['entrar', 'agenda', 'seja-motorista', 'aplicativo', 'verificar', 'rastrear'], true)) {
     redirect(href('agenda'));
 }
 if (!eh_master() && in_array($current, paginas_somente_master(), true)) {
