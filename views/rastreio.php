@@ -80,38 +80,8 @@ foreach ($historico as $row) {
 }
 $nAtivos = count($ativos);
 ?>
-<section class="ras-hero" aria-label="Como o rastreio funciona">
-  <p class="ras-hero-kicker">Link rastreável</p>
-  <div class="ras-fluxo">
-    <article class="ras-painel">
-      <header><?= e($empresa) ?></header>
-      <p>Reserva futura</p>
-      <span class="ras-falso">Selecione a reserva</span>
-      <span class="ras-falso">Cliente ou motorista</span>
-      <strong>Gerar link</strong>
-    </article>
-    <span class="ras-seta" aria-hidden="true"></span>
-    <article class="ras-phone">
-      <div class="ras-phone-tela">
-        <small><?= e($empresa) ?></small>
-        <b>Sua viagem está pronta</b>
-        <em class="is-go">Iniciar viagem</em>
-        <em class="is-stop">Encerrar viagem</em>
-      </div>
-    </article>
-    <span class="ras-seta" aria-hidden="true"></span>
-    <article class="ras-mapa-hero">
-      <header>Viagem ativa</header>
-      <svg viewBox="0 0 280 150" aria-hidden="true">
-        <path d="M18 118 C70 118 78 46 132 58 C186 70 176 112 262 28" fill="none" stroke="#f26b1a" stroke-width="4" stroke-linecap="round"/>
-        <circle cx="18" cy="118" r="6" fill="#9ec4ff"/>
-        <circle cx="262" cy="28" r="6" fill="#f26b1a"/>
-        <rect x="168" y="78" width="78" height="36" rx="8" fill="#1e232c" stroke="#f26b1a"/>
-        <text x="180" y="100" fill="#f2f4f8" font-size="11" font-family="Segoe UI, sans-serif">Ao vivo</text>
-      </svg>
-      <p>O trajeto aparece aqui quando a viagem começa.</p>
-    </article>
-  </div>
+<section class="ras-hero" aria-label="Gerador de link de rastreamento">
+  <img src="assets/brand/rastreio-topo.jpg?v=1" alt="Gerador de link de rastreamento. Gere o link, envie e acompanhe a viagem ao vivo.">
 </section>
 
 <div class="ras-topo">
