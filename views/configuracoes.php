@@ -446,17 +446,4 @@ $classe2fa = $estado2fa === 'on' ? 'ok' : ($estado2fa === 'setup' ? 'warn' : 'of
     <?php endif; ?>
   <?php endif; ?>
 </section>
-
-<section class="card cfg-card cfg-danger">
-  <header class="card-h">
-    <div>
-      <h2>Zona de perigo</h2>
-      <p class="cfg-lead">Troca os dados desta sessão pela demonstração. No banco real, esta ação fica bloqueada.</p>
-    </div>
-  </header>
-  <form method="post" action="index.php" data-confirm="Restaurar os dados de demonstração? As reservas e ajustes desta sessão serão substituídos.">
-    <?= csrf_fields('reset_demo') ?>
-    <button class="btn btn-danger" type="submit">Restaurar demonstração</button>
-  </form>
-</section>
 </div>
