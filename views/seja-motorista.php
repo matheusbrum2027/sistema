@@ -83,7 +83,7 @@ $faixa = ['Aeroporto Hercílio Luz', 'Jurerê', 'Lagoa da Conceição', 'Campech
           <div class="sm-store-row sm-rise sm-d4 so-instalar">
             <a class="sm-store so-android" href="<?= e(href('aplicativo')) ?>">
               <b aria-hidden="true">▶</b>
-              <span><small>Android · versão 1.3</small><strong>Página do aplicativo</strong></span>
+              <span><small>Android · versão 1.4</small><strong>Página do aplicativo</strong></span>
             </a>
             <a class="sm-store so-ios" href="#app">
               <b aria-hidden="true"></b>
@@ -137,7 +137,7 @@ $faixa = ['Aeroporto Hercílio Luz', 'Jurerê', 'Lagoa da Conceição', 'Campech
           <article class="sm-path is-featured" data-reveal>
             <span>Já cadastrado</span>
             <h3>Baixar o aplicativo</h3>
-            <p>Use o usuário que a operação já entregou. A versão 1.3 instala por cima da anterior, abre o sistema atual e mantém a sessão.</p>
+            <p>Use o usuário que a operação já entregou. A versão 1.4 instala por cima da anterior, abre o sistema atual e mantém a sessão.</p>
             <a class="sm-btn" href="<?= e(href('aplicativo')) ?>">Ir para o download</a>
           </article>
           <article class="sm-path" data-reveal>
@@ -197,7 +197,7 @@ $faixa = ['Aeroporto Hercílio Luz', 'Jurerê', 'Lagoa da Conceição', 'Campech
         <div class="sm-acc" data-reveal>
           <details class="sm-acc-item" open>
             <summary>Já tenho o aplicativo. Preciso apagar?</summary>
-            <p>Não. Baixe a versão 1.3 e confirme a atualização. O Android troca o arquivo e o usuário permanece.</p>
+            <p>Não. Baixe a versão 1.4 e confirme a atualização. O Android troca o arquivo e o usuário permanece.</p>
           </details>
           <details class="sm-acc-item">
             <summary>O Chrome ofereceu instalar o site. Aceito?</summary>
@@ -305,7 +305,7 @@ $faixa = ['Aeroporto Hercílio Luz', 'Jurerê', 'Lagoa da Conceição', 'Campech
     </div>
     <div class="sm-wrap sm-footer-bottom">
       <span>© <?= $ano ?> <?= e($marca) ?></span>
-      <span>Aplicativo 1.3 para quem já está na operação</span>
+      <span>Aplicativo 1.4 para quem já está na operação</span>
     </div>
   </footer>
   <script src="assets/js/site-motorista.js?v=2"></script>
