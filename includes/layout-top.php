@@ -60,7 +60,8 @@ foreach ($db['automacoes'] as $autoRow) {
     if (/Android|iPhone|iPad|iPod/i.test(ua) || ipad) return;
     var link = document.createElement('link');
     link.rel = 'manifest';
-    link.href = 'manifest.json';
+    var arquivo = new Blob([<?= json_encode((string) file_get_contents(__DIR__ . '/../manifest.json'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>], { type: 'application/manifest+json' });
+    link.href = URL.createObjectURL(arquivo);
     document.head.appendChild(link);
   })();
   </script>
