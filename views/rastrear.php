@@ -21,7 +21,7 @@ $fechado = in_array($status, ['concluido', 'encerrado'], true);
     :root { color-scheme: dark; --orange: #f26b1a; --ink: #f2f4f8; --muted: #c5ceda; --card: #1e232c; --line: #3a4250; }
     * { box-sizing: border-box; }
     body { margin: 0; min-height: 100dvh; background: #12141a; color: var(--ink); font-family: "Segoe UI", sans-serif; }
-    main { width: min(440px, calc(100% - 28px)); margin: 0 auto; padding: 28px 0 40px; }
+    main { width: min(440px, calc(100% - 28px)); margin: 0 auto; padding: max(56px, calc(24px + env(safe-area-inset-top, 0px))) 0 40px; }
     .marca { color: var(--orange); font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
     h1 { margin: 8px 0 6px; font-size: 28px; line-height: 1.15; }
     p { margin: 0 0 12px; color: var(--muted); line-height: 1.45; }

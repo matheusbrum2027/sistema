@@ -22,7 +22,7 @@ $faixa = ['Aeroporto Hercílio Luz', 'Jurerê', 'Lagoa da Conceição', 'Campech
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Syne:wght@700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/css/site-motorista.css?v=5">
+  <link rel="stylesheet" href="assets/css/site-motorista.css?v=6">
   <script>
   (function () {
     var ua = navigator.userAgent || '';

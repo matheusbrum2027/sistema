@@ -30,8 +30,13 @@
 }
 @media (display-mode: standalone), (display-mode: fullscreen) {
   :root {
-    --fln-safe-top: max(28px, env(safe-area-inset-top, 0px));
+    --fln-safe-top: max(56px, env(safe-area-inset-top, 0px));
     --fln-safe-bottom: max(48px, env(safe-area-inset-bottom, 0px));
+  }
+}
+@media (max-width: 900px) {
+  :root {
+    --fln-safe-top: max(56px, env(safe-area-inset-top, 0px));
   }
 }
 
@@ -1717,13 +1722,13 @@ html[data-theme="dark"] .com-card-mark { background: #1b2028; border-color: #3d4
 }
 @media (max-width: 720px) {
   dialog[open], dialog:modal {
-    top: calc(var(--fln-safe-top) + 8px) !important;
+    top: calc(var(--fln-safe-top) + 16px) !important;
     left: 8px !important;
     right: 8px !important;
     bottom: auto !important;
     width: auto !important;
     max-width: none !important;
-    max-height: calc(100dvh - var(--fln-safe-top) - var(--fln-safe-bottom) - 16px) !important;
+    max-height: calc(100dvh - var(--fln-safe-top) - var(--fln-safe-bottom) - 32px) !important;
     height: auto !important;
     transform: none !important;
   }
@@ -2039,27 +2044,27 @@ html[data-theme="dark"] .nav-scroll::-webkit-scrollbar-thumb { background: #4650
   .flutuantes-direita { bottom: calc(16px + var(--fln-safe-bottom)); }
   .aviso-ao-vivo { bottom: calc(16px + var(--fln-safe-bottom)); }
   dialog[open], dialog:modal {
-    top: calc(var(--fln-safe-top) + 8px) !important;
+    top: calc(var(--fln-safe-top) + 16px) !important;
     left: 8px !important;
     right: 8px !important;
     bottom: auto !important;
     width: auto !important;
     max-width: none !important;
     transform: none !important;
-    max-height: calc(100dvh - var(--fln-safe-top) - var(--fln-safe-bottom) - 16px) !important;
+    max-height: calc(100dvh - var(--fln-safe-top) - var(--fln-safe-bottom) - 32px) !important;
     height: auto !important;
   }
   dialog.dlg-detalhe[open],
   dialog.dlg-detalhe:modal {
-    top: 50% !important;
-    left: 50% !important;
-    right: auto !important;
+    top: calc(var(--fln-safe-top) + 16px) !important;
+    left: 8px !important;
+    right: 8px !important;
     bottom: auto !important;
-    transform: translate(-50%, -50%) !important;
-    width: min(960px, calc(100vw - 16px)) !important;
+    transform: none !important;
+    width: auto !important;
     min-width: 0 !important;
-    max-width: calc(100vw - 16px) !important;
-    max-height: calc(100dvh - 16px) !important;
+    max-width: none !important;
+    max-height: calc(100dvh - var(--fln-safe-top) - var(--fln-safe-bottom) - 32px) !important;
   }
   .topbar { height: auto; flex-wrap: wrap; align-items: center; padding: 8px 10px; row-gap: 8px; }
   .topbar-brand { min-width: 0; flex: 1 1 auto; }

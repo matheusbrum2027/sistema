@@ -76,7 +76,7 @@ foreach ($db['automacoes'] as $autoRow) {
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="assets/css/app.css?v=135">
+  <link rel="stylesheet" href="assets/css/app.css?v=136">
   <?php endif; ?>
 </head>
 <?php
