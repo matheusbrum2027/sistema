@@ -73,7 +73,7 @@ function paginas_financeiras(): array
 
 function paginas_somente_master(): array
 {
-    return ['funcionarios', 'configuracoes', 'desenvolvedor'];
+    return ['funcionarios', 'configuracoes'];
 }
 
 function acao_financeira(string $acao): bool
