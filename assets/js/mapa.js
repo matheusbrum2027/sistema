@@ -17,8 +17,6 @@
   let poll = 0;
   let map = null;
   let layerPins = null;
-  let layerRotas = null;
-  let layerHot = null;
   const marcadores = new Map();
 
   const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -69,9 +67,7 @@
     });
     tiles.addTo(map);
 
-    layerRotas = L.layerGroup().addTo(map);
     layerPins = L.layerGroup().addTo(map);
-    layerHot = L.layerGroup().addTo(map);
     requestAnimationFrame(() => requestAnimationFrame(ajustarMapa));
     setTimeout(ajustarMapa, 180);
     return map;
@@ -116,22 +112,12 @@
     const r = dados.resumo || {};
     document.getElementById('mapa-kpi-total').textContent = String(r.total || 0);
     document.getElementById('mapa-kpi-pins').textContent = String(r.pins || 0);
-    document.getElementById('mapa-kpi-rotas').textContent = String(r.rotas || 0);
     badge(Number(r.total) || 0);
     const linha = document.getElementById('mapa-status-linha');
     if (linha) linha.textContent = (r.total || 0) + ' viagens · mapa ao vivo';
 
-    layerRotas.clearLayers();
     layerPins.clearLayers();
-    layerHot.clearLayers();
     marcadores.clear();
-
-    (dados.rotas || []).forEach((rt) => {
-      L.polyline(
-        [[rt.lat1, rt.lng1], [rt.lat2, rt.lng2]],
-        { color: '#f97316', weight: 3, opacity: 0.75, dashArray: '6 8' }
-      ).addTo(layerRotas);
-    });
 
     const bounds = [];
     (dados.pins || []).forEach((p) => {
@@ -142,21 +128,6 @@
       if (!marcadores.has(Number(p.id))) marcadores.set(Number(p.id), []);
       marcadores.get(Number(p.id)).push(m);
       bounds.push([p.lat, p.lng]);
-    });
-
-    (dados.hotspots || []).slice(0, 8).forEach((h) => {
-      const circ = L.circleMarker([h.lat, h.lng], {
-        radius: Math.min(22, 10 + h.qtd * 2),
-        color: '#2563eb',
-        weight: 2,
-        fillColor: '#3b82f6',
-        fillOpacity: 0.28,
-      }).bindTooltip(h.nome + ': ' + h.qtd + ' ponto(s)', { permanent: false })
-        .addTo(layerHot);
-      circ.on('click', () => {
-        const pin = (dados.pins || []).find((p) => p.ponto === h.nome);
-        if (pin) focar(pin.id);
-      });
     });
 
     if (bounds.length) {

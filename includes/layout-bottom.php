@@ -68,7 +68,6 @@ declare(strict_types=1);
   <div class="mapa-kpis">
     <div class="mapa-kpi"><span id="mapa-kpi-total">0</span><small>Viagens</small></div>
     <div class="mapa-kpi"><span id="mapa-kpi-pins">0</span><small>Pontos</small></div>
-    <div class="mapa-kpi"><span id="mapa-kpi-rotas">0</span><small>Rotas</small></div>
   </div>
   <div class="mapa-stage-wrap">
     <div class="mapa-stage" id="mapa-stage" aria-label="Mapa Leaflet da operação"></div>
@@ -77,7 +76,6 @@ declare(strict_types=1);
     <div class="mapa-legenda">
       <span><i class="lg-origem"></i> Embarque</span>
       <span><i class="lg-destino"></i> Destino</span>
-      <span><i class="lg-rota"></i> Rota</span>
     </div>
     <div class="mapa-lista" id="mapa-lista"></div>
   </div>
@@ -236,7 +234,7 @@ declare(strict_types=1);
 <link rel="stylesheet" href="assets/vendor/leaflet/leaflet.css?v=2">
 <script src="assets/vendor/leaflet/leaflet.js?v=2"></script>
 <script src="assets/js/chat.js?v=19"></script>
-<script src="assets/js/mapa.js?v=9"></script>
+<script src="assets/js/mapa.js?v=10"></script>
 <script src="assets/js/push.js?v=10"></script>
 <?php endif; ?>
 <?php endif; ?>
