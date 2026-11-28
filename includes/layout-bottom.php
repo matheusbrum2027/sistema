@@ -231,10 +231,8 @@ declare(strict_types=1);
     </form>
   </section>
 </aside>
-<link rel="stylesheet" href="assets/vendor/leaflet/leaflet.css?v=2">
-<script src="assets/vendor/leaflet/leaflet.js?v=2"></script>
 <script src="assets/js/chat.js?v=19"></script>
-<script src="assets/js/mapa.js?v=10"></script>
+<script src="assets/js/mapa.js?v=11"></script>
 <script src="assets/js/push.js?v=10"></script>
 <?php endif; ?>
 <?php endif; ?>

@@ -44,6 +44,30 @@
     map.invalidateSize({ animate: false });
   }
 
+  let folhaLeaflet = null;
+  function carregarLeaflet() {
+    if (typeof L !== 'undefined') return Promise.resolve();
+    if (folhaLeaflet) return folhaLeaflet;
+    folhaLeaflet = new Promise((resolve, reject) => {
+      if (!document.querySelector('link[data-fln-leaflet]')) {
+        const css = document.createElement('link');
+        css.rel = 'stylesheet';
+        css.href = 'assets/vendor/leaflet/leaflet.css?v=2';
+        css.setAttribute('data-fln-leaflet', '1');
+        document.head.appendChild(css);
+      }
+      const script = document.createElement('script');
+      script.src = 'assets/vendor/leaflet/leaflet.js?v=2';
+      script.onload = () => resolve();
+      script.onerror = () => {
+        folhaLeaflet = null;
+        reject(new Error('A biblioteca do mapa não carregou. Atualize a página.'));
+      };
+      document.head.appendChild(script);
+    });
+    return folhaLeaflet;
+  }
+
   function garantirMapa() {
     if (typeof L === 'undefined') return null;
     if (map) {
@@ -219,6 +243,12 @@
   }
 
   async function carregar() {
+    try {
+      await carregarLeaflet();
+    } catch (e) {
+      listaEl.innerHTML = '<p class="mapa-vazio">' + esc(e.message || 'A biblioteca do mapa não carregou. Atualize a página.') + '</p>';
+      return;
+    }
     if (!garantirMapa()) {
       listaEl.innerHTML = '<p class="mapa-vazio">A biblioteca do mapa não carregou. Atualize a página.</p>';
       return;
@@ -252,7 +282,10 @@
     const borda = document.getElementById('mapa-borda');
     if (borda) borda.hidden = true;
     abrir.setAttribute('aria-expanded', 'true');
-    garantirMapa();
+    carregarLeaflet().then(() => {
+      garantirMapa();
+      requestAnimationFrame(() => requestAnimationFrame(ajustarMapa));
+    }).catch(() => {});
     requestAnimationFrame(() => requestAnimationFrame(ajustarMapa));
     setTimeout(ajustarMapa, 60);
     setTimeout(ajustarMapa, 280);
